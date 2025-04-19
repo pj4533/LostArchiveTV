@@ -35,12 +35,15 @@ class VideoPlayerViewModel: ObservableObject {
         
         // Load identifiers and start preloading videos when the ViewModel is initialized
         Task {
-            // Load identifiers first
+            // Load identifiers first - must complete before preloading
             await loadIdentifiers()
             
-            // Brief delay to allow app to initialize fully
-            try? await Task.sleep(for: .seconds(0.5))
-            await ensureVideosAreCached()
+            // Only start preloading after identifiers are loaded
+            if !identifiers.isEmpty {
+                await ensureVideosAreCached()
+            } else {
+                Logger.caching.error("Cannot preload: identifiers not loaded properly")
+            }
         }
         
         // Configure logging
@@ -78,7 +81,13 @@ class VideoPlayerViewModel: ObservableObject {
     // MARK: - Video Loading
     
     private func loadIdentifiers() async {
-        identifiers = await archiveService.loadArchiveIdentifiers()
+        do {
+            identifiers = try await archiveService.loadArchiveIdentifiers()
+            Logger.metadata.info("Successfully loaded \(self.identifiers.count) identifiers")
+        } catch {
+            Logger.metadata.error("Failed to load identifiers: \(error.localizedDescription)")
+            self.errorMessage = "Failed to load video identifiers: \(error.localizedDescription)"
+        }
     }
     
     func loadRandomVideo() async {
@@ -86,6 +95,20 @@ class VideoPlayerViewModel: ObservableObject {
         Logger.videoPlayback.info("Starting to load random video for swipe interface")
         isLoading = true
         errorMessage = nil
+        
+        // Ensure we have identifiers loaded
+        if identifiers.isEmpty {
+            Logger.metadata.warning("Attempting to load video but identifiers array is empty, loading identifiers first")
+            await loadIdentifiers()
+            
+            // Check again after loading
+            if identifiers.isEmpty {
+                Logger.metadata.error("No identifiers available after explicit load attempt")
+                errorMessage = "No identifiers available. Make sure avgeeks_identifiers.json is in the app bundle."
+                isLoading = false
+                return
+            }
+        }
         
         // Clean up existing player
         playbackManager.cleanupPlayer()

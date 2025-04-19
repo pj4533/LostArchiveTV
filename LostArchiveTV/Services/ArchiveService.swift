@@ -10,24 +10,35 @@ import OSLog
 
 actor ArchiveService {
     // MARK: - Metadata Loading
-    func loadArchiveIdentifiers() -> [String] {
+    func loadArchiveIdentifiers() async throws -> [String] {
         Logger.metadata.debug("Loading archive identifiers from bundle")
         guard let url = Bundle.main.url(forResource: "avgeeks_identifiers", withExtension: "json") else {
             Logger.metadata.error("Failed to find identifiers file")
-            return []
+            throw NSError(domain: "ArchiveService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Identifiers file not found"])
         }
         
         do {
             let startTime = CFAbsoluteTimeGetCurrent()
+            
+            // Load data from the file
             let data = try Data(contentsOf: url)
+            
+            // Decode the identifiers
             let identifierObjects = try JSONDecoder().decode([ArchiveIdentifier].self, from: data)
             let identifiers = identifierObjects.map { $0.identifier }
+            
             let loadTime = CFAbsoluteTimeGetCurrent() - startTime
             Logger.metadata.info("Loaded \(identifiers.count) identifiers in \(loadTime.formatted(.number.precision(.fractionLength(4)))) seconds")
+            
+            if identifiers.isEmpty {
+                Logger.metadata.error("Identifiers array is empty after loading")
+                throw NSError(domain: "ArchiveService", code: 2, userInfo: [NSLocalizedDescriptionKey: "No identifiers found in file"])
+            }
+            
             return identifiers
         } catch {
             Logger.metadata.error("Failed to decode identifiers: \(error.localizedDescription)")
-            return []
+            throw error
         }
     }
     

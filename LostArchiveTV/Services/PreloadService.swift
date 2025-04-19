@@ -13,6 +13,12 @@ actor PreloadService {
     private var preloadTask: Task<Void, Never>?
     
     func ensureVideosAreCached(cacheManager: VideoCacheManager, archiveService: ArchiveService, identifiers: [String]) async {
+        // Make sure we have identifiers before trying to preload
+        guard !identifiers.isEmpty else {
+            Logger.caching.error("Cannot preload videos: identifiers array is empty")
+            return
+        }
+        
         // Cancel any existing preload task
         preloadTask?.cancel()
         
