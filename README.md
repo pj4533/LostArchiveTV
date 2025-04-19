@@ -1,6 +1,6 @@
 # LostArchiveTV
 
-A TikTok-style iOS video player for exploring films from the Internet Archive.
+A TikTok-style iOS video player for exploring videos from the Internet Archive.
 
 ![LostArchiveTV Screenshot](lost_archive_tv.png)
 
