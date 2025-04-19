@@ -30,7 +30,7 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:LostArchiveTV.xctestplan"
+            reference = "container:LostArchiveTV/LostArchiveTV.xctestplan"
             default = "YES">
          </TestPlanReference>
       </TestPlans>
