@@ -1,0 +1,28 @@
+{
+  "configurations" : [
+    {
+      "id" : "D2E8FB1E-6607-42A7-A214-62326B394EC1",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:LostArchiveTV.xcodeproj",
+      "identifier" : "B0C35BDD2DB3E4A5009A3714",
+      "name" : "LostArchiveTV"
+    }
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:LostArchiveTV.xcodeproj",
+        "identifier" : "B0C35BEA2DB3E4A6009A3714",
+        "name" : "LostArchiveTVTests"
+      }
+    }
+  ],
+  "version" : 1
+}
