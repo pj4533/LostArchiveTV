@@ -1,5 +1,5 @@
 //
-//  ContentView.swift
+//  PlayerContentView.swift
 //  LostArchiveTV
 //
 //  Created by PJ Gray on 4/19/25.
@@ -8,59 +8,6 @@
 import SwiftUI
 import AVKit
 
-struct ContentView: View {
-    @StateObject private var videoPlayerViewModel = VideoPlayerViewModel()
-    
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            
-            if videoPlayerViewModel.isLoading {
-                LoadingView()
-            } else if let player = videoPlayerViewModel.player {
-                PlayerContentView(
-                    player: player,
-                    currentIdentifier: videoPlayerViewModel.currentIdentifier,
-                    title: videoPlayerViewModel.currentTitle,
-                    description: videoPlayerViewModel.currentDescription
-                ) {
-                    Task {
-                        await videoPlayerViewModel.loadRandomVideo()
-                    }
-                }
-            } else if let error = videoPlayerViewModel.errorMessage {
-                ErrorView(error: error) {
-                    Task {
-                        await videoPlayerViewModel.loadRandomVideo()
-                    }
-                }
-            }
-        }
-        .task {
-            await videoPlayerViewModel.loadRandomVideo()
-        }
-    }
-}
-
-// MARK: - Header View
-struct HeaderView: View {
-    var body: some View {
-        Text("Internet Archive Video Player")
-            .font(.title2)
-            .padding()
-    }
-}
-
-// MARK: - Loading View
-struct LoadingView: View {
-    var body: some View {
-        ProgressView("Fetching video metadata...")
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-// MARK: - Player Content View
 struct PlayerContentView: View {
     let player: AVPlayer
     let currentIdentifier: String?
@@ -120,25 +67,17 @@ struct PlayerContentView: View {
     }
 }
 
-// MARK: - Error View
-struct ErrorView: View {
-    let error: String
-    let onRetryTapped: () -> Void
-    
-    var body: some View {
-        VStack {
-            Text("Error: \(error)")
-                .foregroundColor(.red)
-                .padding()
-            
-            Button("Retry", action: onRetryTapped)
-                .buttonStyle(.borderedProminent)
-                .tint(.white)
-                .padding()
-        }
-    }
-}
-
 #Preview {
-    ContentView()
+    // Create a sample AVPlayer for preview
+    let sampleURL = URL(string: "https://example.com/sample.mp4")!
+    let player = AVPlayer(url: sampleURL)
+    
+    return PlayerContentView(
+        player: player,
+        currentIdentifier: "sample123",
+        title: "Sample Video Title",
+        description: "This is a sample description for the video that might span multiple lines when displayed in the app interface.",
+        onPlayRandomTapped: {}
+    )
+    .preferredColorScheme(.dark)
 }

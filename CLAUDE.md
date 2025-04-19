@@ -15,8 +15,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Verify build after making changes: Run the build command to ensure there are no errors
 
 ## Project Structure
-- Single-file model architecture with all models in `Models.swift`
-- Main view components in `ContentView.swift`
+- Organized into separate Models, Views, and ViewModels directories
+- Models in `Models/` directory: ArchiveIdentifier, ArchiveMetadata, ArchiveFile, ItemMetadata, CachedVideo
+- Views in `Views/` directory: ContentView, PlayerContentView, LoadingView, ErrorView, HeaderView
 - Video playback logic in `VideoPlayerViewModel.swift`
 - App entry point in `LostArchiveTVApp.swift`
 - Video identifiers stored in `avgeeks_identifiers.json`
