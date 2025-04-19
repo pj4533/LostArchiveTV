@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import OSLog
 
 @MainActor
 class VideoListViewModel: ObservableObject {
@@ -14,6 +15,7 @@ class VideoListViewModel: ObservableObject {
     
     // Fetch initial videos
     func loadInitialVideos() async {
+        Logger.ui.info("Loading initial videos with query: \(self.currentQuery)")
         videos = []
         currentPage = 1
         await searchVideos(query: currentQuery)
@@ -21,15 +23,23 @@ class VideoListViewModel: ObservableObject {
     
     // Load more videos for infinite scrolling
     func loadMoreVideosIfNeeded() async {
-        guard !isLoading, hasMorePages else { return }
+        guard !isLoading, hasMorePages else {
+            Logger.ui.debug("Skipping load more: isLoading=\(self.isLoading), hasMorePages=\(self.hasMorePages)")
+            return
+        }
+        Logger.ui.info("Loading more videos (page \(self.currentPage + 1))")
         currentPage += 1
         await searchVideos(query: currentQuery)
     }
     
     // Search videos with a specific query
     private func searchVideos(query: String) async {
-        guard !isLoading else { return }
+        guard !isLoading else {
+            Logger.ui.debug("Search already in progress, skipping request")
+            return
+        }
         
+        Logger.ui.debug("Starting search with query: '\(query)', page: \(self.currentPage)")
         isLoading = true
         error = nil
         
@@ -41,10 +51,15 @@ class VideoListViewModel: ObservableObject {
             
             // Append new videos to the existing list
             videos.append(contentsOf: newVideos)
+            Logger.ui.info("Added \(newVideos.count) videos to the list (total: \(self.videos.count))")
             
             // Check if we've reached the end
             hasMorePages = !newVideos.isEmpty
+            if !hasMorePages {
+                Logger.ui.notice("Reached the end of search results for query: '\(query)'")
+            }
         } catch {
+            Logger.ui.error("Failed to load videos: \(error.localizedDescription)")
             self.error = "Failed to load videos: \(error.localizedDescription)"
         }
         
