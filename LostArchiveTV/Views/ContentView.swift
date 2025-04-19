@@ -13,14 +13,20 @@ struct ContentView: View {
     
     var body: some View {
         ZStack {
+            // Black background
             Color.black.ignoresSafeArea()
             
-            // Use the new swipeable video container
-            SwipeableVideoView(viewModel: videoPlayerViewModel)
-        }
-        .task {
-            // Initial video load when the app launches
-            await videoPlayerViewModel.loadRandomVideo()
+            // Main content
+            if videoPlayerViewModel.isInitializing {
+                // Show the app loading screen during initialization
+                LoadingView(
+                    message: videoPlayerViewModel.cacheMessage,
+                    progress: videoPlayerViewModel.cacheProgress
+                )
+            } else {
+                // Use the swipeable video container once initialization is complete
+                SwipeableVideoView(viewModel: videoPlayerViewModel)
+            }
         }
     }
 }

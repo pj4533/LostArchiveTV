@@ -24,8 +24,19 @@ struct SwipeableVideoView: View {
                 // Black background
                 Color.black.ignoresSafeArea()
                 
-                // Current video
-                if let player = viewModel.player {
+                // Content based on state
+                if viewModel.isLoading {
+                    // Show loading screen while loading a video
+                    LoadingView(message: "Loading next video...")
+                } else if let error = viewModel.errorMessage {
+                    // Show error screen when there's an error
+                    ErrorView(error: error) {
+                        Task {
+                            await viewModel.loadRandomVideo()
+                        }
+                    }
+                } else if let player = viewModel.player {
+                    // Show the current video when available
                     ZStack {
                         // Current video content - moves up with swipe
                         VideoPlayerContent(
@@ -46,21 +57,27 @@ struct SwipeableVideoView: View {
                         )
                         .offset(y: -dragOffset)
                     }
-                } else if viewModel.isLoading {
-                    LoadingView()
-                } else if let error = viewModel.errorMessage {
-                    ErrorView(error: error) {
-                        Task {
-                            await viewModel.loadRandomVideo()
+                } else {
+                    // Fallback if player isn't loaded yet but not in loading state
+                    // This should rarely occur, but provides a better UX if it does
+                    LoadingView(message: "Preparing video player...")
+                    
+                    // Auto-trigger video load if needed
+                    .onAppear {
+                        if !viewModel.isLoading {
+                            Task {
+                                await viewModel.loadRandomVideo()
+                            }
                         }
                     }
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .contentShape(Rectangle())
-            // Gesture for vertical swipe
+            // Gesture for vertical swipe - only enable when we have a video playing
             .gesture(
-                DragGesture()
+                viewModel.player == nil || viewModel.isLoading ? nil :
+                    DragGesture()
                     .onChanged { value in
                         guard !isTransitioning else { return }
                         

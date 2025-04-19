@@ -29,6 +29,14 @@ class VideoPlayerViewModel: ObservableObject {
     @Published var currentTitle: String?
     @Published var currentDescription: String?
     
+    // New properties for tracking app initialization and cache status
+    @Published var isInitializing = true
+    @Published var cacheProgress: Double = 0.0
+    @Published var cacheMessage = "Loading video library..."
+    
+    // Cache monitoring
+    private var cacheMonitorTask: Task<Void, Never>?
+    
     // Archive.org video identifiers
     private var identifiers: [String] = []
     
@@ -37,6 +45,9 @@ class VideoPlayerViewModel: ObservableObject {
         // Configure audio session for proper playback on all devices
         playbackManager.setupAudioSession()
         
+        // Set initial state
+        isInitializing = true
+        
         // Load identifiers and start preloading videos when the ViewModel is initialized
         Task {
             // Load identifiers first - must complete before preloading
@@ -44,14 +55,64 @@ class VideoPlayerViewModel: ObservableObject {
             
             // Only start preloading after identifiers are loaded
             if !identifiers.isEmpty {
+                // Start monitoring cache progress
+                monitorCacheProgress()
+                
+                // Begin preloading videos
                 await ensureVideosAreCached()
+                
+                // After preloading is started, load the first video but don't show it yet
+                // (it will be shown once initialization is complete)
+                await loadRandomVideo(showImmediately: false)
             } else {
                 Logger.caching.error("Cannot preload: identifiers not loaded properly")
+                isInitializing = false
             }
         }
         
         // Configure logging
         Logger.videoPlayback.info("TikTok-style video player initialized with swipe interface")
+    }
+    
+    // MARK: - Cache monitoring
+    
+    private func monitorCacheProgress() {
+        cacheMonitorTask?.cancel()
+        
+        cacheMonitorTask = Task {
+            var isFirstVideoLoaded = false
+            
+            while !Task.isCancelled && isInitializing {
+                let cacheCount = await cacheManager.cacheCount()
+                let maxCacheSize = await cacheManager.getMaxCacheSize()
+                
+                // Update progress - we'll consider initialization complete when cache is full
+                self.cacheProgress = Double(cacheCount) / Double(maxCacheSize)
+                
+                // Update message based on current state
+                if cacheCount == 0 {
+                    self.cacheMessage = "Loading video library..."
+                } else if !isFirstVideoLoaded {
+                    self.cacheMessage = "Preparing first video..."
+                    isFirstVideoLoaded = true
+                } else {
+                    self.cacheMessage = "Preloading videos for smooth playback..."
+                }
+                
+                // If cache is full, complete initialization
+                if cacheCount >= maxCacheSize {
+                    // Make sure we've waited a minimum time to avoid flashing of UI
+                    try? await Task.sleep(for: .seconds(0.5))
+                    
+                    self.isInitializing = false
+                    self.cacheMonitorTask?.cancel()
+                    break
+                }
+                
+                // Check periodically to avoid overwhelming the system
+                try? await Task.sleep(for: .seconds(0.2))
+            }
+        }
     }
     
     // MARK: - Swipe Interface Support
@@ -91,14 +152,19 @@ class VideoPlayerViewModel: ObservableObject {
         } catch {
             Logger.metadata.error("Failed to load identifiers: \(error.localizedDescription)")
             self.errorMessage = "Failed to load video identifiers: \(error.localizedDescription)"
+            isInitializing = false
         }
     }
     
-    func loadRandomVideo() async {
+    func loadRandomVideo(showImmediately: Bool = true) async {
         let overallStartTime = CFAbsoluteTimeGetCurrent()
         Logger.videoPlayback.info("Starting to load random video for swipe interface")
-        isLoading = true
-        errorMessage = nil
+        
+        // Only update UI loading state if we're showing immediately
+        if showImmediately {
+            isLoading = true
+            errorMessage = nil
+        }
         
         // Ensure we have identifiers loaded
         if identifiers.isEmpty {
@@ -110,6 +176,7 @@ class VideoPlayerViewModel: ObservableObject {
                 Logger.metadata.error("No identifiers available after explicit load attempt")
                 errorMessage = "No identifiers available. Make sure avgeeks_identifiers.json is in the app bundle."
                 isLoading = false
+                isInitializing = false
                 return
             }
         }
@@ -143,18 +210,24 @@ class VideoPlayerViewModel: ObservableObject {
                 let seekTime = CFAbsoluteTimeGetCurrent() - seekStartTime
                 Logger.videoPlayback.info("Video seek completed in \(seekTime.formatted(.number.precision(.fractionLength(4)))) seconds")
                 
-                // Start playback
-                self?.playbackManager.play()
-                
-                // Monitor buffer status
-                if let playerItem = self?.playbackManager.player?.currentItem {
-                    Task {
-                        await self?.playbackManager.monitorBufferStatus(for: playerItem)
+                // Only start playback if we're not in initialization mode or explicitly showing immediately
+                if showImmediately || !(self?.isInitializing ?? false) {
+                    // Start playback
+                    self?.playbackManager.play()
+                    
+                    // Monitor buffer status
+                    if let playerItem = self?.playbackManager.player?.currentItem {
+                        Task {
+                            await self?.playbackManager.monitorBufferStatus(for: playerItem)
+                        }
                     }
                 }
             }
             
-            isLoading = false
+            // Only update loading state if we're showing immediately
+            if showImmediately {
+                isLoading = false
+            }
             
             // Start preloading the next video if needed
             await ensureVideosAreCached()
@@ -164,8 +237,14 @@ class VideoPlayerViewModel: ObservableObject {
             
         } catch {
             Logger.videoPlayback.error("Failed to load video: \(error.localizedDescription)")
-            isLoading = false
-            errorMessage = "Error loading video: \(error.localizedDescription)"
+            
+            if showImmediately {
+                isLoading = false
+                errorMessage = "Error loading video: \(error.localizedDescription)"
+            }
+            
+            // Always exit initialization mode on error to prevent being stuck in loading
+            isInitializing = false
         }
     }
     
@@ -181,6 +260,8 @@ class VideoPlayerViewModel: ObservableObject {
     
     deinit {
         // Cancel any ongoing tasks
+        cacheMonitorTask?.cancel()
+        
         Task {
             await preloadService.cancelPreloading()
             await cacheManager.clearCache()
