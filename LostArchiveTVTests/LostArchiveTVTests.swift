@@ -8,10 +8,6 @@
 import Testing
 @testable import LostArchiveTV
 
-struct LostArchiveTVTests {
-
-    @Test func example() async throws {
-        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
-    }
-
+@Suite struct LostArchiveTVTests {
+    // Main test suite - individual tests are in their respective files
 }
