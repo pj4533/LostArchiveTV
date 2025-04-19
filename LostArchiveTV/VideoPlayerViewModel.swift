@@ -86,7 +86,7 @@ class VideoPlayerViewModel: ObservableObject {
                 let cacheCount = await cacheManager.cacheCount()
                 let maxCacheSize = await cacheManager.getMaxCacheSize()
                 
-                // Update progress - we'll consider initialization complete when cache is full
+                // Update progress
                 self.cacheProgress = Double(cacheCount) / Double(maxCacheSize)
                 
                 // Update message based on current state
@@ -95,22 +95,38 @@ class VideoPlayerViewModel: ObservableObject {
                 } else if !isFirstVideoLoaded {
                     self.cacheMessage = "Preparing first video..."
                     isFirstVideoLoaded = true
+                    
+                    // If the first video is loaded, complete initialization
+                    // This allows the video to start playing immediately while cache continues filling
+                    try? await Task.sleep(for: .seconds(0.5))
+                    self.isInitializing = false
+                    
+                    // Don't cancel the monitoring task - let it continue in the background
+                    break
                 } else {
                     self.cacheMessage = "Preloading videos for smooth playback..."
                 }
                 
-                // If cache is full, complete initialization
+                // Check periodically to avoid overwhelming the system
+                try? await Task.sleep(for: .seconds(0.2))
+            }
+            
+            // Continue monitoring the cache in the background
+            while !Task.isCancelled {
+                let cacheCount = await cacheManager.cacheCount()
+                let maxCacheSize = await cacheManager.getMaxCacheSize()
+                
+                // Update progress for any UI that might still be showing it
+                self.cacheProgress = Double(cacheCount) / Double(maxCacheSize)
+                
+                // If cache is full, we can stop monitoring
                 if cacheCount >= maxCacheSize {
-                    // Make sure we've waited a minimum time to avoid flashing of UI
-                    try? await Task.sleep(for: .seconds(0.5))
-                    
-                    self.isInitializing = false
                     self.cacheMonitorTask?.cancel()
                     break
                 }
                 
-                // Check periodically to avoid overwhelming the system
-                try? await Task.sleep(for: .seconds(0.2))
+                // Check less frequently now that we're in the background
+                try? await Task.sleep(for: .seconds(0.5))
             }
         }
     }
@@ -210,16 +226,14 @@ class VideoPlayerViewModel: ObservableObject {
                 let seekTime = CFAbsoluteTimeGetCurrent() - seekStartTime
                 Logger.videoPlayback.info("Video seek completed in \(seekTime.formatted(.number.precision(.fractionLength(4)))) seconds")
                 
-                // Only start playback if we're not in initialization mode or explicitly showing immediately
-                if showImmediately || !(self?.isInitializing ?? false) {
-                    // Start playback
-                    self?.playbackManager.play()
-                    
-                    // Monitor buffer status
-                    if let playerItem = self?.playbackManager.player?.currentItem {
-                        Task {
-                            await self?.playbackManager.monitorBufferStatus(for: playerItem)
-                        }
+                // Always start playback of the first video
+                // The loading screen will stay up until isInitializing becomes false
+                self?.playbackManager.play()
+                
+                // Monitor buffer status
+                if let playerItem = self?.playbackManager.player?.currentItem {
+                    Task {
+                        await self?.playbackManager.monitorBufferStatus(for: playerItem)
                     }
                 }
             }
