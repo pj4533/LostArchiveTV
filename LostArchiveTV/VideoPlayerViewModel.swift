@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AVKit
+import AVFoundation
 import OSLog
 
 // MARK: - Loggers
@@ -41,6 +42,9 @@ class VideoPlayerViewModel: ObservableObject {
     
     // MARK: - Initialization and Cleanup
     init() {
+        // Configure audio session for proper playback on all devices
+        setupAudioSession()
+        
         // Start preloading videos when the ViewModel is initialized
         Task {
             // Brief delay to allow app to initialize fully
@@ -50,6 +54,17 @@ class VideoPlayerViewModel: ObservableObject {
         
         // Configure logging
         Logger.videoPlayback.info("TikTok-style video player initialized with swipe interface")
+    }
+    
+    private func setupAudioSession() {
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.playback, mode: .moviePlayback)
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            Logger.videoPlayback.info("Audio session configured successfully")
+        } catch {
+            Logger.videoPlayback.error("Failed to configure audio session: \(error.localizedDescription)")
+        }
     }
     
     // MARK: - Swipe Interface Support
