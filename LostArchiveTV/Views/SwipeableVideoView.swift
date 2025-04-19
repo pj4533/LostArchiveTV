@@ -21,26 +21,45 @@ struct SwipeableVideoView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
+                // Black background
+                Color.black.ignoresSafeArea()
+                
                 // Current video
                 if let player = viewModel.player {
-                    VideoPlayerContent(
-                        player: player,
-                        viewModel: viewModel,
-                        offset: min(dragOffset, 0),
-                        opacity: 1.0 - min(abs(dragOffset) / geometry.size.height, 0.5)
-                    )
-                    
-                    // Interface elements that move with the swipe
-                    VideoInfoOverlay(
-                        title: viewModel.currentTitle,
-                        description: viewModel.currentDescription,
-                        identifier: viewModel.currentIdentifier,
-                        onNextTapped: {
-                            playNextVideo()
+                    ZStack {
+                        // Current video content - moves up with swipe
+                        VideoPlayerContent(
+                            player: player,
+                            viewModel: viewModel,
+                            showControls: !isDragging && dragOffset == 0
+                        )
+                        .offset(y: -dragOffset)  // Move up as user swipes up
+                        
+                        // Next video loading indicator
+                        if dragOffset > 50 {
+                            VStack {
+                                Spacer()
+                                ProgressView("Loading next video...")
+                                    .foregroundColor(.white)
+                                    .padding(.bottom, geometry.size.height / 2 - dragOffset)
+                                Spacer()
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(Color.black)
+                            .opacity(min(dragOffset / 100, 0.8))
                         }
-                    )
-                    .offset(y: min(dragOffset, 0))
-                    .opacity(1.0 - min(abs(dragOffset) / (geometry.size.height / 2), 1.0))
+                        
+                        // Bottom video info - moves with video
+                        VideoInfoOverlay(
+                            title: viewModel.currentTitle,
+                            description: viewModel.currentDescription,
+                            identifier: viewModel.currentIdentifier,
+                            onNextTapped: {
+                                playNextVideo(geometry: geometry)
+                            }
+                        )
+                        .offset(y: -dragOffset)
+                    }
                 } else if viewModel.isLoading {
                     LoadingView()
                 } else if let error = viewModel.errorMessage {
@@ -49,16 +68,6 @@ struct SwipeableVideoView: View {
                             await viewModel.loadRandomVideo()
                         }
                     }
-                }
-                
-                // Loading next video indicator (when swiping up)
-                if dragOffset > 0 {
-                    ProgressView("Loading next video...")
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.black)
-                        .opacity(min(dragOffset / (geometry.size.height / 2), 1.0))
-                        .zIndex(1)
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -71,10 +80,24 @@ struct SwipeableVideoView: View {
                         
                         let translation = value.translation.height
                         isDragging = true
-                        dragOffset = -translation
+                        // Only allow upward swipes (negative translation values)
+                        if translation < 0 {
+                            // Convert negative translation to positive offset
+                            dragOffset = -translation
+                        } else {
+                            // Allow slight bounce-back but with resistance
+                            dragOffset = 0
+                        }
                     }
                     .onEnded { value in
-                        guard !isTransitioning else { return }
+                        guard !isTransitioning && dragOffset > 0 else {
+                            // If we're not actually dragging up, just reset
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                dragOffset = 0
+                                isDragging = false
+                            }
+                            return
+                        }
                         
                         let translation = value.translation.height
                         let velocity = value.predictedEndTranslation.height - value.translation.height
@@ -82,24 +105,9 @@ struct SwipeableVideoView: View {
                         // Determine if swipe should complete based on threshold or velocity
                         let shouldComplete = -translation > swipeThreshold || -velocity > 500
                         
-                        if shouldComplete && -translation > 0 {
+                        if shouldComplete {
                             // Complete the swipe animation upward
-                            withAnimation(.easeOut(duration: animationDuration)) {
-                                dragOffset = geometry.size.height
-                                isTransitioning = true
-                            }
-                            
-                            // Load next video
-                            DispatchQueue.main.asyncAfter(deadline: .now() + (animationDuration * 0.7)) {
-                                playNextVideo()
-                            }
-                            
-                            // Reset after animation completes
-                            DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) {
-                                dragOffset = 0
-                                isDragging = false
-                                isTransitioning = false
-                            }
+                            playNextVideo(geometry: geometry)
                         } else {
                             // Bounce back to original position
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -128,13 +136,29 @@ struct SwipeableVideoView: View {
                 }
             }
         }
-        .background(Color.black)
-        .edgesIgnoringSafeArea(.all)
     }
     
-    private func playNextVideo() {
-        Task {
-            await viewModel.loadRandomVideo()
+    private func playNextVideo(geometry: GeometryProxy) {
+        // Mark as transitioning to prevent gesture conflicts
+        isTransitioning = true
+        
+        // Animate current video off-screen
+        withAnimation(.easeOut(duration: animationDuration)) {
+            dragOffset = geometry.size.height
+        }
+        
+        // Start loading next video
+        DispatchQueue.main.asyncAfter(deadline: .now() + (animationDuration * 0.5)) {
+            Task {
+                await viewModel.loadRandomVideo()
+            }
+        }
+        
+        // Reset after animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) {
+            dragOffset = 0
+            isDragging = false
+            isTransitioning = false
         }
     }
 }
@@ -143,8 +167,7 @@ struct SwipeableVideoView: View {
 struct VideoPlayerContent: View {
     let player: AVPlayer
     let viewModel: VideoPlayerViewModel
-    let offset: CGFloat
-    let opacity: Double
+    let showControls: Bool
     
     var body: some View {
         ZStack {
@@ -153,9 +176,8 @@ struct VideoPlayerContent: View {
             VideoPlayer(player: player)
                 .disabled(true) // Disable VideoPlayer's own gestures
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .offset(y: offset)
-                .opacity(opacity)
         }
+        .edgesIgnoringSafeArea(.all)
     }
 }
 
@@ -211,18 +233,12 @@ struct VideoInfoOverlay: View {
                     endPoint: .bottom
                 )
             )
-        }
-        
-        // Swipe hint
-        VStack {
-            Spacer()
             
+            // Swipe hint
             Text("Swipe up for next video")
                 .font(.caption)
                 .foregroundColor(.white.opacity(0.7))
-                .padding(.bottom, 160) // Position above the controls
-            
-            Spacer().frame(height: 50)
+                .padding(.bottom, 5)
         }
     }
 }
