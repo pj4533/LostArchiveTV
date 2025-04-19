@@ -28,7 +28,7 @@ class VideoPlayerViewModel: ObservableObject {
     // Caching for video preloading
     private var cachedVideos: [CachedVideo] = []
     private var preloadTask: Task<Void, Never>?
-    private let maxCachedVideos = 2
+    private let maxCachedVideos = 3 // Increased for smoother swiping experience
     
     // Published properties
     @Published var player: AVPlayer?
@@ -46,6 +46,25 @@ class VideoPlayerViewModel: ObservableObject {
             // Brief delay to allow app to initialize fully
             try? await Task.sleep(for: .seconds(0.5))
             ensureVideosAreCached()
+        }
+        
+        // Configure logging
+        Logger.videoPlayback.info("TikTok-style video player initialized with swipe interface")
+    }
+    
+    // MARK: - Swipe Interface Support
+    
+    /// Prepares the player for swiping by ensuring multiple videos are cached
+    func prepareForSwipe() {
+        Logger.videoPlayback.debug("Preparing for swipe interactions")
+        ensureVideosAreCached()
+    }
+    
+    /// Handles the completion of a swipe gesture
+    func handleSwipeCompletion() {
+        Logger.videoPlayback.info("Swipe gesture completed, loading next video")
+        Task {
+            await loadRandomVideo()
         }
     }
     
@@ -115,16 +134,21 @@ extension VideoPlayerViewModel {
 extension VideoPlayerViewModel {
     func loadRandomVideo() async {
         let overallStartTime = CFAbsoluteTimeGetCurrent()
-        Logger.videoPlayback.info("Starting to load random video")
+        Logger.videoPlayback.info("Starting to load random video for swipe interface")
         isLoading = true
         errorMessage = nil
         
         // Clean up existing player
         if let existingPlayer = player {
-            Logger.videoPlayback.debug("Cleaning up existing player")
+            Logger.videoPlayback.debug("Cleaning up existing player for swipe transition")
             existingPlayer.pause()
             existingPlayer.replaceCurrentItem(with: nil)
             player = nil
+        }
+        
+        // Pre-emptively start caching next videos for smooth swipes
+        Task {
+            ensureVideosAreCached()
         }
         
         // Check if we have cached videos available
@@ -478,7 +502,17 @@ extension VideoPlayerViewModel {
         
         // Start a new preload task
         preloadTask = Task {
-            Logger.caching.info("Starting cache preload task, current cache size: \(self.cachedVideos.count)")
+            Logger.caching.info("Starting cache preload for swipe interface, current cache size: \(self.cachedVideos.count)")
+            
+            // Prioritize loading at least one video immediately
+            if self.cachedVideos.isEmpty {
+                Logger.caching.debug("Cache empty, prioritizing first video load")
+                do {
+                    try await self.preloadRandomVideo()
+                } catch {
+                    Logger.caching.error("Failed to preload first video: \(error.localizedDescription)")
+                }
+            }
             
             // Preload up to maxCachedVideos
             while !Task.isCancelled && self.cachedVideos.count < self.maxCachedVideos {
@@ -487,11 +521,11 @@ extension VideoPlayerViewModel {
                 } catch {
                     Logger.caching.error("Failed to preload video: \(error.localizedDescription)")
                     // Give a short pause before trying again
-                    try? await Task.sleep(for: .seconds(1))
+                    try? await Task.sleep(for: .seconds(0.5)) // Reduced wait time for swipe interface
                 }
             }
             
-            Logger.caching.info("Cache preload task completed, cache size: \(self.cachedVideos.count)")
+            Logger.caching.info("Cache preload for swipe interface completed, cache size: \(self.cachedVideos.count)")
         }
     }
     

@@ -15,28 +15,11 @@ struct ContentView: View {
         ZStack {
             Color.black.ignoresSafeArea()
             
-            if videoPlayerViewModel.isLoading {
-                LoadingView()
-            } else if let player = videoPlayerViewModel.player {
-                PlayerContentView(
-                    player: player,
-                    currentIdentifier: videoPlayerViewModel.currentIdentifier,
-                    title: videoPlayerViewModel.currentTitle,
-                    description: videoPlayerViewModel.currentDescription
-                ) {
-                    Task {
-                        await videoPlayerViewModel.loadRandomVideo()
-                    }
-                }
-            } else if let error = videoPlayerViewModel.errorMessage {
-                ErrorView(error: error) {
-                    Task {
-                        await videoPlayerViewModel.loadRandomVideo()
-                    }
-                }
-            }
+            // Use the new swipeable video container
+            SwipeableVideoView(viewModel: videoPlayerViewModel)
         }
         .task {
+            // Initial video load when the app launches
             await videoPlayerViewModel.loadRandomVideo()
         }
     }
