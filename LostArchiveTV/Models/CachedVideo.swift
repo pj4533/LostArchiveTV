@@ -25,7 +25,4 @@ struct CachedVideo {
         metadata.metadata?.description ?? "Internet Archive random video clip"
     }
     
-    var player: AVPlayer {
-        AVPlayer(playerItem: playerItem)
-    }
 }

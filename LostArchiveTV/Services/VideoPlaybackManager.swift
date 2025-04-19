@@ -91,12 +91,6 @@ class VideoPlaybackManager: ObservableObject {
         isPlaying = true
     }
     
-    func pause() {
-        Logger.videoPlayback.debug("Pausing video")
-        player?.pause()
-        isPlaying = false
-    }
-    
     func seek(to time: CMTime, completion: ((Bool) -> Void)? = nil) {
         Logger.videoPlayback.debug("Seeking to time: \(time.seconds)")
         player?.seek(to: time, toleranceBefore: CMTime(seconds: 5, preferredTimescale: 600), 

@@ -41,8 +41,7 @@ struct SwipeableVideoView: View {
                         // Current video content - moves up with swipe
                         VideoPlayerContent(
                             player: player,
-                            viewModel: viewModel,
-                            showControls: !isDragging && dragOffset == 0
+                            viewModel: viewModel
                         )
                         .offset(y: -dragOffset)  // Move up as user swipes up
                         
@@ -169,7 +168,6 @@ struct SwipeableVideoView: View {
 struct VideoPlayerContent: View {
     let player: AVPlayer
     let viewModel: VideoPlayerViewModel
-    let showControls: Bool
     
     var body: some View {
         ZStack {
