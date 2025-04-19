@@ -35,20 +35,6 @@ struct SwipeableVideoView: View {
                         )
                         .offset(y: -dragOffset)  // Move up as user swipes up
                         
-                        // Next video loading indicator
-                        if dragOffset > 50 {
-                            VStack {
-                                Spacer()
-                                ProgressView("Loading next video...")
-                                    .foregroundColor(.white)
-                                    .padding(.bottom, geometry.size.height / 2 - dragOffset)
-                                Spacer()
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(Color.black)
-                            .opacity(min(dragOffset / 100, 0.8))
-                        }
-                        
                         // Bottom video info - moves with video
                         VideoInfoOverlay(
                             title: viewModel.currentTitle,
