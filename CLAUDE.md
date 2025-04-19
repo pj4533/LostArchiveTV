@@ -10,15 +10,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build and Test Commands
 - Build app: `xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhone 16' build`
+- Build and check for errors: `xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhone 16' build | grep -A 2 "error:" || echo "Build successful - no errors found"`
 - Run tests: `xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhone 16' test`
 - Run single test: `xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhone 16' test -only-testing:LostArchiveTVTests/[TestName]`
 - Verify build after making changes: Run the build command to ensure there are no errors
 
 ## Project Structure
-- Organized into separate Models, Views, and ViewModels directories
+- Organized into separate Models, Views, ViewModels, and Services directories
 - Models in `Models/` directory: ArchiveIdentifier, ArchiveMetadata, ArchiveFile, ItemMetadata, CachedVideo
 - Views in `Views/` directory: ContentView, PlayerContentView, LoadingView, ErrorView, HeaderView
-- Video playback logic in `VideoPlayerViewModel.swift`
+- Services in `Services/` directory: ArchiveService, VideoCacheManager, VideoPlaybackManager, PreloadService, LoggingService
+- Video coordination in `VideoPlayerViewModel.swift`
 - App entry point in `LostArchiveTVApp.swift`
 - Video identifiers stored in `avgeeks_identifiers.json`
 
