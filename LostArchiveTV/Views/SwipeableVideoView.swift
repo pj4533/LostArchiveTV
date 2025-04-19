@@ -27,7 +27,7 @@ struct SwipeableVideoView: View {
                 // Content based on state
                 if viewModel.isLoading {
                     // Show loading screen while loading a video
-                    LoadingView(message: "Loading next video...")
+                    LoadingView()
                 } else if let error = viewModel.errorMessage {
                     // Show error screen when there's an error
                     ErrorView(error: error) {
@@ -59,8 +59,7 @@ struct SwipeableVideoView: View {
                     }
                 } else {
                     // Fallback if player isn't loaded yet but not in loading state
-                    // This should rarely occur, but provides a better UX if it does
-                    LoadingView(message: "Preparing video player...")
+                    LoadingView()
                     
                     // Auto-trigger video load if needed
                     .onAppear {

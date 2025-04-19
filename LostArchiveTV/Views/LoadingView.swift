@@ -8,62 +8,35 @@
 import SwiftUI
 
 struct LoadingView: View {
-    var message: String = "Loading videos..."
-    var progress: Double?
+    @State private var rotationDegrees = 0.0
     
     var body: some View {
         ZStack {
-            Color.black.opacity(0.7)
+            Color.black.opacity(0.85)
                 .ignoresSafeArea()
             
-            VStack(spacing: 20) {
-                if let progress = progress {
-                    // Show progress indicator with percentage
-                    ProgressView(value: progress, total: 1.0) {
-                        Text(message)
-                            .font(.headline)
-                            .foregroundColor(.white)
-                    } currentValueLabel: {
-                        Text("\(Int(progress * 100))%")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
+            VStack(spacing: 30) {
+                // Cool animated icon
+                Image(systemName: "film.circle")
+                    .font(.system(size: 80))
+                    .foregroundColor(.white)
+                    .rotationEffect(.degrees(rotationDegrees))
+                    .onAppear {
+                        withAnimation(.linear(duration: 2).repeatForever(autoreverses: false)) {
+                            rotationDegrees = 360
+                        }
                     }
-                    .progressViewStyle(.circular)
-                    .tint(.white)
-                    .padding()
-                } else {
-                    // Show indeterminate spinner
-                    ProgressView {
-                        Text(message)
-                            .font(.headline)
-                            .foregroundColor(.white)
-                    }
-                    .progressViewStyle(.circular)
-                    .tint(.white)
-                    .padding()
-                }
                 
-                // Show a helpful message
-                Text("Preparing a random selection from the Internet Archive")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+                // Simple text
+                Text("Loading...")
+                    .font(.headline)
+                    .foregroundColor(.white)
             }
-            .frame(maxWidth: 300)
-            .background(Color.black.opacity(0.7))
-            .cornerRadius(16)
-            .shadow(radius: 10)
         }
     }
 }
 
 #Preview {
-    LoadingView(message: "Loading videos...", progress: 0.33)
-        .preferredColorScheme(.dark)
-}
-
-#Preview {
-    LoadingView(message: "Fetching video metadata...")
+    LoadingView()
         .preferredColorScheme(.dark)
 }

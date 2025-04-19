@@ -18,11 +18,8 @@ struct ContentView: View {
             
             // Main content
             if videoPlayerViewModel.isInitializing {
-                // Show the app loading screen during initialization
-                LoadingView(
-                    message: videoPlayerViewModel.cacheMessage,
-                    progress: videoPlayerViewModel.cacheProgress
-                )
+                // Show the simplified loading screen during initialization
+                LoadingView()
             } else {
                 // Use the swipeable video container once initialization is complete
                 SwipeableVideoView(viewModel: videoPlayerViewModel)
