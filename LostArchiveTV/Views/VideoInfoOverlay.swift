@@ -11,31 +11,15 @@ struct VideoInfoOverlay: View {
     let title: String?
     let description: String?
     let identifier: String?
-    let onNextTapped: () -> Void
     
     var body: some View {
         VStack {
             Spacer()
             
             // Bottom overlay with title and description
-            VStack(alignment: .leading, spacing: 10) {
-                // Next button
-                Button(action: onNextTapped) {
-                    HStack {
-                        Image(systemName: "arrow.up.circle.fill")
-                        Text("Next Video")
-                    }
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
-                    .background(Color.gray.opacity(0.3))
-                    .cornerRadius(25)
-                }
-                .padding(.bottom, 10)
-                
+            VStack(alignment: .leading, spacing: 8) {
                 // Video title and description
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text(title ?? identifier ?? "Unknown Title")
                         .font(.headline)
                         .foregroundColor(.white)
@@ -48,9 +32,16 @@ struct VideoInfoOverlay: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.horizontal, 20)
-                .padding(.bottom, 25)
+                .padding(.vertical, 15)
+                
+                // Swipe hint
+                Text("Swipe up for next video")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.7))
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.bottom, 8)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity)
             .background(
                 LinearGradient(
                     gradient: Gradient(colors: [.clear, .black.opacity(0.7)]),
@@ -58,12 +49,6 @@ struct VideoInfoOverlay: View {
                     endPoint: .bottom
                 )
             )
-            
-            // Swipe hint
-            Text("Swipe up for next video")
-                .font(.caption)
-                .foregroundColor(.white.opacity(0.7))
-                .padding(.bottom, 5)
         }
     }
 }
@@ -72,8 +57,7 @@ struct VideoInfoOverlay: View {
     VideoInfoOverlay(
         title: "Sample Video Title",
         description: "This is a sample description for the video that might span multiple lines when displayed in the app.",
-        identifier: "sample_id",
-        onNextTapped: {}
+        identifier: "sample_id"
     )
     .background(Color.black)
 }

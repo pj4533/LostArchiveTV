@@ -49,10 +49,7 @@ struct SwipeableVideoView: View {
                         VideoInfoOverlay(
                             title: viewModel.currentTitle,
                             description: viewModel.currentDescription,
-                            identifier: viewModel.currentIdentifier,
-                            onNextTapped: {
-                                playNextVideo(geometry: geometry)
-                            }
+                            identifier: viewModel.currentIdentifier
                         )
                         .offset(y: -dragOffset)
                     }
