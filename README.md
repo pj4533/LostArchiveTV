@@ -1,9 +1,11 @@
 # LostArchiveTV
 
+
 A TikTok-style iOS video player for exploring videos from the Internet Archive.
 
 ![LostArchiveTV Screenshot](lostarchivetv.gif)
 
+# [Join the TestFlight](https://testflight.apple.com/join/5u5qyTWh)
 ## About
 
 LostArchiveTV lets you discover historical films, educational videos, and other public domain content from [Archive.org](https://archive.org) in a modern, swipeable interface. Each swipe presents a new randomly selected video clip from the Archive's vast collection.
