@@ -26,6 +26,7 @@ class VideoPlayerViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var currentIdentifier: String?
+    @Published var currentCollection: String?
     @Published var currentTitle: String?
     @Published var currentDescription: String?
     
@@ -38,7 +39,7 @@ class VideoPlayerViewModel: ObservableObject {
     private var cacheMonitorTask: Task<Void, Never>?
     
     // Archive.org video identifiers
-    private var identifiers: [String] = []
+    private var identifiers: [ArchiveIdentifier] = []
     
     // MARK: - Initialization and Cleanup
     init() {
@@ -190,7 +191,7 @@ class VideoPlayerViewModel: ObservableObject {
             // Check again after loading
             if identifiers.isEmpty {
                 Logger.metadata.error("No identifiers available after explicit load attempt")
-                errorMessage = "No identifiers available. Make sure avgeeks_identifiers.json is in the app bundle."
+                errorMessage = "No identifiers available. Make sure the identifiers.sqlite database is in the app bundle."
                 isLoading = false
                 isInitializing = false
                 return
@@ -211,6 +212,7 @@ class VideoPlayerViewModel: ObservableObject {
             
             // Set the current video info
             currentIdentifier = videoInfo.identifier
+            currentCollection = videoInfo.collection
             currentTitle = videoInfo.title
             currentDescription = videoInfo.description
             

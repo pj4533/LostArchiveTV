@@ -7,39 +7,145 @@
 
 import Foundation
 import OSLog
+import SQLite3
 
 actor ArchiveService {
-    // MARK: - Metadata Loading
-    func loadArchiveIdentifiers() async throws -> [String] {
-        Logger.metadata.debug("Loading archive identifiers from bundle")
-        guard let url = Bundle.main.url(forResource: "avgeeks_identifiers", withExtension: "json") else {
-            Logger.metadata.error("Failed to find identifiers file")
-            throw NSError(domain: "ArchiveService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Identifiers file not found"])
+    private var db: OpaquePointer?
+    private var collections: [String] = []
+    
+    init() {
+        // Try to open the database at app startup
+        do {
+            try openDatabase()
+            try loadCollections()
+        } catch {
+            Logger.metadata.error("Failed to initialize SQLite database: \(error.localizedDescription)")
+        }
+    }
+    
+    deinit {
+        closeDatabase()
+    }
+    
+    private func openDatabase() throws {
+        // Get the path to the SQLite database file
+        guard let dbPath = Bundle.main.path(forResource: "identifiers", ofType: "sqlite") else {
+            Logger.metadata.error("Failed to find SQLite database file")
+            throw NSError(domain: "ArchiveService", code: 1, userInfo: [NSLocalizedDescriptionKey: "SQLite database file not found"])
         }
         
-        do {
-            let startTime = CFAbsoluteTimeGetCurrent()
-            
-            // Load data from the file
-            let data = try Data(contentsOf: url)
-            
-            // Decode the identifiers
-            let identifierObjects = try JSONDecoder().decode([ArchiveIdentifier].self, from: data)
-            let identifiers = identifierObjects.map { $0.identifier }
-            
-            let loadTime = CFAbsoluteTimeGetCurrent() - startTime
-            Logger.metadata.info("Loaded \(identifiers.count) identifiers in \(loadTime.formatted(.number.precision(.fractionLength(4)))) seconds")
-            
-            if identifiers.isEmpty {
-                Logger.metadata.error("Identifiers array is empty after loading")
-                throw NSError(domain: "ArchiveService", code: 2, userInfo: [NSLocalizedDescriptionKey: "No identifiers found in file"])
-            }
-            
-            return identifiers
-        } catch {
-            Logger.metadata.error("Failed to decode identifiers: \(error.localizedDescription)")
-            throw error
+        // Open the database
+        if sqlite3_open(dbPath, &db) != SQLITE_OK {
+            let errorMessage = String(cString: sqlite3_errmsg(db))
+            closeDatabase()
+            Logger.metadata.error("Failed to open SQLite database: \(errorMessage)")
+            throw NSError(domain: "ArchiveService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to open SQLite database: \(errorMessage)"])
         }
+        
+        Logger.metadata.debug("Successfully opened SQLite database at \(dbPath)")
+    }
+    
+    private func closeDatabase() {
+        if db != nil {
+            sqlite3_close(db)
+            db = nil
+        }
+    }
+    
+    private func loadCollections() throws {
+        // Ensure database is open
+        guard db != nil else {
+            try openDatabase()
+            return
+        }
+        
+        collections = []
+        
+        // Query for collections
+        let queryString = "SELECT name FROM collections"
+        var queryStatement: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, queryString, -1, &queryStatement, nil) != SQLITE_OK {
+            let errorMessage = String(cString: sqlite3_errmsg(db))
+            Logger.metadata.error("Failed to prepare collections query: \(errorMessage)")
+            throw NSError(domain: "ArchiveService", code: 3, userInfo: [NSLocalizedDescriptionKey: "Failed to prepare query: \(errorMessage)"])
+        }
+        
+        // Execute the query and process results
+        while sqlite3_step(queryStatement) == SQLITE_ROW {
+            if let collectionCString = sqlite3_column_text(queryStatement, 0) {
+                let collectionName = String(cString: collectionCString)
+                collections.append(collectionName)
+            }
+        }
+        
+        // Finalize the statement
+        sqlite3_finalize(queryStatement)
+        
+        if collections.isEmpty {
+            Logger.metadata.error("No collections found in the database")
+            throw NSError(domain: "ArchiveService", code: 4, userInfo: [NSLocalizedDescriptionKey: "No collections found in the database"])
+        }
+        
+        Logger.metadata.info("Loaded \(self.collections.count) collections from the database")
+    }
+    
+    // MARK: - Metadata Loading
+    func loadArchiveIdentifiers() async throws -> [ArchiveIdentifier] {
+        Logger.metadata.debug("Loading archive identifiers from SQLite database")
+        
+        // Ensure database is open and collections are loaded
+        if db == nil {
+            try openDatabase()
+        }
+        
+        if collections.isEmpty {
+            try loadCollections()
+        }
+        
+        var identifiers: [ArchiveIdentifier] = []
+        
+        // Load identifiers from each collection
+        for collection in collections {
+            let collectionIdentifiers = try loadIdentifiersForCollection(collection)
+            identifiers.append(contentsOf: collectionIdentifiers)
+        }
+        
+        if identifiers.isEmpty {
+            Logger.metadata.error("No identifiers found in the database")
+            throw NSError(domain: "ArchiveService", code: 5, userInfo: [NSLocalizedDescriptionKey: "No identifiers found in the database"])
+        }
+        
+        Logger.metadata.info("Loaded \(identifiers.count) identifiers from \(self.collections.count) collections")
+        return identifiers
+    }
+    
+    private func loadIdentifiersForCollection(_ collection: String) throws -> [ArchiveIdentifier] {
+        var identifiers: [ArchiveIdentifier] = []
+        
+        // Create a query to get all identifiers from the collection table
+        let queryString = "SELECT identifier FROM \"\(collection)\""
+        var queryStatement: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, queryString, -1, &queryStatement, nil) != SQLITE_OK {
+            let errorMessage = String(cString: sqlite3_errmsg(db))
+            Logger.metadata.error("Failed to prepare identifiers query for \(collection): \(errorMessage)")
+            throw NSError(domain: "ArchiveService", code: 6, userInfo: [NSLocalizedDescriptionKey: "Failed to prepare query: \(errorMessage)"])
+        }
+        
+        // Execute the query and process results
+        while sqlite3_step(queryStatement) == SQLITE_ROW {
+            if let identifierCString = sqlite3_column_text(queryStatement, 0) {
+                let identifier = String(cString: identifierCString)
+                identifiers.append(ArchiveIdentifier(identifier: identifier, collection: collection))
+            }
+        }
+        
+        // Finalize the statement
+        sqlite3_finalize(queryStatement)
+        
+        Logger.metadata.debug("Loaded \(identifiers.count) identifiers from collection '\(collection)'")
+        return identifiers
     }
     
     func fetchMetadata(for identifier: String) async throws -> ArchiveMetadata {
@@ -67,8 +173,29 @@ actor ArchiveService {
         return metadata
     }
     
-    func getRandomIdentifier(from identifiers: [String]) -> String? {
-        return identifiers.randomElement()
+    func getRandomIdentifier(from identifiers: [ArchiveIdentifier]) -> ArchiveIdentifier? {
+        guard !collections.isEmpty else {
+            Logger.metadata.error("No collections available for random selection")
+            return identifiers.randomElement()
+        }
+        
+        // First, randomly select a collection
+        guard let randomCollection = collections.randomElement() else {
+            Logger.metadata.error("Failed to select a random collection")
+            return identifiers.randomElement()
+        }
+        
+        // Filter identifiers for the selected collection
+        let collectionIdentifiers = identifiers.filter { $0.collection == randomCollection }
+        
+        // If no identifiers found for this collection, fall back to any random identifier
+        if collectionIdentifiers.isEmpty {
+            Logger.metadata.warning("No identifiers found for collection '\(randomCollection)', selecting from all identifiers")
+            return identifiers.randomElement()
+        }
+        
+        // Select a random identifier from the chosen collection
+        return collectionIdentifiers.randomElement()
     }
     
     func findPlayableFiles(in metadata: ArchiveMetadata) -> [ArchiveFile] {

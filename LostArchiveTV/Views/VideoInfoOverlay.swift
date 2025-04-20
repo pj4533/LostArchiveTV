@@ -9,6 +9,7 @@ import SwiftUI
 
 struct VideoInfoOverlay: View {
     let title: String?
+    let collection: String?
     let description: String?
     let identifier: String?
     
@@ -24,6 +25,13 @@ struct VideoInfoOverlay: View {
                         .font(.headline)
                         .foregroundColor(.white)
                         .lineLimit(1)
+                    
+                    if let collection = collection {
+                        Text("Collection: \(collection)")
+                            .font(.footnote)
+                            .foregroundColor(.white.opacity(0.8))
+                            .lineLimit(1)
+                    }
                     
                     Text(description ?? "Internet Archive random video clip")
                         .font(.subheadline)
@@ -56,6 +64,7 @@ struct VideoInfoOverlay: View {
 #Preview {
     VideoInfoOverlay(
         title: "Sample Video Title",
+        collection: "avgeeks",
         description: "This is a sample description for the video that might span multiple lines when displayed in the app.",
         identifier: "sample_id"
     )

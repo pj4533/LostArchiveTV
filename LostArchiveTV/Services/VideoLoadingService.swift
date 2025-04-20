@@ -18,18 +18,19 @@ actor VideoLoadingService {
         self.cacheManager = cacheManager
     }
     
-    func loadIdentifiers() async throws -> [String] {
+    func loadIdentifiers() async throws -> [ArchiveIdentifier] {
         return try await archiveService.loadArchiveIdentifiers()
     }
     
-    func loadRandomVideo() async throws -> (identifier: String, title: String, description: String, asset: AVAsset, startPosition: Double) {
+    func loadRandomVideo() async throws -> (identifier: String, collection: String, title: String, description: String, asset: AVAsset, startPosition: Double) {
         // Check if we have cached videos available
         if let cachedVideo = await cacheManager.removeFirstCachedVideo() {
-            Logger.videoPlayback.info("Using cached video: \(cachedVideo.identifier)")
+            Logger.videoPlayback.info("Using cached video: \(cachedVideo.identifier) from collection: \(cachedVideo.collection)")
             
             // Return the cached video info
             return (
                 cachedVideo.identifier,
+                cachedVideo.collection,
                 cachedVideo.title,
                 cachedVideo.description,
                 cachedVideo.asset,
@@ -41,17 +42,21 @@ actor VideoLoadingService {
         return try await loadFreshRandomVideo()
     }
     
-    private func loadFreshRandomVideo() async throws -> (identifier: String, title: String, description: String, asset: AVAsset, startPosition: Double) {
+    private func loadFreshRandomVideo() async throws -> (identifier: String, collection: String, title: String, description: String, asset: AVAsset, startPosition: Double) {
         // Get random identifier
-        guard let randomIdentifier = await archiveService.getRandomIdentifier(from: try await archiveService.loadArchiveIdentifiers()) else {
+        let identifiers = try await archiveService.loadArchiveIdentifiers()
+        guard let randomArchiveIdentifier = await archiveService.getRandomIdentifier(from: identifiers) else {
             Logger.metadata.error("No identifiers available")
             throw NSError(domain: "VideoPlayerError", code: 1, userInfo: [NSLocalizedDescriptionKey: "No identifiers available"])
         }
         
-        Logger.metadata.info("Selected random video: \(randomIdentifier)")
+        let identifier = randomArchiveIdentifier.identifier
+        let collection = randomArchiveIdentifier.collection
+        
+        Logger.metadata.info("Selected random video: \(identifier) from collection: \(collection)")
         
         let metadataStartTime = CFAbsoluteTimeGetCurrent()
-        let metadata = try await archiveService.fetchMetadata(for: randomIdentifier)
+        let metadata = try await archiveService.fetchMetadata(for: identifier)
         let metadataTime = CFAbsoluteTimeGetCurrent() - metadataStartTime
         Logger.network.info("Fetched metadata in \(metadataTime.formatted(.number.precision(.fractionLength(4)))) seconds")
         
@@ -64,7 +69,7 @@ actor VideoLoadingService {
             throw NSError(domain: "VideoPlayerError", code: 1, userInfo: [NSLocalizedDescriptionKey: error])
         }
         
-        guard let videoURL = await archiveService.getFileDownloadURL(for: mp4File, identifier: randomIdentifier) else {
+        guard let videoURL = await archiveService.getFileDownloadURL(for: mp4File, identifier: identifier) else {
             let error = "Could not create video URL"
             Logger.metadata.error("\(error)")
             throw NSError(domain: "VideoPlayerError", code: 2, userInfo: [NSLocalizedDescriptionKey: error])
@@ -76,7 +81,7 @@ actor VideoLoadingService {
         Logger.videoPlayback.debug("Created AVURLAsset")
         
         // Set title and description from metadata
-        let title = metadata.metadata?.title ?? randomIdentifier
+        let title = metadata.metadata?.title ?? identifier
         let description = metadata.metadata?.description ?? "Internet Archive random video clip"
         
         // Get estimated duration from metadata
@@ -94,7 +99,8 @@ actor VideoLoadingService {
         Logger.videoPlayback.info("Asset setup completed in \(assetTime.formatted(.number.precision(.fractionLength(4)))) seconds")
         
         return (
-            randomIdentifier,
+            identifier,
+            collection,
             title,
             description,
             asset,

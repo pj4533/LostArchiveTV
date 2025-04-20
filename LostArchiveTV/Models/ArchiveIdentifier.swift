@@ -9,4 +9,5 @@ import Foundation
 
 struct ArchiveIdentifier: Codable {
     let identifier: String
+    let collection: String
 }

@@ -48,6 +48,7 @@ struct SwipeableVideoView: View {
                         // Bottom video info - moves with video
                         VideoInfoOverlay(
                             title: viewModel.currentTitle,
+                            collection: viewModel.currentCollection,
                             description: viewModel.currentDescription,
                             identifier: viewModel.currentIdentifier
                         )

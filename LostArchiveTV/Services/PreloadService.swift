@@ -12,7 +12,7 @@ import OSLog
 actor PreloadService {
     private var preloadTask: Task<Void, Never>?
     
-    func ensureVideosAreCached(cacheManager: VideoCacheManager, archiveService: ArchiveService, identifiers: [String]) async {
+    func ensureVideosAreCached(cacheManager: VideoCacheManager, archiveService: ArchiveService, identifiers: [ArchiveIdentifier]) async {
         // Make sure we have identifiers before trying to preload
         guard !identifiers.isEmpty else {
             Logger.caching.error("Cannot preload videos: identifiers array is empty")
@@ -62,27 +62,30 @@ actor PreloadService {
         }
     }
     
-    func preloadRandomVideo(cacheManager: VideoCacheManager, archiveService: ArchiveService, identifiers: [String]) async throws {
-        guard let randomIdentifier = await archiveService.getRandomIdentifier(from: identifiers) else {
+    func preloadRandomVideo(cacheManager: VideoCacheManager, archiveService: ArchiveService, identifiers: [ArchiveIdentifier]) async throws {
+        guard let randomArchiveIdentifier = await archiveService.getRandomIdentifier(from: identifiers) else {
             Logger.caching.error("No identifiers available for preloading")
             throw NSError(domain: "PreloadError", code: 1, userInfo: [NSLocalizedDescriptionKey: "No identifiers available"])
         }
         
-        Logger.caching.info("Preloading random video: \(randomIdentifier)")
+        let identifier = randomArchiveIdentifier.identifier
+        let collection = randomArchiveIdentifier.collection
+        
+        Logger.caching.info("Preloading random video: \(identifier) from collection: \(collection)")
         
         // Fetch metadata
-        let metadata = try await archiveService.fetchMetadata(for: randomIdentifier)
+        let metadata = try await archiveService.fetchMetadata(for: identifier)
         
         // Find MP4 file
         let mp4Files = await archiveService.findPlayableFiles(in: metadata)
         
         guard let mp4File = mp4Files.first else {
-            Logger.caching.error("No MP4 file found for \(randomIdentifier)")
+            Logger.caching.error("No MP4 file found for \(identifier)")
             throw NSError(domain: "PreloadError", code: 2, userInfo: [NSLocalizedDescriptionKey: "No MP4 file found"])
         }
         
         // Create URL and asset
-        guard let videoURL = await archiveService.getFileDownloadURL(for: mp4File, identifier: randomIdentifier) else {
+        guard let videoURL = await archiveService.getFileDownloadURL(for: mp4File, identifier: identifier) else {
             throw NSError(domain: "PreloadError", code: 3, userInfo: [NSLocalizedDescriptionKey: "Could not create URL"])
         }
         
@@ -108,7 +111,8 @@ actor PreloadService {
         
         // Create and store the cached video
         let cachedVideo = CachedVideo(
-            identifier: randomIdentifier,
+            identifier: identifier,
+            collection: collection,
             metadata: metadata,
             mp4File: mp4File,
             videoURL: videoURL,
@@ -118,7 +122,7 @@ actor PreloadService {
         )
         
         // Store in the cache
-        Logger.caching.info("Successfully preloaded video: \(randomIdentifier), adding to cache")
+        Logger.caching.info("Successfully preloaded video: \(identifier) from collection: \(collection), adding to cache")
         await cacheManager.addCachedVideo(cachedVideo)
     }
     

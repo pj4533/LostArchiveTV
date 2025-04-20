@@ -10,6 +10,7 @@ import AVKit
 
 struct CachedVideo {
     let identifier: String
+    let collection: String
     let metadata: ArchiveMetadata
     let mp4File: ArchiveFile
     let videoURL: URL
@@ -24,5 +25,4 @@ struct CachedVideo {
     var description: String {
         metadata.metadata?.description ?? "Internet Archive random video clip"
     }
-    
 }
