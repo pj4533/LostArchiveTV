@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "B0C35BDD2DB3E4A5009A3714"
-               BuildableName = "LostArchiveTV.app"
+               BuildableName = "LATV.app"
                BlueprintName = "LostArchiveTV"
                ReferencedContainer = "container:LostArchiveTV.xcodeproj">
             </BuildableReference>
@@ -50,7 +50,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "B0C35BDD2DB3E4A5009A3714"
-            BuildableName = "LostArchiveTV.app"
+            BuildableName = "LATV.app"
             BlueprintName = "LostArchiveTV"
             ReferencedContainer = "container:LostArchiveTV.xcodeproj">
          </BuildableReference>
@@ -67,7 +67,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "B0C35BDD2DB3E4A5009A3714"
-            BuildableName = "LostArchiveTV.app"
+            BuildableName = "LATV.app"
             BlueprintName = "LostArchiveTV"
             ReferencedContainer = "container:LostArchiveTV.xcodeproj">
          </BuildableReference>

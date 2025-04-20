@@ -6,7 +6,7 @@
 //
 
 import Testing
-@testable import LostArchiveTV
+@testable import LATV
 
 @Suite struct LostArchiveTVTests {
     // Main test suite - individual tests are in their respective files

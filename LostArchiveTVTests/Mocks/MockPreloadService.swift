@@ -6,7 +6,7 @@
 //
 
 import Foundation
-@testable import LostArchiveTV
+@testable import LATV
 
 // Since we can't inherit from PreloadService actor, we'll implement the same interface
 actor MockPreloadService {

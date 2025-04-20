@@ -7,7 +7,7 @@
 
 import Testing
 import AVKit
-@testable import LostArchiveTV
+@testable import LATV
 
 struct PreloadServiceTests {
     // Most of PreloadService's functionality requires complex interactions

@@ -7,7 +7,7 @@
 
 import Testing
 import AVKit
-@testable import LostArchiveTV
+@testable import LATV
 
 @MainActor
 struct VideoPlayerViewModelTests {

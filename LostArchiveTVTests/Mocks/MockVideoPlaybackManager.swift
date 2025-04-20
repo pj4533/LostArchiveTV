@@ -7,7 +7,7 @@
 
 import Foundation
 import AVKit
-@testable import LostArchiveTV
+@testable import LATV
 
 class MockVideoPlaybackManager {
     var setupPlayerCalled = false

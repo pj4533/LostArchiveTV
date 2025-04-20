@@ -7,7 +7,7 @@
 
 import Foundation
 import AVKit
-@testable import LostArchiveTV
+@testable import LATV
 
 // Since we can't inherit from VideoLoadingService actor, we'll implement the same interface
 actor MockVideoLoadingService {
