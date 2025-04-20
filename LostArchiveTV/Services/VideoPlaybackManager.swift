@@ -41,6 +41,33 @@ class VideoPlaybackManager: ObservableObject {
         setupPlaybackEndNotification(for: playerItem)
     }
     
+    func useExistingPlayer(_ player: AVPlayer) {
+        Logger.videoPlayback.debug("Using existing player (preserving seek position)")
+        
+        // Clean up resources from the existing player
+        cleanupPlayer()
+        
+        // Use the provided player directly
+        self.player = player
+        
+        // Set playback rate to 1 (normal speed)
+        self.player?.rate = 1.0
+        
+        // Add time observer
+        setupTimeObserver()
+        
+        // Add notification for playback ending if there's a current item
+        if let playerItem = player.currentItem {
+            setupPlaybackEndNotification(for: playerItem)
+        }
+        
+        // Get current playback position for logging
+        if let currentTime = player.currentItem?.currentTime().seconds,
+           let duration = player.currentItem?.duration.seconds {
+            Logger.videoPlayback.info("Using player at position \(currentTime.formatted(.number.precision(.fractionLength(2))))s of \(duration.formatted(.number.precision(.fractionLength(2))))s")
+        }
+    }
+    
     private func setupTimeObserver() {
         let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserverToken = player?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in

@@ -103,8 +103,8 @@ actor PreloadService {
         let safeMaxStartTime = max(0, min(maxStartTime, estimatedDuration - 40))
         let randomStart = safeMaxStartTime > 10 ? Double.random(in: 0..<safeMaxStartTime) : 0
         
-        // Log the preloaded video's start position
-        Logger.caching.info("Preloaded video start position: \(randomStart.formatted(.number.precision(.fractionLength(2)))) / \(estimatedDuration.formatted(.number.precision(.fractionLength(2)))) seconds (\((randomStart/estimatedDuration * 100).formatted(.number.precision(.fractionLength(2)))))%")
+        // Log video duration and offset information in a single line for easy identification
+        Logger.caching.info("VIDEO TIMING (PRELOAD): Duration=\(estimatedDuration.formatted(.number.precision(.fractionLength(1))))s, Offset=\(randomStart.formatted(.number.precision(.fractionLength(1))))s (\(identifier))")
         
         // Start preloading the asset by requesting its duration (which loads data)
         _ = try await asset.load(.duration)

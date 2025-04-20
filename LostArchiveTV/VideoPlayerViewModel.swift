@@ -155,8 +155,9 @@ class VideoPlayerViewModel: ObservableObject {
     var player: AVPlayer? {
         get { playbackManager.player }
         set {
-            if let asset = newValue?.currentItem?.asset {
-                playbackManager.setupPlayer(with: asset)
+            if let newPlayer = newValue {
+                // Use the player directly instead of creating a new one from asset
+                playbackManager.useExistingPlayer(newPlayer)
             } else {
                 playbackManager.cleanupPlayer()
             }
@@ -223,27 +224,29 @@ class VideoPlayerViewModel: ObservableObject {
             currentTitle = videoInfo.title
             currentDescription = videoInfo.description
             
-            // Setup player with the asset
-            playbackManager.setupPlayer(with: videoInfo.asset)
-            
-            // Create the start time
+            // Create a player with the seek position already applied
+            let player = AVPlayer(playerItem: AVPlayerItem(asset: videoInfo.asset))
             let startTime = CMTime(seconds: videoInfo.startPosition, preferredTimescale: 600)
-            Logger.videoPlayback.info("Starting playback at time offset: \(videoInfo.startPosition.formatted(.number.precision(.fractionLength(2)))) seconds")
             
+            // Log consistent video timing information when using from cache
+            Logger.videoPlayback.info("VIDEO TIMING (PLAYING): Duration=\(self.playbackManager.videoDuration.formatted(.number.precision(.fractionLength(1))))s, Offset=\(videoInfo.startPosition.formatted(.number.precision(.fractionLength(1))))s (\(videoInfo.identifier))")
+            
+            // Seek to the correct position before we set it as the current player
             let seekStartTime = CFAbsoluteTimeGetCurrent()
-            playbackManager.seek(to: startTime) { [weak self] finished in
-                let seekTime = CFAbsoluteTimeGetCurrent() - seekStartTime
-                Logger.videoPlayback.info("Video seek completed in \(seekTime.formatted(.number.precision(.fractionLength(4)))) seconds")
-                
-                // Always start playback of the first video
-                // The loading screen will stay up until isInitializing becomes false
-                self?.playbackManager.play()
-                
-                // Monitor buffer status
-                if let playerItem = self?.playbackManager.player?.currentItem {
-                    Task {
-                        await self?.playbackManager.monitorBufferStatus(for: playerItem)
-                    }
+            await player.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
+            let seekTime = CFAbsoluteTimeGetCurrent() - seekStartTime
+            Logger.videoPlayback.info("Video seek completed in \(seekTime.formatted(.number.precision(.fractionLength(4)))) seconds")
+            
+            // Now set the player with the correct position already set
+            playbackManager.useExistingPlayer(player)
+            
+            // Always start playback of the video
+            playbackManager.play()
+            
+            // Monitor buffer status
+            if let playerItem = playbackManager.player?.currentItem {
+                Task {
+                    await playbackManager.monitorBufferStatus(for: playerItem)
                 }
             }
             
