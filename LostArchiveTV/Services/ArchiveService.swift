@@ -11,7 +11,7 @@ import SQLite3
 
 actor ArchiveService {
     private var db: OpaquePointer?
-    private var collections: [String] = []
+    private var collections: [ArchiveCollection] = []
     
     init() {
         // Try to open the database at app startup
@@ -61,8 +61,8 @@ actor ArchiveService {
         
         collections = []
         
-        // Query for collections
-        let queryString = "SELECT name FROM collections"
+        // Query for collections with preferred status
+        let queryString = "SELECT name, preferred FROM collections"
         var queryStatement: OpaquePointer?
         
         if sqlite3_prepare_v2(db, queryString, -1, &queryStatement, nil) != SQLITE_OK {
@@ -75,7 +75,8 @@ actor ArchiveService {
         while sqlite3_step(queryStatement) == SQLITE_ROW {
             if let collectionCString = sqlite3_column_text(queryStatement, 0) {
                 let collectionName = String(cString: collectionCString)
-                collections.append(collectionName)
+                let preferred = sqlite3_column_int(queryStatement, 1) == 1
+                collections.append(ArchiveCollection(name: collectionName, preferred: preferred))
             }
         }
         
@@ -87,7 +88,7 @@ actor ArchiveService {
             throw NSError(domain: "ArchiveService", code: 4, userInfo: [NSLocalizedDescriptionKey: "No collections found in the database"])
         }
         
-        Logger.metadata.info("Loaded \(self.collections.count) collections from the database")
+        Logger.metadata.info("Loaded \(self.collections.count) collections from the database, including \(self.collections.filter { $0.preferred }.count) preferred collections")
     }
     
     // MARK: - Metadata Loading
@@ -107,7 +108,7 @@ actor ArchiveService {
         
         // Load identifiers from each collection
         for collection in collections {
-            let collectionIdentifiers = try loadIdentifiersForCollection(collection)
+            let collectionIdentifiers = try loadIdentifiersForCollection(collection.name)
             identifiers.append(contentsOf: collectionIdentifiers)
         }
         
@@ -179,23 +180,54 @@ actor ArchiveService {
             return identifiers.randomElement()
         }
         
-        // First, randomly select a collection
-        guard let randomCollection = collections.randomElement() else {
-            Logger.metadata.error("Failed to select a random collection")
+        // Separate collections into preferred and non-preferred
+        let preferredCollections = collections.filter { $0.preferred }
+        let nonPreferredCollections = collections.filter { !$0.preferred }
+        
+        // Create a selection pool where:
+        // - Each preferred collection gets one entry
+        // - All non-preferred collections together get one entry
+        var selectionPool: [String] = preferredCollections.map { $0.name }
+        if !nonPreferredCollections.isEmpty {
+            selectionPool.append("non-preferred")
+        }
+        
+        // Randomly select from the pool
+        guard let selection = selectionPool.randomElement() else {
+            Logger.metadata.error("Failed to select from collection pool")
             return identifiers.randomElement()
         }
         
-        // Filter identifiers for the selected collection
-        let collectionIdentifiers = identifiers.filter { $0.collection == randomCollection }
-        
-        // If no identifiers found for this collection, fall back to any random identifier
-        if collectionIdentifiers.isEmpty {
-            Logger.metadata.warning("No identifiers found for collection '\(randomCollection)', selecting from all identifiers")
-            return identifiers.randomElement()
+        if selection == "non-preferred" {
+            // Randomly select one of the non-preferred collections
+            guard let randomNonPreferredCollection = nonPreferredCollections.randomElement() else {
+                Logger.metadata.error("Failed to select a non-preferred collection")
+                return identifiers.randomElement()
+            }
+            
+            // Filter identifiers for the selected non-preferred collection
+            let collectionIdentifiers = identifiers.filter { $0.collection == randomNonPreferredCollection.name }
+            
+            if collectionIdentifiers.isEmpty {
+                Logger.metadata.warning("No identifiers found for non-preferred collection '\(randomNonPreferredCollection.name)', selecting from all identifiers")
+                return identifiers.randomElement()
+            }
+            
+            Logger.metadata.debug("Selected non-preferred collection: \(randomNonPreferredCollection.name)")
+            return collectionIdentifiers.randomElement()
+        } else {
+            // We selected a specific preferred collection
+            // Filter identifiers for the selected preferred collection
+            let collectionIdentifiers = identifiers.filter { $0.collection == selection }
+            
+            if collectionIdentifiers.isEmpty {
+                Logger.metadata.warning("No identifiers found for preferred collection '\(selection)', selecting from all identifiers")
+                return identifiers.randomElement()
+            }
+            
+            Logger.metadata.debug("Selected preferred collection: \(selection)")
+            return collectionIdentifiers.randomElement()
         }
-        
-        // Select a random identifier from the chosen collection
-        return collectionIdentifiers.randomElement()
     }
     
     func findPlayableFiles(in metadata: ArchiveMetadata) -> [ArchiveFile] {
