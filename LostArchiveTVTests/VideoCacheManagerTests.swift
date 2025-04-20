@@ -12,7 +12,7 @@ import AVKit
 struct VideoCacheManagerTests {
     
     // Helper function to create a test CachedVideo
-    private func createTestVideo(identifier: String = "test") -> CachedVideo {
+    private func createTestVideo(identifier: String = "test", collection: String = "testCollection") -> CachedVideo {
         let metadata = ArchiveMetadata(
             files: [ArchiveFile(name: "test.mp4", format: "MPEG4", size: "1000000", length: "120")],
             metadata: ItemMetadata(identifier: identifier, title: "Test Video", description: "Test Description")
@@ -25,6 +25,7 @@ struct VideoCacheManagerTests {
         
         return CachedVideo(
             identifier: identifier,
+            collection: collection,
             metadata: metadata,
             mp4File: file,
             videoURL: url,

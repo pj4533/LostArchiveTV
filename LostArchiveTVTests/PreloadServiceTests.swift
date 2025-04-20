@@ -19,7 +19,7 @@ struct PreloadServiceTests {
         let preloadService = PreloadService()
         let cacheManager = VideoCacheManager()
         let archiveService = ArchiveService()
-        let identifiers: [String] = []
+        let identifiers: [ArchiveIdentifier] = []
         
         // Act
         await preloadService.ensureVideosAreCached(

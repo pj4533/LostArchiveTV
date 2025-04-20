@@ -37,21 +37,28 @@ struct ArchiveServiceTests {
     func getRandomIdentifier_returnsIdentifier() async {
         // Arrange
         let archiveService = ArchiveService()
-        let identifiers = ["id1", "id2", "id3"]
+        let identifiers = [
+            ArchiveIdentifier(identifier: "id1", collection: "testCollection"),
+            ArchiveIdentifier(identifier: "id2", collection: "testCollection"),
+            ArchiveIdentifier(identifier: "id3", collection: "testCollection")
+        ]
         
         // Act
-        let randomId = await archiveService.getRandomIdentifier(from: identifiers)
+        let randomArchiveId = await archiveService.getRandomIdentifier(from: identifiers)
         
         // Assert
-        #expect(randomId != nil)
-        #expect(identifiers.contains(randomId!))
+        #expect(randomArchiveId != nil)
+        let identifierStrings = identifiers.map { $0.identifier }
+        if let randomIdentifier = randomArchiveId?.identifier {
+            #expect(identifierStrings.contains(randomIdentifier))
+        }
     }
     
     @Test
     func getRandomIdentifier_withEmptyArray_returnsNil() async {
         // Arrange
         let archiveService = ArchiveService()
-        let identifiers: [String] = []
+        let identifiers: [ArchiveIdentifier] = []
         
         // Act
         let randomId = await archiveService.getRandomIdentifier(from: identifiers)

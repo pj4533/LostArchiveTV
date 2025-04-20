@@ -10,7 +10,11 @@ import Foundation
 
 // Since we can't inherit from actor ArchiveService, we'll implement the same interface
 actor MockArchiveService {
-    var mockIdentifiers: [String] = ["test1", "test2", "test3"]
+    var mockIdentifiers: [ArchiveIdentifier] = [
+        ArchiveIdentifier(identifier: "test1", collection: "collection1"),
+        ArchiveIdentifier(identifier: "test2", collection: "collection1"),
+        ArchiveIdentifier(identifier: "test3", collection: "collection2")
+    ]
     var mockMetadata: ArchiveMetadata = ArchiveMetadata(
         files: [
             ArchiveFile(name: "test.mp4", format: "MPEG4", size: "1000000", length: "120")
@@ -19,8 +23,9 @@ actor MockArchiveService {
     )
     var shouldThrowError = false
     var errorToThrow = NSError(domain: "MockArchiveService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Test error"])
+    var mockCollections = ["collection1", "collection2"]
     
-    func loadArchiveIdentifiers() async throws -> [String] {
+    func loadArchiveIdentifiers() async throws -> [ArchiveIdentifier] {
         if shouldThrowError {
             throw errorToThrow
         }
@@ -34,7 +39,7 @@ actor MockArchiveService {
         return mockMetadata
     }
     
-    func getRandomIdentifier(from identifiers: [String]) -> String? {
+    func getRandomIdentifier(from identifiers: [ArchiveIdentifier]) -> ArchiveIdentifier? {
         if shouldThrowError || identifiers.isEmpty {
             return nil
         }
