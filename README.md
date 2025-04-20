@@ -2,7 +2,7 @@
 
 A TikTok-style iOS video player for exploring videos from the Internet Archive.
 
-![LostArchiveTV Screenshot](lost_archive_tv.png)
+![LostArchiveTV Screenshot](lostarchivetv.gif)
 
 ## About
 
