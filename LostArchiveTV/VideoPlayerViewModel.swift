@@ -13,8 +13,8 @@ import OSLog
 @MainActor
 class VideoPlayerViewModel: ObservableObject {
     // Services
-    private let archiveService = ArchiveService()
-    private let cacheManager = VideoCacheManager()
+    let archiveService = ArchiveService()
+    let cacheManager = VideoCacheManager()
     private let preloadService = PreloadService()
     private let playbackManager = VideoPlaybackManager()
     private lazy var videoLoadingService = VideoLoadingService(
@@ -153,7 +153,14 @@ class VideoPlayerViewModel: ObservableObject {
     // MARK: - Public Interface
     
     var player: AVPlayer? {
-        playbackManager.player
+        get { playbackManager.player }
+        set {
+            if let asset = newValue?.currentItem?.asset {
+                playbackManager.setupPlayer(with: asset)
+            } else {
+                playbackManager.cleanupPlayer()
+            }
+        }
     }
     
     var videoDuration: Double {
