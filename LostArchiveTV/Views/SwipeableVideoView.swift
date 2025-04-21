@@ -17,7 +17,7 @@ struct SwipeableVideoView: View {
     
     // Constants for animation
     private let swipeThreshold: CGFloat = 100
-    private let animationDuration = 0.3
+    private let animationDuration = 0.15
     
     var body: some View {
         GeometryReader { geometry in
@@ -119,7 +119,7 @@ struct SwipeableVideoView: View {
                     .onEnded { value in
                         guard !transitionManager.isTransitioning && dragOffset > 0 else {
                             // If we're not actually dragging up, just reset
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            withAnimation(.spring(response: animationDuration, dampingFraction: 0.7)) {
                                 dragOffset = 0
                                 isDragging = false
                             }
@@ -143,7 +143,7 @@ struct SwipeableVideoView: View {
                             )
                         } else {
                             // Bounce back to original position
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            withAnimation(.spring(response: animationDuration, dampingFraction: 0.7)) {
                                 dragOffset = 0
                                 isDragging = false
                             }
