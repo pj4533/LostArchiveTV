@@ -7,16 +7,17 @@
 
 import Foundation
 import OSLog
-import SQLite3
 
 actor ArchiveService {
-    private var db: OpaquePointer?
+    private let dbService: DatabaseService
     private var collections: [ArchiveCollection] = []
     
     init() {
-        // Try to open the database at app startup
+        self.dbService = DatabaseService()
+        
+        // Try to initialize database and collections
         do {
-            try openDatabase()
+            try dbService.openDatabase()
             try loadCollections()
         } catch {
             Logger.metadata.error("Failed to initialize SQLite database: \(error.localizedDescription)")
@@ -24,70 +25,11 @@ actor ArchiveService {
     }
     
     deinit {
-        closeDatabase()
-    }
-    
-    private func openDatabase() throws {
-        // Get the path to the SQLite database file
-        guard let dbPath = Bundle.main.path(forResource: "identifiers", ofType: "sqlite") else {
-            Logger.metadata.error("Failed to find SQLite database file")
-            throw NSError(domain: "ArchiveService", code: 1, userInfo: [NSLocalizedDescriptionKey: "SQLite database file not found"])
-        }
-        
-        // Open the database
-        if sqlite3_open(dbPath, &db) != SQLITE_OK {
-            let errorMessage = String(cString: sqlite3_errmsg(db))
-            closeDatabase()
-            Logger.metadata.error("Failed to open SQLite database: \(errorMessage)")
-            throw NSError(domain: "ArchiveService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to open SQLite database: \(errorMessage)"])
-        }
-        
-        Logger.metadata.debug("Successfully opened SQLite database at \(dbPath)")
-    }
-    
-    private func closeDatabase() {
-        if db != nil {
-            sqlite3_close(db)
-            db = nil
-        }
+        dbService.closeDatabase()
     }
     
     private func loadCollections() throws {
-        // Ensure database is open
-        guard db != nil else {
-            try openDatabase()
-            return
-        }
-        
-        collections = []
-        
-        // Query for collections with preferred status
-        let queryString = "SELECT name, preferred FROM collections"
-        var queryStatement: OpaquePointer?
-        
-        if sqlite3_prepare_v2(db, queryString, -1, &queryStatement, nil) != SQLITE_OK {
-            let errorMessage = String(cString: sqlite3_errmsg(db))
-            Logger.metadata.error("Failed to prepare collections query: \(errorMessage)")
-            throw NSError(domain: "ArchiveService", code: 3, userInfo: [NSLocalizedDescriptionKey: "Failed to prepare query: \(errorMessage)"])
-        }
-        
-        // Execute the query and process results
-        while sqlite3_step(queryStatement) == SQLITE_ROW {
-            if let collectionCString = sqlite3_column_text(queryStatement, 0) {
-                let collectionName = String(cString: collectionCString)
-                let preferred = sqlite3_column_int(queryStatement, 1) == 1
-                collections.append(ArchiveCollection(name: collectionName, preferred: preferred))
-            }
-        }
-        
-        // Finalize the statement
-        sqlite3_finalize(queryStatement)
-        
-        if collections.isEmpty {
-            Logger.metadata.error("No collections found in the database")
-            throw NSError(domain: "ArchiveService", code: 4, userInfo: [NSLocalizedDescriptionKey: "No collections found in the database"])
-        }
-        
+        collections = try dbService.loadCollections()
         Logger.metadata.info("Loaded \(self.collections.count) collections from the database, including \(self.collections.filter { $0.preferred }.count) preferred collections")
     }
     
@@ -95,11 +37,7 @@ actor ArchiveService {
     func loadArchiveIdentifiers() async throws -> [ArchiveIdentifier] {
         Logger.metadata.debug("Loading archive identifiers from SQLite database")
         
-        // Ensure database is open and collections are loaded
-        if db == nil {
-            try openDatabase()
-        }
-        
+        // Ensure collections are loaded
         if collections.isEmpty {
             try loadCollections()
         }
@@ -108,7 +46,7 @@ actor ArchiveService {
         
         // Load identifiers from each collection
         for collection in collections {
-            let collectionIdentifiers = try loadIdentifiersForCollection(collection.name)
+            let collectionIdentifiers = try dbService.loadIdentifiersForCollection(collection.name)
             identifiers.append(contentsOf: collectionIdentifiers)
         }
         
@@ -118,34 +56,6 @@ actor ArchiveService {
         }
         
         Logger.metadata.info("Loaded \(identifiers.count) identifiers from \(self.collections.count) collections")
-        return identifiers
-    }
-    
-    private func loadIdentifiersForCollection(_ collection: String) throws -> [ArchiveIdentifier] {
-        var identifiers: [ArchiveIdentifier] = []
-        
-        // Create a query to get all identifiers from the collection table
-        let queryString = "SELECT identifier FROM \"\(collection)\""
-        var queryStatement: OpaquePointer?
-        
-        if sqlite3_prepare_v2(db, queryString, -1, &queryStatement, nil) != SQLITE_OK {
-            let errorMessage = String(cString: sqlite3_errmsg(db))
-            Logger.metadata.error("Failed to prepare identifiers query for \(collection): \(errorMessage)")
-            throw NSError(domain: "ArchiveService", code: 6, userInfo: [NSLocalizedDescriptionKey: "Failed to prepare query: \(errorMessage)"])
-        }
-        
-        // Execute the query and process results
-        while sqlite3_step(queryStatement) == SQLITE_ROW {
-            if let identifierCString = sqlite3_column_text(queryStatement, 0) {
-                let identifier = String(cString: identifierCString)
-                identifiers.append(ArchiveIdentifier(identifier: identifier, collection: collection))
-            }
-        }
-        
-        // Finalize the statement
-        sqlite3_finalize(queryStatement)
-        
-        Logger.metadata.debug("Loaded \(identifiers.count) identifiers from collection '\(collection)'")
         return identifiers
     }
     

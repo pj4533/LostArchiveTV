@@ -11,15 +11,9 @@ import OSLog
 
 struct SwipeableVideoView: View {
     @ObservedObject var viewModel: VideoPlayerViewModel
+    @StateObject private var transitionManager = VideoTransitionManager()
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging = false
-    @State private var isTransitioning = false
-    @State private var nextVideoReady = false
-    @State private var nextPlayer: AVPlayer?
-    @State private var nextTitle: String = ""
-    @State private var nextCollection: String = ""
-    @State private var nextDescription: String = ""
-    @State private var nextIdentifier: String = ""
     
     // Constants for animation
     private let swipeThreshold: CGFloat = 100
@@ -32,7 +26,7 @@ struct SwipeableVideoView: View {
                 Color.black.ignoresSafeArea()
                 
                 // Next video positioned below current video
-                if let nextPlayer = nextPlayer, nextVideoReady {
+                if let nextPlayer = transitionManager.nextPlayer, transitionManager.nextVideoReady {
                     ZStack {
                         // Next video content
                         VideoPlayerContent(
@@ -42,10 +36,10 @@ struct SwipeableVideoView: View {
                         
                         // Next video info
                         VideoInfoOverlay(
-                            title: nextTitle,
-                            collection: nextCollection,
-                            description: nextDescription,
-                            identifier: nextIdentifier
+                            title: transitionManager.nextTitle,
+                            collection: transitionManager.nextCollection,
+                            description: transitionManager.nextDescription,
+                            identifier: transitionManager.nextIdentifier
                         )
                     }
                     .frame(width: geometry.size.width, height: geometry.size.height)
@@ -54,14 +48,16 @@ struct SwipeableVideoView: View {
                 }
                 
                 // Current video
-                if viewModel.isLoading && nextPlayer == nil {
+                if viewModel.isLoading && transitionManager.nextPlayer == nil {
                     // Show loading screen only for initial load
                     LoadingView()
                 } else if let error = viewModel.errorMessage {
                     // Show error screen when there's an error
                     ErrorView(error: error) {
                         Task {
-                            await preloadNextVideo()
+                            await transitionManager.preloadNextVideo(
+                                viewModel: viewModel
+                            )
                         }
                     }
                 } else if let player = viewModel.player {
@@ -92,7 +88,9 @@ struct SwipeableVideoView: View {
                         if !viewModel.isLoading {
                             Task {
                                 await viewModel.loadRandomVideo()
-                                await preloadNextVideo()
+                                await transitionManager.preloadNextVideo(
+                                    viewModel: viewModel
+                                )
                             }
                         }
                     }
@@ -102,10 +100,10 @@ struct SwipeableVideoView: View {
             .contentShape(Rectangle())
             // Gesture for vertical swipe - only enable when we have a video playing and next video is ready
             .gesture(
-                viewModel.player == nil || viewModel.isLoading || !nextVideoReady ? nil :
+                viewModel.player == nil || viewModel.isLoading || !transitionManager.nextVideoReady ? nil :
                     DragGesture()
                     .onChanged { value in
-                        guard !isTransitioning else { return }
+                        guard !transitionManager.isTransitioning else { return }
                         
                         let translation = value.translation.height
                         isDragging = true
@@ -119,7 +117,7 @@ struct SwipeableVideoView: View {
                         }
                     }
                     .onEnded { value in
-                        guard !isTransitioning && dragOffset > 0 else {
+                        guard !transitionManager.isTransitioning && dragOffset > 0 else {
                             // If we're not actually dragging up, just reset
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                 dragOffset = 0
@@ -136,7 +134,13 @@ struct SwipeableVideoView: View {
                         
                         if shouldComplete {
                             // Complete the swipe animation upward
-                            completeTransition(geometry: geometry)
+                            transitionManager.completeTransition(
+                                geometry: geometry,
+                                viewModel: viewModel,
+                                dragOffset: $dragOffset,
+                                isDragging: $isDragging,
+                                animationDuration: animationDuration
+                            )
                         } else {
                             // Bounce back to original position
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -154,122 +158,24 @@ struct SwipeableVideoView: View {
                         await viewModel.loadRandomVideo()
                         
                         // Ensure next video is preloaded for swiping
-                        if !nextVideoReady {
+                        if !transitionManager.nextVideoReady {
                             Logger.caching.info("SwipeableVideoView: Preloading next video for swiping")
-                            await preloadNextVideo()
+                            await transitionManager.preloadNextVideo(
+                                viewModel: viewModel
+                            )
                         }
                     }
-                } else if viewModel.player != nil && !nextVideoReady {
+                } else if viewModel.player != nil && !transitionManager.nextVideoReady {
                     // Preload next video if we already have current video but no next video ready
                     Task {
                         Logger.caching.info("SwipeableVideoView: Current video loaded but next video not ready, preloading now")
-                        await preloadNextVideo()
+                        await transitionManager.preloadNextVideo(
+                            viewModel: viewModel
+                        )
                     }
                 } else {
                     Logger.caching.info("SwipeableVideoView: Video playing and next video ready")
                 }
-            }
-        }
-    }
-    
-    // Preload the next video while current one is playing
-    private func preloadNextVideo() async {
-        // Reset next video ready flag
-        nextVideoReady = false
-        
-        // Create a temporary loading service to load next video
-        let service = VideoLoadingService(
-            archiveService: viewModel.archiveService,
-            cacheManager: viewModel.cacheManager
-        )
-        
-        do {
-            // Load a complete random video
-            let videoInfo = try await service.loadRandomVideo()
-            
-            // Update next video metadata
-            nextTitle = videoInfo.title
-            nextCollection = videoInfo.collection
-            nextDescription = videoInfo.description
-            nextIdentifier = videoInfo.identifier
-            
-            // Create a new player for the asset
-            let player = AVPlayer(playerItem: AVPlayerItem(asset: videoInfo.asset))
-            
-            // Prepare player but keep it paused and muted
-            player.isMuted = true
-            player.pause()
-            
-            // Seek to the start position
-            let startTime = CMTime(seconds: videoInfo.startPosition, preferredTimescale: 600)
-            await player.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
-            
-            // Store reference to next player
-            nextPlayer = player
-            
-            // Mark next video as ready
-            nextVideoReady = true
-        } catch {
-            // Retry on error after a short delay
-            try? await Task.sleep(for: .seconds(0.5))
-            await preloadNextVideo()
-        }
-    }
-    
-    private func completeTransition(geometry: GeometryProxy) {
-        guard nextVideoReady, let nextPlayer = nextPlayer else { return }
-        
-        // Mark as transitioning to prevent gesture conflicts
-        isTransitioning = true
-        
-        // Animate transition to completion
-        withAnimation(.easeOut(duration: animationDuration)) {
-            dragOffset = geometry.size.height
-        }
-        
-        // After animation completes, swap next to current
-        DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) {
-            // Stop old player
-            viewModel.player?.pause()
-            
-            // Save the previous identifier to remove from cache
-            let previousIdentifier = viewModel.currentIdentifier
-            
-            // Update the view model with the new video's metadata
-            viewModel.currentTitle = nextTitle
-            viewModel.currentCollection = nextCollection
-            viewModel.currentDescription = nextDescription
-            viewModel.currentIdentifier = nextIdentifier
-            
-            // Unmute the new player and play it
-            nextPlayer.isMuted = false
-            
-            // Set the new player as current
-            viewModel.player = nextPlayer
-            
-            // Play the new current video
-            nextPlayer.play()
-            
-            // Reset animation state
-            dragOffset = 0
-            isDragging = false
-            isTransitioning = false
-            nextVideoReady = false
-            self.nextPlayer = nil
-            
-            // Simple logic: 1) Remove viewed video from cache, 2) Add new video to cache, 3) Preload next UI video
-            Task {
-                // Step 1: Remove the viewed video from cache
-                if let prevId = previousIdentifier {
-                    Logger.caching.info("Removing viewed video \(prevId) from cache")
-                    await viewModel.cacheManager.removeVideo(identifier: prevId)
-                }
-                
-                // Step 2: Start filling cache to maintain 3 videos
-                await viewModel.ensureVideosAreCached()
-                
-                // Step 3: Preload the next video for the UI
-                await preloadNextVideo()
             }
         }
     }
