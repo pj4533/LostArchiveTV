@@ -81,72 +81,36 @@ class VideoPlayerViewModel: ObservableObject {
         cacheMonitorTask?.cancel()
         
         cacheMonitorTask = Task {
-            var isFirstVideoLoaded = false
-            
+            // Wait until we have at least 2 videos cached (bare minimum for swiping experience)
             while !Task.isCancelled && isInitializing {
-                let cacheCount = await cacheManager.cacheCount()
+                let cacheCount = await cacheManager.cacheCount() 
                 let maxCacheSize = await cacheManager.getMaxCacheSize()
                 
-                // Update progress
+                // Update progress for loading screen
                 self.cacheProgress = Double(cacheCount) / Double(maxCacheSize)
                 
-                // Update message based on current state
+                // Update message based on progress
                 if cacheCount == 0 {
                     self.cacheMessage = "Loading video library..."
-                } else if !isFirstVideoLoaded {
-                    self.cacheMessage = "Preparing first video..."
-                    isFirstVideoLoaded = true
+                } else if cacheCount == 1 {
+                    self.cacheMessage = "Preparing for swiping..."
+                } else if cacheCount >= 2 {
+                    // Once we have at least 2 videos, we can start playing
+                    self.cacheMessage = "Ready for playback!"
+                    try? await Task.sleep(for: .seconds(0.2))
                     
-                    // If the first video is loaded, complete initialization
-                    // This allows the video to start playing immediately while cache continues filling
-                    try? await Task.sleep(for: .seconds(0.5))
+                    // Exit initialization mode now that we're ready
                     self.isInitializing = false
-                    
-                    // Don't cancel the monitoring task - let it continue in the background
+                    Logger.caching.info("Initial cache ready with \(cacheCount) videos - beginning playback")
                     break
-                } else {
-                    self.cacheMessage = "Preloading videos for smooth playback..."
                 }
                 
-                // Check periodically to avoid overwhelming the system
                 try? await Task.sleep(for: .seconds(0.2))
             }
             
-            // Continue monitoring the cache in the background
-            while !Task.isCancelled {
-                let cacheCount = await cacheManager.cacheCount()
-                let maxCacheSize = await cacheManager.getMaxCacheSize()
-                
-                // Update progress for any UI that might still be showing it
-                self.cacheProgress = Double(cacheCount) / Double(maxCacheSize)
-                
-                // If cache is full, we can stop monitoring
-                if cacheCount >= maxCacheSize {
-                    self.cacheMonitorTask?.cancel()
-                    break
-                }
-                
-                // Check less frequently now that we're in the background
-                try? await Task.sleep(for: .seconds(0.5))
-            }
-        }
-    }
-    
-    // MARK: - Swipe Interface Support
-    
-    /// Prepares the player for swiping by ensuring multiple videos are cached
-    func prepareForSwipe() {
-        Logger.videoPlayback.debug("Preparing for swipe interactions")
-        Task {
-            await ensureVideosAreCached()
-        }
-    }
-    
-    /// Handles the completion of a swipe gesture
-    func handleSwipeCompletion() {
-        Logger.videoPlayback.info("Swipe gesture completed, loading next video")
-        Task {
-            await loadRandomVideo()
+            // After initialization, we can stop the monitoring task
+            // The cache will be maintained by the SwipeableVideoView when videos are played
+            // and by calls to ensureVideosAreCached() when videos are removed
         }
     }
     
@@ -276,7 +240,7 @@ class VideoPlayerViewModel: ObservableObject {
     
     // MARK: - Caching
     
-    private func ensureVideosAreCached() async {
+    func ensureVideosAreCached() async {
         await preloadService.ensureVideosAreCached(
             cacheManager: cacheManager,
             archiveService: archiveService,

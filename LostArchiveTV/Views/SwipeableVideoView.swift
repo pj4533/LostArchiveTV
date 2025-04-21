@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AVKit
+import OSLog
 
 struct SwipeableVideoView: View {
     @ObservedObject var viewModel: VideoPlayerViewModel
@@ -146,17 +147,26 @@ struct SwipeableVideoView: View {
                     }
             )
             .onAppear {
-                // Ensure we have a video loaded
+                // Ensure we have a video loaded and the next video is ready
                 if viewModel.player == nil && !viewModel.isLoading {
                     Task {
+                        Logger.caching.info("SwipeableVideoView: No video loaded, loading first video")
                         await viewModel.loadRandomVideo()
-                        await preloadNextVideo()
+                        
+                        // Ensure next video is preloaded for swiping
+                        if !nextVideoReady {
+                            Logger.caching.info("SwipeableVideoView: Preloading next video for swiping")
+                            await preloadNextVideo()
+                        }
                     }
                 } else if viewModel.player != nil && !nextVideoReady {
-                    // Preload next video if we already have current video
+                    // Preload next video if we already have current video but no next video ready
                     Task {
+                        Logger.caching.info("SwipeableVideoView: Current video loaded but next video not ready, preloading now")
                         await preloadNextVideo()
                     }
+                } else {
+                    Logger.caching.info("SwipeableVideoView: Video playing and next video ready")
                 }
             }
         }
@@ -222,6 +232,9 @@ struct SwipeableVideoView: View {
             // Stop old player
             viewModel.player?.pause()
             
+            // Save the previous identifier to remove from cache
+            let previousIdentifier = viewModel.currentIdentifier
+            
             // Update the view model with the new video's metadata
             viewModel.currentTitle = nextTitle
             viewModel.currentCollection = nextCollection
@@ -244,8 +257,18 @@ struct SwipeableVideoView: View {
             nextVideoReady = false
             self.nextPlayer = nil
             
-            // Start preloading next video
+            // Simple logic: 1) Remove viewed video from cache, 2) Add new video to cache, 3) Preload next UI video
             Task {
+                // Step 1: Remove the viewed video from cache
+                if let prevId = previousIdentifier {
+                    Logger.caching.info("Removing viewed video \(prevId) from cache")
+                    await viewModel.cacheManager.removeVideo(identifier: prevId)
+                }
+                
+                // Step 2: Start filling cache to maintain 3 videos
+                await viewModel.ensureVideosAreCached()
+                
+                // Step 3: Preload the next video for the UI
                 await preloadNextVideo()
             }
         }

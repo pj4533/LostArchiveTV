@@ -19,46 +19,40 @@ actor PreloadService {
             return
         }
         
-        // Cancel any existing preload task
-        preloadTask?.cancel()
+        // Get current cache state
+        let cacheCount = await cacheManager.cacheCount()
+        let maxCache = await cacheManager.getMaxCacheSize()
         
-        // Start a new preload task
-        preloadTask = Task {
-            let cacheCount = await cacheManager.cacheCount()
-            Logger.caching.info("Starting cache preload for swipe interface, current cache size: \(cacheCount)")
+        Logger.caching.info("Ensuring videos are cached, current size: \(cacheCount)/\(maxCache)")
+        
+        // Simple logic: if cache isn't full, add more videos until it is
+        if cacheCount < maxCache {
+            // Cancel any existing preload task
+            preloadTask?.cancel()
             
-            // Prioritize loading at least one video immediately
-            if await cacheManager.isCacheEmpty() {
-                Logger.caching.debug("Cache empty, prioritizing first video load")
-                do {
-                    try await self.preloadRandomVideo(cacheManager: cacheManager, archiveService: archiveService, identifiers: identifiers)
-                } catch {
-                    Logger.caching.error("Failed to preload first video: \(error.localizedDescription)")
-                }
-            }
-            
-            // Preload up to maxCachedVideos
-            let maxCache = await cacheManager.getMaxCacheSize()
-            
-            // Continue preloading until we have enough cached videos
-            var continuePreloading = true
-            while !Task.isCancelled && continuePreloading {
-                let currentCount = await cacheManager.cacheCount()
-                continuePreloading = currentCount < maxCache
-                
-                if continuePreloading {
+            // Start a new task to fill cache to exactly maxCache videos (3)
+            preloadTask = Task {
+                while !Task.isCancelled {
+                    // Check current count
+                    let count = await cacheManager.cacheCount()
+                    
+                    // If cache is full, we're done
+                    if count >= maxCache {
+                        Logger.caching.info("Cache is full (\(count)/\(maxCache)), preloading complete")
+                        break
+                    }
+                    
+                    // Add one more video
                     do {
                         try await self.preloadRandomVideo(cacheManager: cacheManager, archiveService: archiveService, identifiers: identifiers)
+                        let newCount = await cacheManager.cacheCount()
+                        Logger.caching.info("Added video to cache, now at \(newCount)/\(maxCache)")
                     } catch {
                         Logger.caching.error("Failed to preload video: \(error.localizedDescription)")
-                        // Give a short pause before trying again
-                        try? await Task.sleep(for: .seconds(0.5)) // Reduced wait time for swipe interface
+                        try? await Task.sleep(for: .seconds(0.5))
                     }
                 }
             }
-            
-            let finalCount = await cacheManager.cacheCount()
-            Logger.caching.info("Cache preload for swipe interface completed, cache size: \(finalCount)")
         }
     }
     

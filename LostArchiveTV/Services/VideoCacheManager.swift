@@ -29,6 +29,18 @@ actor VideoCacheManager {
         return video
     }
     
+    func removeVideo(identifier: String) {
+        let beforeCount = cachedVideos.count
+        cachedVideos.removeAll { $0.identifier == identifier }
+        let afterCount = cachedVideos.count
+        
+        if beforeCount != afterCount {
+            Logger.caching.info("Removed video \(identifier) from cache - remaining: \(afterCount)")
+        } else {
+            Logger.caching.debug("Attempted to remove video \(identifier) from cache, but it wasn't found")
+        }
+    }
+    
     func clearCache() {
         Logger.caching.info("Clearing video cache (\(self.cachedVideos.count) videos)")
         cachedVideos.removeAll()
