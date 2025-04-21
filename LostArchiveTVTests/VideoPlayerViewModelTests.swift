@@ -30,10 +30,7 @@ struct VideoPlayerViewModelTests {
         // Arrange
         let viewModel = VideoPlayerViewModel()
         
-        // Set test identifiers
-        viewModel.prepareForSwipe() // This is an indirect way to get some behavior since we can't access the private identifiers
-        
-        // Make sure identifiers get loaded
+        // Make sure identifiers get loaded - the initialization task in the ViewModel loads them
         try? await Task.sleep(for: .seconds(0.5))
         
         // Initial state check
@@ -48,19 +45,25 @@ struct VideoPlayerViewModelTests {
         #expect(viewModel.currentIdentifier != nil)
     }
     
-    // Test common swiping operation
+    // Test loading a new video after a swipe action
     @Test
-    func handleSwipeCompletion_loadsNextVideo() async {
+    func loadingNewVideo_afterSwipe_works() async {
         // Arrange
         let viewModel = VideoPlayerViewModel()
         
-        // Act
-        viewModel.handleSwipeCompletion()
+        // Wait for initial setup
+        try? await Task.sleep(for: .seconds(0.5))
+        
+        // First load a video
+        await viewModel.loadRandomVideo()
+        
+        // Act - simulate swipe by loading another video
+        await viewModel.loadRandomVideo()
         
         // Wait for async work
         try? await Task.sleep(for: .seconds(0.5))
         
         // Assert - we can't verify internal state, but ensuring it doesn't crash is valuable
-        #expect(true)
+        #expect(viewModel.currentIdentifier != nil)
     }
 }
