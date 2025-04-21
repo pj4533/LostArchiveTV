@@ -21,7 +21,9 @@ class VideoTransitionManager: ObservableObject {
     // Preload the next video while current one is playing
     func preloadNextVideo(viewModel: VideoPlayerViewModel) async {
         // Reset next video ready flag
-        nextVideoReady = false
+        await MainActor.run {
+            nextVideoReady = false
+        }
         
         // Create a temporary loading service to load next video
         let service = VideoLoadingService(
@@ -32,12 +34,6 @@ class VideoTransitionManager: ObservableObject {
         do {
             // Load a complete random video
             let videoInfo = try await service.loadRandomVideo()
-            
-            // Update next video metadata
-            nextTitle = videoInfo.title
-            nextCollection = videoInfo.collection
-            nextDescription = videoInfo.description
-            nextIdentifier = videoInfo.identifier
             
             // Create a new player for the asset
             let player = AVPlayer(playerItem: AVPlayerItem(asset: videoInfo.asset))
@@ -50,11 +46,20 @@ class VideoTransitionManager: ObservableObject {
             let startTime = CMTime(seconds: videoInfo.startPosition, preferredTimescale: 600)
             await player.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
             
-            // Store reference to next player
-            nextPlayer = player
-            
-            // Mark next video as ready
-            nextVideoReady = true
+            // Update UI on main thread
+            await MainActor.run {
+                // Update next video metadata
+                nextTitle = videoInfo.title
+                nextCollection = videoInfo.collection
+                nextDescription = videoInfo.description
+                nextIdentifier = videoInfo.identifier
+                
+                // Store reference to next player
+                nextPlayer = player
+                
+                // Mark next video as ready
+                nextVideoReady = true
+            }
         } catch {
             // Retry on error after a short delay
             try? await Task.sleep(for: .seconds(0.5))
@@ -71,12 +76,15 @@ class VideoTransitionManager: ObservableObject {
     ) {
         guard nextVideoReady, let nextPlayer = nextPlayer else { return }
         
-        // Mark as transitioning to prevent gesture conflicts
-        isTransitioning = true
-        
-        // Animate transition to completion
-        withAnimation(.easeOut(duration: animationDuration)) {
-            dragOffset.wrappedValue = geometry.size.height
+        // Update on main thread
+        Task { @MainActor in
+            // Mark as transitioning to prevent gesture conflicts
+            isTransitioning = true
+            
+            // Animate transition to completion
+            withAnimation(.easeOut(duration: animationDuration)) {
+                dragOffset.wrappedValue = geometry.size.height
+            }
         }
         
         // After animation completes, swap next to current
