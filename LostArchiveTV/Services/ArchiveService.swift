@@ -192,6 +192,8 @@ actor ArchiveService {
             selectionPool.append("non-preferred")
         }
         
+        Logger.metadata.info("Collection pool: \(selectionPool)")
+        
         // Randomly select from the pool
         guard let selection = selectionPool.randomElement() else {
             Logger.metadata.error("Failed to select from collection pool")
