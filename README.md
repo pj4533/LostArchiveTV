@@ -1,6 +1,5 @@
 # LostArchiveTV
 
-
 A TikTok-style iOS video player for exploring videos from the Internet Archive.
 
 ![LostArchiveTV Screenshot](lostarchivetv.gif)
@@ -18,21 +17,29 @@ LostArchiveTV lets you discover historical films, educational videos, and other 
 - Shows metadata and descriptions for each video
 - Video caching system for offline viewing and performance
 - Smart time offset selection to show interesting parts of longer videos
+- Collection-based video selection with preferred collection weighting
+- SQLite database for efficient identifier storage
 
 ## How It Works
 
-- Loads a curated list of Archive.org identifiers
+- Loads identifiers from a SQLite database with collection information
+- Prioritizes preferred collections for better content selection
 - Fetches metadata and streaming URLs via the Archive.org API
 - Uses AVKit for high-performance video playback
 - Implements Swift concurrency (async/await) for smooth operation
 - Preloads upcoming videos in the background
 - Maintains a video cache for optimal performance
+- Comprehensive logging via OSLog for diagnostics
 
 ## Requirements
 
 - iOS 18.0+
 - Xcode 16.0+
 - Swift 5.9+
+
+## Development
+
+The app uses the Swift Testing framework for testing rather than XCTest. See the `docs/swifttesting_documentation.md` file for more information about this modern testing approach.
 
 ## License
 

@@ -7,6 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Uses the Archive.org API to fetch metadata and stream videos
 - Implements a TikTok-style video player with random clip selection
 - Features video preloading and caching for smoother playback experience
+- Uses SQLite database for storing video identifiers organized by collections
+- Prioritizes content from preferred collections for better user experience
 
 ## Build and Test Commands
 - Build app: `xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhone 16' build`
@@ -17,12 +19,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Structure
 - Organized into separate Models, Views, ViewModels, and Services directories
-- Models in `Models/` directory: ArchiveIdentifier, ArchiveMetadata, ArchiveFile, ItemMetadata, CachedVideo
-- Views in `Views/` directory: ContentView, PlayerContentView, LoadingView, ErrorView, HeaderView
-- Services in `Services/` directory: ArchiveService, VideoCacheManager, VideoPlaybackManager, PreloadService, LoggingService
-- Video coordination in `VideoPlayerViewModel.swift`
+- Models in `Models/` directory: ArchiveIdentifier, ArchiveMetadata, ArchiveFile, ItemMetadata, CachedVideo, ArchiveCollection
+- Views in `Views/` directory: ContentView, VideoPlayerContent, LoadingView, ErrorView, VideoInfoOverlay, SwipeableVideoView
+- Services in `Services/` directory: ArchiveService, VideoCacheManager, VideoPlaybackManager, PreloadService, LoggingService, VideoLoadingService
+- Video coordination in `VideoPlayerViewModel.swift` (MainActor for UI updates)
 - App entry point in `LostArchiveTVApp.swift`
-- Video identifiers stored in `avgeeks_identifiers.json`
+- Video identifiers stored in `identifiers.sqlite` database with collections table and individual collection tables
+
+## Testing Approach
+- Uses Swift Testing framework (not XCTest) for unit tests
+- Tests are organized by service functionality in separate test files
+- Each test focuses on a specific functionality aspect with clear Arrange/Act/Assert structure
+- No mock classes are used; tests use the actual implementations
+
+## Database Structure
+- SQLite database with a `collections` table listing all available collections and their preferred status
+- Each collection has its own table containing identifiers for that collection
+- Database is bundled with the app and accessed via SQLite3 C API
 
 ## Code Style Guidelines
 - Use SwiftUI for all UI components
@@ -34,6 +47,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Use optional chaining for handling nullable values
 - Explicitly handle errors with try/catch
 - Keep functions small and focused on a single responsibility
-- Leverage OSLog for structured logging across different categories
+- Leverage OSLog for structured logging across different categories (network, metadata, caching, etc.)
 - Use descriptive variable names following Swift conventions (camelCase)
 - Implement robust error handling and recovery
