@@ -36,7 +36,10 @@ struct VideoTrimView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        viewModel.cancelTrimming()
+                        // First clean up resources
+                        viewModel.prepareForDismissal()
+                        
+                        // Then dismiss the view
                         dismiss()
                     }
                 }
@@ -45,6 +48,8 @@ struct VideoTrimView: View {
                     Button("Save") {
                         Task {
                             await viewModel.saveTrimmmedVideo()
+                            // Clean up before dismiss
+                            viewModel.prepareForDismissal()
                             dismiss()
                         }
                     }

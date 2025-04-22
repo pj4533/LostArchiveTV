@@ -58,17 +58,34 @@ class VideoTrimViewModel: ObservableObject {
     deinit {
         logger.debug("VideoTrimViewModel deinit called")
         
-        // Make sure we stop playback
-        player.pause()
+        // We must not use Task here - it can cause a race condition since deinit is synchronous
+        // but the Task might run after object is deallocated
         
-        // We need to handle this in a task since we're in a MainActor class
-        Task { @MainActor in
-            // Only remove the observer if it exists
-            if timeObserverToken != nil {
-                logger.debug("Removing time observer in deinit")
-                removeTimeObserver()
-            }
+        // NOTE: We're intentionally NOT cleaning up the player or observer here
+        // as that's handled explicitly by prepareForDismissal()
+    }
+    
+    // Call this before dismissing the view
+    func prepareForDismissal() {
+        logger.debug("Preparing trim view for dismissal")
+        
+        // First make sure playback is stopped
+        if isPlaying {
+            player.pause()
+            isPlaying = false
         }
+        
+        // Safely remove observer
+        if let token = timeObserverToken {
+            logger.debug("Removing time observer before dismissal")
+            player.removeTimeObserver(token)
+            timeObserverToken = nil
+        }
+        
+        // Break any potential retain cycles
+        player.replaceCurrentItem(with: nil)
+        
+        logger.debug("Trim view clean-up complete")
     }
     
     private func setupTimeObserver() {
@@ -163,12 +180,9 @@ class VideoTrimViewModel: ObservableObject {
     }
     
     func cancelTrimming() {
-        // Just pause playback but don't remove the observer
-        // (observer removal will be handled by deinit)
-        if isPlaying {
-            player.pause()
-            isPlaying = false
-        }
-        logger.debug("Trim operation canceled")
+        logger.debug("Trim operation canceled - cleaning up resources")
+        
+        // Call our explicit cleanup method
+        prepareForDismissal()
     }
 }

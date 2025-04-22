@@ -163,14 +163,11 @@ struct VideoInfoOverlay: View {
                 .padding(.trailing, 8)
             }
         }
-        .sheet(isPresented: $showTrimView) {
-            // Resume playback when dismissed, with a slight delay to ensure
-            // the trim view is fully dismissed and cleanup has completed
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                logger.debug("Sheet dismissed, resuming playback")
-                viewModel.resumePlayback()
-            }
-        } content: {
+        .sheet(isPresented: $showTrimView, onDismiss: {
+            // Only resume playback - the cleanup is handled explicitly before dismissal
+            logger.debug("Sheet dismissed, resuming main playback")
+            viewModel.resumePlayback()
+        }) {
             if let currentVideoURL = viewModel.currentVideoURL,
                let currentTime = viewModel.currentVideoTime,
                let duration = viewModel.currentVideoDuration {
