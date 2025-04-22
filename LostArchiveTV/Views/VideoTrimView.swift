@@ -2,21 +2,191 @@ import SwiftUI
 import AVFoundation
 import AVKit
 
+// MARK: - TimelineView Component
+struct TimelineView: View {
+    @ObservedObject var viewModel: VideoTrimViewModel
+    let timelineWidth: CGFloat
+    let thumbnailHeight: CGFloat = 50
+    
+    var body: some View {
+        ZStack(alignment: .leading) {
+            // Calculate window times
+            let timeWindow = viewModel.calculateVisibleTimeWindow()
+            
+            // Render thumbnails if available
+            Group {
+                if viewModel.thumbnails.isEmpty {
+                    // Show placeholder until thumbnails load
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(height: thumbnailHeight)
+                } else {
+                    // Create a simple container for all thumbnails
+                    HStack(spacing: 0) {
+                        ForEach(0..<viewModel.thumbnails.count, id: \.self) { index in
+                            if let uiImage = viewModel.thumbnails[index] {
+                                // Calculate the time position for this thumbnail
+                                let thumbTimeRatio = Double(index) / Double(viewModel.thumbnails.count)
+                                let thumbTime = viewModel.assetDuration.seconds * thumbTimeRatio
+                                
+                                // Check if it's in our visible window
+                                if thumbTime >= timeWindow.start && thumbTime <= timeWindow.end {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(
+                                            width: timelineWidth / CGFloat(viewModel.thumbnails.count),
+                                            height: thumbnailHeight
+                                        )
+                                        .clipped()
+                                }
+                            }
+                        }
+                    }
+                    .frame(height: thumbnailHeight)
+                }
+            }
+            
+            // Get handle positions from view model
+            let startPos = viewModel.timeToPosition(timeInSeconds: viewModel.startTrimTime.seconds, timelineWidth: timelineWidth)
+            let endPos = viewModel.timeToPosition(timeInSeconds: viewModel.endTrimTime.seconds, timelineWidth: timelineWidth)
+            let selectedWidth = endPos - startPos
+            let currentPos = viewModel.timeToPosition(timeInSeconds: viewModel.currentTime.seconds, timelineWidth: timelineWidth)
+            
+            // Current time indicator (playhead)
+            Rectangle()
+                .fill(Color.white)
+                .frame(width: 2, height: thumbnailHeight + 20)
+                .position(x: currentPos, y: thumbnailHeight / 2)
+            
+            // Left non-selected area overlay
+            Rectangle()
+                .fill(Color.black.opacity(0.5))
+                .frame(width: startPos, height: thumbnailHeight)
+                .position(x: startPos/2, y: thumbnailHeight/2)
+            
+            // Right non-selected area overlay
+            Rectangle()
+                .fill(Color.black.opacity(0.5))
+                .frame(width: max(0, timelineWidth - endPos), height: thumbnailHeight)
+                .position(x: (timelineWidth + endPos)/2, y: thumbnailHeight/2)
+            
+            // Selected area border
+            Rectangle()
+                .fill(Color.clear)
+                .border(Color.white, width: 2)
+                .frame(width: selectedWidth, height: thumbnailHeight)
+                .position(x: startPos + selectedWidth/2, y: thumbnailHeight/2)
+            
+            // Left trim handle
+            TrimHandle(isDragging: Binding(
+                get: { viewModel.isDraggingLeftHandle },
+                set: { _ in }
+            ), orientation: .left)
+                .position(x: startPos, y: thumbnailHeight/2)
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            if !viewModel.isDraggingLeftHandle {
+                                viewModel.startLeftHandleDrag(position: value.startLocation.x)
+                            }
+                            viewModel.updateLeftHandleDrag(currentPosition: value.location.x, timelineWidth: timelineWidth)
+                        }
+                        .onEnded { _ in
+                            viewModel.endLeftHandleDrag()
+                        }
+                )
+                .zIndex(10)
+            
+            // Right trim handle
+            TrimHandle(isDragging: Binding(
+                get: { viewModel.isDraggingRightHandle },
+                set: { _ in }
+            ), orientation: .right)
+                .position(x: endPos, y: thumbnailHeight/2)
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            if !viewModel.isDraggingRightHandle {
+                                viewModel.startRightHandleDrag(position: value.startLocation.x)
+                            }
+                            viewModel.updateRightHandleDrag(currentPosition: value.location.x, timelineWidth: timelineWidth)
+                        }
+                        .onEnded { _ in
+                            viewModel.endRightHandleDrag()
+                        }
+                )
+                .zIndex(10)
+        }
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    viewModel.scrubTimeline(position: value.location.x, timelineWidth: timelineWidth)
+                }
+        )
+        .frame(height: thumbnailHeight + 20)
+        .clipped()
+    }
+}
+
+// MARK: - TrimHandle Component
+struct TrimHandle: View {
+    @Binding var isDragging: Bool
+    var orientation: HandleOrientation
+    
+    enum HandleOrientation {
+        case left
+        case right
+    }
+    
+    private let handleWidth: CGFloat = 8
+    private let handleHeight: CGFloat = 50
+    
+    var body: some View {
+        ZStack {
+            // Invisible larger touch area
+            Rectangle()
+                .fill(Color.clear)
+                .frame(width: 44, height: handleHeight + 40) // Wider touch area
+            
+            // Handle bar
+            Rectangle()
+                .fill(Color.white)
+                .frame(width: handleWidth, height: 50)
+            
+            // Top handle
+            Circle()
+                .fill(Color.white)
+                .frame(width: 20, height: 20)
+                .overlay(
+                    Image(systemName: orientation == .left ? "chevron.left" : "chevron.right")
+                        .foregroundColor(.black)
+                        .font(.system(size: 10, weight: .bold))
+                )
+                .offset(y: -20)
+            
+            // Bottom handle
+            Circle()
+                .fill(Color.white)
+                .frame(width: 20, height: 20)
+                .overlay(
+                    Image(systemName: orientation == .left ? "chevron.left" : "chevron.right")
+                        .foregroundColor(.black)
+                        .font(.system(size: 10, weight: .bold))
+                )
+                .offset(y: 20)
+        }
+        .frame(width: 44, height: handleHeight + 40)
+        .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Main VideoTrimView
 struct VideoTrimView: View {
     @ObservedObject var viewModel: VideoTrimViewModel
     @Environment(\.dismiss) private var dismiss
     
-    // State to track dragging to prevent zoom recalculation during drag
-    // Simple state tracking for drags
-    @State private var isDraggingLeftHandle = false
-    @State private var isDraggingRightHandle = false
-    @State private var dragStartPos: CGFloat = 0
-    @State private var initialHandleTime: Double = 0
-    
-    // Constants for UI layout
-    private let handleWidth: CGFloat = 8
     private let thumbnailHeight: CGFloat = 50
-    private let timelineHeight: CGFloat = 50
     
     var body: some View {
         ZStack {
@@ -73,15 +243,14 @@ struct VideoTrimView: View {
                     
                     Spacer()
                     
-                    // Video player in center (larger space)
+                    // Video player
                     ZStack {
-                        // Video player using SwiftUI VideoPlayer
                         VideoPlayer(player: viewModel.player)
                             .aspectRatio(9/16, contentMode: ContentMode.fit)
                             .frame(maxWidth: .infinity)
                             .background(Color.black)
                             .overlay(
-                                // Play/pause button overlay - larger and more prominent
+                                // Play/pause button overlay
                                 Button(action: viewModel.togglePlayback) {
                                     ZStack {
                                         Circle()
@@ -120,165 +289,9 @@ struct VideoTrimView: View {
                     .padding(.horizontal)
                     .padding(.bottom, 4)
                     
-                    // Timeline scrubber at bottom
+                    // Timeline view using our new component
                     GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            // Calculate the timeline width for this view
-                            let timelineWidth = geo.size.width
-                            
-                            // Video thumbnails background
-                            Group {
-                                if viewModel.thumbnails.isEmpty {
-                                    // Show placeholder until thumbnails load
-                                    Rectangle()
-                                        .fill(Color.gray.opacity(0.3))
-                                        .frame(height: thumbnailHeight)
-                                } else {
-                                    // SIMPLIFIED APPROACH:
-                                    // 1. Show a fixed 90-second window (or less if video is shorter)
-                                    // 2. Center around the selected portion with padding
-                                    // 3. No dynamic zooming when handles move
-                                    
-                                    // Calculate how much time we want to show in the timeline
-                                    let windowDuration = min(90.0, viewModel.assetDuration.seconds) // Show 90 seconds or entire video
-                                    
-                                    // Calculate the middle of the trimmed section
-                                    let trimMiddle = (viewModel.startTrimTime.seconds + viewModel.endTrimTime.seconds) / 2.0
-                                    
-                                    // Calculate the start time of our visible window (centered on the trim)
-                                    let timelineStart = max(0, trimMiddle - windowDuration / 2)
-                                    let timelineEnd = min(viewModel.assetDuration.seconds, timelineStart + windowDuration)
-                                    
-                                    // Adjust to make sure we don't go out of bounds
-                                    let adjustedTimelineStart = min(timelineStart, viewModel.assetDuration.seconds - windowDuration)
-                                    let adjustedTimelineEnd = adjustedTimelineStart + windowDuration
-                                    
-                                    // Calculate pixels per second for the timeline
-                                    let pixelsPerSecond = timelineWidth / windowDuration
-                                    
-                                    // Create the thumbnails view with our fixed window
-                                    ZStack(alignment: .leading) {
-                                        // Container for all thumbnails
-                                        HStack(spacing: 0) {
-                                            ForEach(0..<viewModel.thumbnails.count, id: \.self) { index in
-                                                if let uiImage = viewModel.thumbnails[index] {
-                                                    // Calculate the time position for this thumbnail
-                                                    let thumbTimeRatio = Double(index) / Double(viewModel.thumbnails.count)
-                                                    let thumbTime = viewModel.assetDuration.seconds * thumbTimeRatio
-                                                    
-                                                    // Only show thumbnails within our window
-                                                    if thumbTime >= adjustedTimelineStart && thumbTime <= adjustedTimelineEnd {
-                                                        let position = (thumbTime - adjustedTimelineStart) * pixelsPerSecond
-                                                        Image(uiImage: uiImage)
-                                                            .resizable()
-                                                            .aspectRatio(contentMode: .fill)
-                                                            .frame(
-                                                                width: timelineWidth / CGFloat(windowDuration / (viewModel.assetDuration.seconds / Double(viewModel.thumbnails.count))),
-                                                                height: thumbnailHeight
-                                                            )
-                                                            .clipped()
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        .frame(height: thumbnailHeight)
-                                    }
-                                    .frame(width: timelineWidth, height: thumbnailHeight)
-                                    .clipped()
-                                }
-                            }
-                            
-                            // SIMPLIFIED - Fixed time window calculations
-                            // Calculate our fixed 90s window (or less if video is shorter)
-                            let windowDuration = min(90.0, viewModel.assetDuration.seconds)
-                            
-                            // Calculate the middle of the trimmed section
-                            let trimMiddle = (viewModel.startTrimTime.seconds + viewModel.endTrimTime.seconds) / 2.0
-                            
-                            // Calculate the start and end of our fixed visible window
-                            let timelineStart = max(0, trimMiddle - windowDuration / 2)
-                            let adjustedTimelineStart = min(timelineStart, viewModel.assetDuration.seconds - windowDuration)
-                            let timelineEnd = min(adjustedTimelineStart + windowDuration, viewModel.assetDuration.seconds)
-                            
-                            // Calculate pixels per second - fixed scale
-                            let pixelsPerSecond = timelineWidth / windowDuration
-                            
-                            // Calculate handle positions in pixels using simple linear mapping
-                            let startPos = (viewModel.startTrimTime.seconds - adjustedTimelineStart) * pixelsPerSecond
-                            let endPos = (viewModel.endTrimTime.seconds - adjustedTimelineStart) * pixelsPerSecond
-                            let selectedWidth = endPos - startPos
-                            
-                            // Calculate current playhead position
-                            let currentPos = (viewModel.currentTime.seconds - adjustedTimelineStart) * pixelsPerSecond
-                            
-                            // Current time indicator (vertical white line)
-                            Rectangle()
-                                .fill(Color.white)
-                                .frame(width: 2, height: thumbnailHeight + 20)
-                                .position(x: currentPos, y: thumbnailHeight / 2)
-                            
-                            // Left non-selected area overlay
-                            Rectangle()
-                                .fill(Color.black.opacity(0.5))
-                                .frame(width: startPos, height: thumbnailHeight)
-                                .position(x: startPos/2, y: thumbnailHeight/2)
-                            
-                            // Right non-selected area overlay
-                            Rectangle()
-                                .fill(Color.black.opacity(0.5))
-                                .frame(width: timelineWidth - endPos, height: thumbnailHeight)
-                                .position(x: (timelineWidth + endPos)/2, y: thumbnailHeight/2)
-                            
-                            // Selected area border
-                            Rectangle()
-                                .fill(Color.clear)
-                                .border(Color.white, width: 2)
-                                .frame(width: selectedWidth, height: thumbnailHeight)
-                                .position(x: startPos + selectedWidth/2, y: thumbnailHeight/2)
-                            
-                            // Left trim handle - fixed at left edge in TikTok style
-                            TrimHandle(isDragging: $isDraggingLeftHandle, orientation: .left)
-                                .position(x: startPos, y: thumbnailHeight/2)
-                                .gesture(
-                                    DragGesture(minimumDistance: 0)
-                                        .onChanged { value in
-                                            handleLeftDrag(value, timelineWidth: timelineWidth, zoomFactor: 1.0)
-                                        }
-                                        .onEnded { _ in
-                                            isDraggingLeftHandle = false
-                                        }
-                                )
-                                .zIndex(10) // Ensure handle is above other elements
-                            
-                            // Right trim handle - fixed at right edge in TikTok style
-                            TrimHandle(isDragging: $isDraggingRightHandle, orientation: .right)
-                                .position(x: endPos, y: thumbnailHeight/2)
-                                .gesture(
-                                    DragGesture(minimumDistance: 0)
-                                        .onChanged { value in
-                                            handleRightDrag(value, timelineWidth: timelineWidth, zoomFactor: 1.0)
-                                        }
-                                        .onEnded { _ in
-                                            isDraggingRightHandle = false
-                                        }
-                                )
-                                .zIndex(10) // Ensure handle is above other elements
-                        }
-                        .gesture(
-                            DragGesture(minimumDistance: 0)
-                                .onChanged { value in
-                                    // Calculate the scrubbing position directly
-                                    let startRatio = viewModel.startTrimTime.seconds / viewModel.assetDuration.seconds
-                                    let endRatio = viewModel.endTrimTime.seconds / viewModel.assetDuration.seconds
-                                    let paddingRatio = 0.15 // Same as above
-                                    
-                                    let visibleStartRatio = max(0, startRatio - paddingRatio)
-                                    let visibleEndRatio = min(1, endRatio + paddingRatio)
-                                    let visibleDuration = visibleEndRatio - visibleStartRatio
-                                    
-                                    handleTimelineScrub(value, geometry: geo, visibleStartRatio: visibleStartRatio, visibleDuration: visibleDuration)
-                                }
-                        )
+                        TimelineView(viewModel: viewModel, timelineWidth: geo.size.width)
                     }
                     .frame(height: thumbnailHeight + 20)
                     .padding(.horizontal)
@@ -304,11 +317,7 @@ struct VideoTrimView: View {
         }
     }
     
-    private func calculatePosition(time: CMTime, in width: CGFloat) -> CGFloat {
-        let timePosition = time.seconds / viewModel.assetDuration.seconds
-        return min(max(0, width * CGFloat(timePosition)), width)
-    }
-    
+    // Formatter utilities
     private func formatTime(_ seconds: Double) -> String {
         let minutes = Int(seconds) / 60
         let secs = Int(seconds) % 60
@@ -319,142 +328,4 @@ struct VideoTrimView: View {
         let durationSeconds = end.seconds - start.seconds
         return "\(String(format: "%.1f", durationSeconds))s"
     }
-    
-    // Handle drag methods to fix handle independence
-    
-    private func handleLeftDrag(_ value: DragGesture.Value, timelineWidth: CGFloat, zoomFactor: Double) {
-        // Simple direct conversion from position to time
-        let windowDuration = min(90.0, viewModel.assetDuration.seconds)
-        let trimMiddle = (viewModel.startTrimTime.seconds + viewModel.endTrimTime.seconds) / 2.0
-        let timelineStart = max(0, trimMiddle - windowDuration / 2)
-        let adjustedTimelineStart = min(timelineStart, viewModel.assetDuration.seconds - windowDuration)
-        let pixelsPerSecond = timelineWidth / windowDuration
-        
-        // When drag starts, store initial position and time
-        if !isDraggingLeftHandle {
-            isDraggingLeftHandle = true
-            dragStartPos = value.startLocation.x
-            initialHandleTime = viewModel.startTrimTime.seconds
-        }
-        
-        // Calculate drag distance in pixels and convert to time
-        let dragDelta = value.location.x - dragStartPos
-        let timeDelta = dragDelta / pixelsPerSecond
-        
-        // Calculate new time
-        let newStartTime = initialHandleTime + timeDelta
-        
-        // Apply constraints
-        let minimumDuration = 1.0
-        let maxStartTime = viewModel.endTrimTime.seconds - minimumDuration
-        let clampedStartTime = max(0, min(newStartTime, maxStartTime))
-        
-        // Update ONLY the start time
-        let newTime = CMTime(seconds: clampedStartTime, preferredTimescale: 600)
-        viewModel.updateStartTrimTime(newTime)
-    }
-    
-    private func handleRightDrag(_ value: DragGesture.Value, timelineWidth: CGFloat, zoomFactor: Double) {
-        // Simple direct conversion from position to time
-        let windowDuration = min(90.0, viewModel.assetDuration.seconds)
-        let trimMiddle = (viewModel.startTrimTime.seconds + viewModel.endTrimTime.seconds) / 2.0
-        let timelineStart = max(0, trimMiddle - windowDuration / 2)
-        let adjustedTimelineStart = min(timelineStart, viewModel.assetDuration.seconds - windowDuration)
-        let pixelsPerSecond = timelineWidth / windowDuration
-        
-        // When drag starts, store initial position and time
-        if !isDraggingRightHandle {
-            isDraggingRightHandle = true
-            dragStartPos = value.startLocation.x
-            initialHandleTime = viewModel.endTrimTime.seconds
-        }
-        
-        // Calculate drag distance in pixels and convert to time
-        let dragDelta = value.location.x - dragStartPos
-        let timeDelta = dragDelta / pixelsPerSecond
-        
-        // Calculate new time
-        let newEndTime = initialHandleTime + timeDelta
-        
-        // Apply constraints
-        let minimumDuration = 1.0
-        let minEndTime = viewModel.startTrimTime.seconds + minimumDuration
-        let clampedEndTime = min(viewModel.assetDuration.seconds, max(newEndTime, minEndTime))
-        
-        // Update ONLY the end time
-        let newTime = CMTime(seconds: clampedEndTime, preferredTimescale: 600)
-        viewModel.updateEndTrimTime(newTime)
-    }
-    
-    private func handleTimelineScrub(_ value: DragGesture.Value, geometry: GeometryProxy, visibleStartRatio: Double, visibleDuration: Double) {
-        // Simple direct conversion from position to time using our fixed window
-        let windowDuration = min(90.0, viewModel.assetDuration.seconds)
-        let trimMiddle = (viewModel.startTrimTime.seconds + viewModel.endTrimTime.seconds) / 2.0
-        let timelineStart = max(0, trimMiddle - windowDuration / 2)
-        let adjustedTimelineStart = min(timelineStart, viewModel.assetDuration.seconds - windowDuration)
-        
-        // Convert screen position to time
-        let locationInTimeline = value.location.x
-        let pixelsPerSecond = geometry.size.width / windowDuration
-        let positionRatio = max(0, min(locationInTimeline / geometry.size.width, 1.0))
-        let timeInSeconds = adjustedTimelineStart + (positionRatio * windowDuration)
-        
-        // Create and seek to the new time
-        let newTime = CMTime(seconds: min(timeInSeconds, viewModel.assetDuration.seconds), preferredTimescale: 600)
-        viewModel.seekToTime(newTime)
-    }
 }
-
-// Trim Handle Component
-struct TrimHandle: View {
-    @Binding var isDragging: Bool
-    var orientation: HandleOrientation
-    
-    enum HandleOrientation {
-        case left
-        case right
-    }
-    
-    private let handleWidth: CGFloat = 8
-    private let handleHeight: CGFloat = 50
-    
-    var body: some View {
-        ZStack {
-            // Invisible larger touch area
-            Rectangle()
-                .fill(Color.clear)
-                .frame(width: 44, height: handleHeight + 40) // Wider touch area
-            
-            // Handle bar
-            Rectangle()
-                .fill(Color.white)
-                .frame(width: handleWidth, height: 50)
-            
-            // Top handle
-            Circle()
-                .fill(Color.white)
-                .frame(width: 20, height: 20)
-                .overlay(
-                    Image(systemName: orientation == .left ? "chevron.left" : "chevron.right")
-                        .foregroundColor(.black)
-                        .font(.system(size: 10, weight: .bold))
-                )
-                .offset(y: -20)
-            
-            // Bottom handle
-            Circle()
-                .fill(Color.white)
-                .frame(width: 20, height: 20)
-                .overlay(
-                    Image(systemName: orientation == .left ? "chevron.left" : "chevron.right")
-                        .foregroundColor(.black)
-                        .font(.system(size: 10, weight: .bold))
-                )
-                .offset(y: 20)
-        }
-        .frame(width: 44, height: handleHeight + 40) // Match the wider frame
-        .contentShape(Rectangle())
-    }
-}
-
-// Removed the ThumbnailStrip and TimelinePositionCalculator components since we're using direct positioning

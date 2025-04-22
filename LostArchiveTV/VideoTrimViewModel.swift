@@ -32,6 +32,16 @@ class VideoTrimViewModel: ObservableObject {
     // Thumbnails for timeline
     @Published var thumbnails: [UIImage?] = []
     
+    // Handle dragging state 
+    @Published var isDraggingLeftHandle = false
+    @Published var isDraggingRightHandle = false
+    
+    // Timeline view configuration
+    private let defaultVisibleDuration = 90.0  // Show 90 seconds by default
+    private let minimumTrimDuration = 1.0      // Minimum 1 second trim
+    private var initialHandleTime: Double = 0  // For tracking drag start
+    private var dragStartPos: CGFloat = 0      // Starting position of drag
+    
     // Local video URL
     private var localVideoURL: URL?
     
@@ -294,6 +304,126 @@ class VideoTrimViewModel: ObservableObject {
     
     func toggleZoom() {
         isZoomed.toggle()
+    }
+    
+    // MARK: - Timeline Calculations
+    
+    /// Calculate the visible time window for timeline display
+    func calculateVisibleTimeWindow() -> (start: Double, end: Double) {
+        let visibleDuration = min(defaultVisibleDuration, assetDuration.seconds)
+        
+        // Center around the trimmed section
+        let trimMiddle = (startTrimTime.seconds + endTrimTime.seconds) / 2.0
+        
+        // Calculate start and end of window
+        var timelineStart = max(0, trimMiddle - visibleDuration / 2)
+        
+        // Ensure we don't go past the end of the video
+        if timelineStart + visibleDuration > assetDuration.seconds {
+            timelineStart = max(0, assetDuration.seconds - visibleDuration)
+        }
+        
+        let timelineEnd = min(assetDuration.seconds, timelineStart + visibleDuration)
+        
+        return (timelineStart, timelineEnd)
+    }
+    
+    /// Convert a time value to a position in the timeline (in pixels)
+    func timeToPosition(timeInSeconds: Double, timelineWidth: CGFloat) -> CGFloat {
+        let timeWindow = calculateVisibleTimeWindow()
+        let visibleDuration = timeWindow.end - timeWindow.start
+        let pixelsPerSecond = timelineWidth / visibleDuration
+        
+        return (timeInSeconds - timeWindow.start) * pixelsPerSecond
+    }
+    
+    /// Convert a position in the timeline to time value
+    func positionToTime(position: CGFloat, timelineWidth: CGFloat) -> Double {
+        let timeWindow = calculateVisibleTimeWindow()
+        let visibleDuration = timeWindow.end - timeWindow.start
+        let secondsPerPixel = visibleDuration / timelineWidth
+        
+        let timeInSeconds = timeWindow.start + (position * secondsPerPixel)
+        return max(0, min(timeInSeconds, assetDuration.seconds))
+    }
+    
+    // MARK: - Handle Dragging
+    
+    /// Start dragging the left (start) handle
+    func startLeftHandleDrag(position: CGFloat) {
+        isDraggingLeftHandle = true
+        dragStartPos = position
+        initialHandleTime = startTrimTime.seconds
+    }
+    
+    /// Process left handle drag
+    func updateLeftHandleDrag(currentPosition: CGFloat, timelineWidth: CGFloat) {
+        // Calculate drag distance in pixels
+        let dragDelta = currentPosition - dragStartPos
+        
+        // Calculate time window and pixels per second
+        let timeWindow = calculateVisibleTimeWindow()
+        let visibleDuration = timeWindow.end - timeWindow.start
+        let secondsPerPixel = visibleDuration / timelineWidth
+        
+        // Convert drag distance to time delta
+        let timeDelta = dragDelta * secondsPerPixel
+        
+        // Calculate new time and apply constraints
+        let newStartTime = initialHandleTime + timeDelta
+        let maxStartTime = endTrimTime.seconds - minimumTrimDuration
+        let clampedTime = max(0, min(newStartTime, maxStartTime))
+        
+        // Update start trim time
+        let newTime = CMTime(seconds: clampedTime, preferredTimescale: 600)
+        updateStartTrimTime(newTime)
+    }
+    
+    /// End left handle drag
+    func endLeftHandleDrag() {
+        isDraggingLeftHandle = false
+    }
+    
+    /// Start dragging the right (end) handle
+    func startRightHandleDrag(position: CGFloat) {
+        isDraggingRightHandle = true
+        dragStartPos = position
+        initialHandleTime = endTrimTime.seconds
+    }
+    
+    /// Process right handle drag
+    func updateRightHandleDrag(currentPosition: CGFloat, timelineWidth: CGFloat) {
+        // Calculate drag distance in pixels
+        let dragDelta = currentPosition - dragStartPos
+        
+        // Calculate time window and pixels per second
+        let timeWindow = calculateVisibleTimeWindow()
+        let visibleDuration = timeWindow.end - timeWindow.start
+        let secondsPerPixel = visibleDuration / timelineWidth
+        
+        // Convert drag distance to time delta
+        let timeDelta = dragDelta * secondsPerPixel
+        
+        // Calculate new time and apply constraints
+        let newEndTime = initialHandleTime + timeDelta
+        let minEndTime = startTrimTime.seconds + minimumTrimDuration
+        let clampedTime = min(assetDuration.seconds, max(newEndTime, minEndTime))
+        
+        // Update end trim time
+        let newTime = CMTime(seconds: clampedTime, preferredTimescale: 600)
+        updateEndTrimTime(newTime)
+    }
+    
+    /// End right handle drag
+    func endRightHandleDrag() {
+        isDraggingRightHandle = false
+    }
+    
+    /// Handle timeline scrubbing
+    func scrubTimeline(position: CGFloat, timelineWidth: CGFloat) {
+        let timeInSeconds = positionToTime(position: position, timelineWidth: timelineWidth)
+        let newTime = CMTime(seconds: timeInSeconds, preferredTimescale: 600)
+        seekToTime(newTime)
     }
     
     // Generate thumbnails from the video asset
