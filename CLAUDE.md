@@ -25,6 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Video coordination in `VideoPlayerViewModel.swift` (MainActor for UI updates)
 - App entry point in `LostArchiveTVApp.swift`
 - Video identifiers stored in `identifiers.sqlite` database with collections table and individual collection tables
+- You NEVER have to alter the Xcode project file to add new files - the project uses folder references that automatically include any new files
 
 ## Testing Approach
 - Uses Swift Testing framework (not XCTest) for unit tests
