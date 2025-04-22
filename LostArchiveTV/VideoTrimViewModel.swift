@@ -56,9 +56,18 @@ class VideoTrimViewModel: ObservableObject {
     }
     
     deinit {
+        logger.debug("VideoTrimViewModel deinit called")
+        
+        // Make sure we stop playback
+        player.pause()
+        
         // We need to handle this in a task since we're in a MainActor class
         Task { @MainActor in
-            removeTimeObserver()
+            // Only remove the observer if it exists
+            if timeObserverToken != nil {
+                logger.debug("Removing time observer in deinit")
+                removeTimeObserver()
+            }
         }
     }
     
@@ -154,10 +163,12 @@ class VideoTrimViewModel: ObservableObject {
     }
     
     func cancelTrimming() {
+        // Just pause playback but don't remove the observer
+        // (observer removal will be handled by deinit)
         if isPlaying {
             player.pause()
             isPlaying = false
         }
-        removeTimeObserver()
+        logger.debug("Trim operation canceled")
     }
 }
