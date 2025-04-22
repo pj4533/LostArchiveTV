@@ -168,7 +168,6 @@ struct VideoTrimView: View {
         }
         .onAppear {
             // Start downloading the video for trimming if needed
-            let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "trimview")
             logger.debug("VideoTrimView appeared, viewModel.isLoading: \(viewModel.isLoading)")
             logger.debug("VideoTrimView has player: \(viewModel.player)")
             

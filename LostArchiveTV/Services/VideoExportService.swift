@@ -19,7 +19,7 @@ class VideoExportService {
         localFileURL: URL,
         startTime: CMTime,
         endTime: CMTime
-    ) async throws -> (Bool, URL) {
+    ) async throws -> Bool {
         // Verify the file exists and has content
         if !FileManager.default.fileExists(atPath: localFileURL.path) {
             logger.error("Local file does not exist at path: \(localFileURL.path)")
@@ -53,7 +53,7 @@ class VideoExportService {
         
         // Successfully saved
         logger.info("Video successfully trimmed and saved to \(outputURL)")
-        return (true, outputURL)
+        return true
     }
     
     /// Check for Photo Library permission

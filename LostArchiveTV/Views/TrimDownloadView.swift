@@ -1,6 +1,5 @@
 import SwiftUI
 import OSLog
-import Photos
 import AVFoundation
 
 struct TrimDownloadView: View {

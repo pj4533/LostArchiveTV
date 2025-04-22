@@ -17,12 +17,10 @@ class VideoTrimViewModel: ObservableObject {
     let startOffsetTime: CMTime
     
     // Trimming properties
-    @Published var isTrimming = false
     @Published var isPlaying = false
     @Published var currentTime: CMTime
     @Published var startTrimTime: CMTime
     @Published var endTrimTime: CMTime
-    @Published var isZoomed = false
     @Published var isSaving = false
     @Published var error: Error?
     @Published var successMessage: String? = nil
@@ -248,10 +246,6 @@ class VideoTrimViewModel: ObservableObject {
         player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
     }
     
-    func toggleZoom() {
-        isZoomed.toggle()
-    }
-    
     // MARK: - Timeline Delegation
     
     /// Return the fixed visible time window for timeline display
@@ -369,7 +363,7 @@ class VideoTrimViewModel: ObservableObject {
         
         do {
             // Use the export service to handle the trim and save
-            let (success, _) = try await exportService.exportAndSaveVideo(
+            let success = try await exportService.exportAndSaveVideo(
                 localFileURL: localURL, 
                 startTime: startTrimTime, 
                 endTime: endTrimTime
