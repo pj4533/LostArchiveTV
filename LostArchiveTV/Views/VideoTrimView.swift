@@ -17,18 +17,26 @@ struct VideoTrimView: View {
             if viewModel.isLoading {
                 // Download progress view
                 VStack {
-                    Text("Preparing video for trimming")
+                    Text("Downloading video for trimming")
                         .foregroundColor(.white)
+                        .font(.headline)
                         .padding(.bottom, 10)
                     
-                    ProgressView(value: viewModel.downloadProgress)
-                        .progressViewStyle(LinearProgressViewStyle())
-                        .frame(width: 200)
-                        .tint(Color.white)
+                    Text("Please wait while the video is downloaded")
+                        .foregroundColor(.white.opacity(0.8))
+                        .font(.subheadline)
+                        .padding(.bottom, 20)
                     
-                    Text("\(Int(viewModel.downloadProgress * 100))%")
-                        .foregroundColor(.white)
-                        .padding(.top, 8)
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(1.5)
+                        .padding(.bottom, 20)
+                    
+                    Text("This may take a few moments depending on the video size")
+                        .foregroundColor(.white.opacity(0.7))
+                        .font(.caption)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
                 }
             } else {
                 VStack(spacing: 0) {
@@ -58,7 +66,8 @@ struct VideoTrimView: View {
                             }
                         }
                         .foregroundColor(.white)
-                        .disabled(viewModel.isSaving)
+                        // Disable the Save button while loading or saving
+                        .disabled(viewModel.isLoading || viewModel.isSaving)
                     }
                     .padding()
                     

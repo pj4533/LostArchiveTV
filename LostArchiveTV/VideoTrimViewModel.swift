@@ -435,9 +435,23 @@ class VideoTrimViewModel: ObservableObject {
             isPlaying = false
         }
         
+        // Is a download in progress?
+        if isLoading {
+            // We need to wait for the download to complete first
+            self.error = NSError(domain: "VideoTrimming", code: 2, userInfo: [
+                NSLocalizedDescriptionKey: "Please wait for the download to complete before saving"
+            ])
+            isSaving = false
+            logger.warning("Attempted to save while still downloading")
+            return
+        }
+        
         // Check if we have a local file to trim
         guard let localURL = localVideoURL else {
-            self.error = NSError(domain: "VideoTrimming", code: 2, userInfo: [NSLocalizedDescriptionKey: "No local file available for trimming"])
+            // This is likely a timing issue - the user tapped Save before download completed
+            self.error = NSError(domain: "VideoTrimming", code: 3, userInfo: [
+                NSLocalizedDescriptionKey: "Video download not complete. Please wait and try again."
+            ])
             isSaving = false
             logger.error("Attempted to trim without a local file")
             return
@@ -445,13 +459,30 @@ class VideoTrimViewModel: ObservableObject {
         
         // Verify the local file exists
         if !FileManager.default.fileExists(atPath: localURL.path) {
-            self.error = NSError(domain: "VideoTrimming", code: 3, userInfo: [NSLocalizedDescriptionKey: "Local file not found: \(localURL.path)"])
+            self.error = NSError(domain: "VideoTrimming", code: 4, userInfo: [
+                NSLocalizedDescriptionKey: "Local file not found. The download may have failed."
+            ])
             isSaving = false
             logger.error("Local file does not exist at: \(localURL.path)")
             return
         }
         
-        logger.info("Trimming local file: \(localURL.path)")
+        // Get file size for verification
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: localURL.path)
+            let fileSize = attributes[.size] as? UInt64 ?? 0
+            logger.info("Trimming local file: \(localURL.path), size: \(fileSize) bytes")
+            
+            if fileSize == 0 {
+                self.error = NSError(domain: "VideoTrimming", code: 5, userInfo: [
+                    NSLocalizedDescriptionKey: "Downloaded file is empty. Please try again."
+                ])
+                isSaving = false
+                return
+            }
+        } catch {
+            logger.error("Failed to get file attributes: \(error.localizedDescription)")
+        }
         
         do {
             // Return to main thread for UI updates
