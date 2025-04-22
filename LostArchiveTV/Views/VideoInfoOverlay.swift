@@ -82,6 +82,9 @@ struct VideoInfoOverlay: View {
                     
                     // Trim button
                     Button(action: {
+                        logger.debug("Button tap: Current video URL: \(String(describing: viewModel.currentVideoURL))")
+                        logger.debug("Button tap: Current video time: \(String(describing: viewModel.currentVideoTime))")
+                        logger.debug("Button tap: Current video duration: \(String(describing: viewModel.currentVideoDuration))")
                         viewModel.pausePlayback()
                         showTrimView = true
                     }) {

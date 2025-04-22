@@ -226,12 +226,8 @@ class VideoPlayerViewModel: ObservableObject {
             Logger.videoPlayback.info("Video seek completed in \(seekTime.formatted(.number.precision(.fractionLength(4)))) seconds")
             
             // Now set the player with the correct position already set
+            // This will also extract and store the URL internally
             playbackManager.useExistingPlayer(player)
-            
-            // Set the current video URL for trimming
-            if let urlAsset = videoInfo.asset as? AVURLAsset {
-                playbackManager.setCurrentVideoURL(urlAsset.url)
-            }
             
             // Always start playback of the video
             playbackManager.play()

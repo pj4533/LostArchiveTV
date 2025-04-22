@@ -68,6 +68,14 @@ class VideoPlaybackManager: ObservableObject {
         // Use the provided player directly
         self.player = player
         
+        // Extract and store the asset URL if it's an AVURLAsset
+        if let asset = player.currentItem?.asset as? AVURLAsset {
+            Logger.videoPlayback.debug("Extracted URL from asset: \(asset.url)")
+            _currentVideoURL = asset.url
+        } else {
+            Logger.videoPlayback.warning("Could not extract URL from player asset")
+        }
+        
         // Set playback rate to 1 (normal speed)
         self.player?.rate = 1.0
         
