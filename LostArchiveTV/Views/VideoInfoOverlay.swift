@@ -20,6 +20,8 @@ struct VideoInfoOverlay: View {
     @State private var showSaveSuccessAlert = false
     @State private var saveError: String? = nil
     @State private var showTrimView = false
+    @State private var showTrimDownloadView = false
+    @State private var downloadedVideoURL: URL? = nil
     @Environment(\.openURL) private var openURL
     
     // Logger for debugging
@@ -84,13 +86,16 @@ struct VideoInfoOverlay: View {
                     Spacer()
                     // Add more space for potential future buttons
                     
-                    // Trim button
+                    // Trim button - now starts the download flow first
                     Button(action: {
-                        logger.debug("Button tap: Current video URL: \(String(describing: viewModel.currentVideoURL))")
-                        logger.debug("Button tap: Current video time: \(String(describing: viewModel.currentVideoTime))")
-                        logger.debug("Button tap: Current video duration: \(String(describing: viewModel.currentVideoDuration))")
+                        logger.debug("Trim button tap - starting download process")
+                        logger.debug("Current video URL: \(String(describing: viewModel.currentVideoURL))")
+                        logger.debug("Current video time: \(String(describing: viewModel.currentVideoTime))")
+                        logger.debug("Current video duration: \(String(describing: viewModel.currentVideoDuration))")
+                        
+                        // Pause playback and start download flow
                         viewModel.pausePlayback()
-                        showTrimView = true
+                        showTrimDownloadView = true
                     }) {
                         ZStack {
                             Circle()
@@ -163,16 +168,37 @@ struct VideoInfoOverlay: View {
                 .padding(.trailing, 8)
             }
         }
+        // Show download progress view first
+        .sheet(isPresented: $showTrimDownloadView, onDismiss: {
+            // If we got a downloaded URL, show the trim view
+            if let downloadedURL = downloadedVideoURL {
+                showTrimView = true
+            } else {
+                // If download failed, resume playback
+                logger.debug("Download sheet dismissed without URL, resuming main playback")
+                viewModel.resumePlayback()
+            }
+        }) {
+            TrimDownloadView(viewModel: viewModel) { downloadedURL in
+                self.downloadedVideoURL = downloadedURL
+                self.showTrimDownloadView = false
+            }
+        }
+        
+        // Show trim view after download completes
         .sheet(isPresented: $showTrimView, onDismiss: {
             // Only resume playback - the cleanup is handled explicitly before dismissal
-            logger.debug("Sheet dismissed, resuming main playback")
+            logger.debug("Trim sheet dismissed, resuming main playback")
+            // Reset the downloaded URL
+            downloadedVideoURL = nil
             viewModel.resumePlayback()
         }) {
-            if let currentVideoURL = viewModel.currentVideoURL,
+            if let downloadedURL = downloadedVideoURL,
                let currentTime = viewModel.currentVideoTime,
                let duration = viewModel.currentVideoDuration {
+                // Use the downloaded file URL
                 VideoTrimView(viewModel: VideoTrimViewModel(
-                    assetURL: currentVideoURL,
+                    assetURL: downloadedURL,
                     currentPlaybackTime: currentTime,
                     duration: duration
                 ))

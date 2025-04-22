@@ -263,7 +263,7 @@ class VideoPlayerViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Caching
+    // MARK: - Caching and Video Trimming
     
     func ensureVideosAreCached() async {
         await preloadService.ensureVideosAreCached(
@@ -271,6 +271,12 @@ class VideoPlayerViewModel: ObservableObject {
             archiveService: archiveService,
             identifiers: identifiers
         )
+    }
+    
+    // MARK: - Video download state management
+    
+    func setLoading(_ loading: Bool) {
+        isLoading = loading
     }
     
     deinit {

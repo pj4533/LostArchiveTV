@@ -117,60 +117,37 @@ class VideoTrimViewModel: ObservableObject {
         // as that's handled explicitly by prepareForDismissal()
     }
     
-    // Prepare for trimming by downloading if needed
+    // Use the already downloaded file to initialize trim view
     func prepareForTrimming() async {
+        // We don't need to download - using the file passed in constructor
         isLoading = true
         
-        // Reset the local URL
-        localVideoURL = nil
-        
-        // Create a unique temporary file path
-        let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("trim_\(UUID().uuidString)")
-            .appendingPathExtension("mp4")
-        
-        logger.debug("Downloading video for trimming: \(self.assetURL)")
-        logger.debug("Target location: \(tempURL.path)")
-        
         do {
-            // Use URLSession with async/await for download
-            let (downloadURL, response) = try await URLSession.shared.download(from: assetURL, delegate: nil)
-            
-            // Check response
-            if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
-                throw NSError(domain: "VideoTrimming", code: 4, userInfo: [
-                    NSLocalizedDescriptionKey: "Download failed with HTTP status: \(httpResponse.statusCode)"
-                ])
-            }
-            
-            logger.debug("Download completed to temporary location: \(downloadURL.path)")
-            
-            // Move the downloaded file to our destination
-            try FileManager.default.moveItem(at: downloadURL, to: tempURL)
-            logger.debug("Moved downloaded file to: \(tempURL.path)")
+            // We already have the file from our initialization
+            // We're using assetURL directly which should be the local file URL
             
             // Verify the file exists and has content
-            if !FileManager.default.fileExists(atPath: tempURL.path) {
+            if !FileManager.default.fileExists(atPath: assetURL.path) {
                 throw NSError(domain: "VideoTrimming", code: 5, userInfo: [
-                    NSLocalizedDescriptionKey: "Downloaded file not found after move operation"
+                    NSLocalizedDescriptionKey: "Downloaded file not found at: \(assetURL.path)"
                 ])
             }
             
-            let attributes = try FileManager.default.attributesOfItem(atPath: tempURL.path)
+            let attributes = try FileManager.default.attributesOfItem(atPath: assetURL.path)
             let fileSize = attributes[.size] as? UInt64 ?? 0
-            logger.info("Download complete. File size: \(fileSize) bytes")
+            logger.info("Using local file for trimming. File size: \(fileSize) bytes")
             
             if fileSize == 0 {
                 throw NSError(domain: "VideoTrimming", code: 6, userInfo: [
-                    NSLocalizedDescriptionKey: "Downloaded file is empty (0 bytes)"
+                    NSLocalizedDescriptionKey: "Video file is empty (0 bytes)"
                 ])
             }
             
             // Save the URL for later use
-            self.localVideoURL = tempURL
+            self.localVideoURL = assetURL
             
-            // Update the player with the local file
-            let asset = AVAsset(url: tempURL)
+            // Initialize player with the asset
+            let asset = AVAsset(url: assetURL)
             let playerItem = AVPlayerItem(asset: asset)
             self.player.replaceCurrentItem(with: playerItem)
             
@@ -184,7 +161,7 @@ class VideoTrimViewModel: ObservableObject {
             self.isLoading = false
             
         } catch {
-            logger.error("Download failed: \(error.localizedDescription)")
+            logger.error("Failed to prepare trim view: \(error.localizedDescription)")
             self.error = error
             self.isLoading = false
         }
