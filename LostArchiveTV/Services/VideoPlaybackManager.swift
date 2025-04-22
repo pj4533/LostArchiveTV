@@ -17,6 +17,24 @@ class VideoPlaybackManager: ObservableObject {
     
     private var timeObserverToken: Any?
     
+    // Current video URL for trimming
+    private var _currentVideoURL: URL?
+    
+    // Computed properties for video trimming
+    var currentVideoURL: URL? {
+        return _currentVideoURL
+    }
+    
+    var currentTimeAsCMTime: CMTime? {
+        guard let player = player else { return nil }
+        return player.currentItem?.currentTime()
+    }
+    
+    var durationAsCMTime: CMTime? {
+        guard let player = player else { return nil }
+        return player.currentItem?.duration
+    }
+    
     func setupPlayer(with asset: AVAsset) {
         Logger.videoPlayback.debug("Setting up video player from asset")
         
@@ -118,6 +136,12 @@ class VideoPlaybackManager: ObservableObject {
         isPlaying = true
     }
     
+    func pause() {
+        Logger.videoPlayback.debug("Pausing video")
+        player?.pause()
+        isPlaying = false
+    }
+    
     func seek(to time: CMTime, completion: ((Bool) -> Void)? = nil) {
         Logger.videoPlayback.debug("Seeking to time: \(time.seconds)")
         player?.seek(to: time, toleranceBefore: CMTime(seconds: 5, preferredTimescale: 600), 
@@ -168,6 +192,10 @@ class VideoPlaybackManager: ObservableObject {
         }
     }
     
+    func setCurrentVideoURL(_ url: URL) {
+        _currentVideoURL = url
+    }
+    
     func cleanupPlayer() {
         Logger.videoPlayback.debug("Cleaning up player resources")
         
@@ -191,5 +219,6 @@ class VideoPlaybackManager: ObservableObject {
         isPlaying = false
         currentTime = 0
         videoDuration = 0
+        _currentVideoURL = nil
     }
 }

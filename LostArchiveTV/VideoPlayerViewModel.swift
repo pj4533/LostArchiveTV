@@ -132,6 +132,30 @@ class VideoPlayerViewModel: ObservableObject {
         playbackManager.videoDuration
     }
     
+    // MARK: - Video trimming
+    
+    var currentVideoURL: URL? {
+        playbackManager.currentVideoURL
+    }
+    
+    var currentVideoTime: CMTime? {
+        playbackManager.currentTimeAsCMTime
+    }
+    
+    var currentVideoDuration: CMTime? {
+        playbackManager.durationAsCMTime
+    }
+    
+    func pausePlayback() {
+        Logger.videoPlayback.debug("Pausing playback for trimming")
+        playbackManager.pause()
+    }
+    
+    func resumePlayback() {
+        Logger.videoPlayback.debug("Resuming playback after trimming")
+        playbackManager.play()
+    }
+    
     // MARK: - Video Loading
     
     private func loadIdentifiers() async {
@@ -203,6 +227,11 @@ class VideoPlayerViewModel: ObservableObject {
             
             // Now set the player with the correct position already set
             playbackManager.useExistingPlayer(player)
+            
+            // Set the current video URL for trimming
+            if let urlAsset = videoInfo.asset as? AVURLAsset {
+                playbackManager.setCurrentVideoURL(urlAsset.url)
+            }
             
             // Always start playback of the video
             playbackManager.play()

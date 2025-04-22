@@ -39,7 +39,8 @@ struct SwipeableVideoView: View {
                             title: transitionManager.nextTitle,
                             collection: transitionManager.nextCollection,
                             description: transitionManager.nextDescription,
-                            identifier: transitionManager.nextIdentifier
+                            identifier: transitionManager.nextIdentifier,
+                            viewModel: viewModel
                         )
                     }
                     .frame(width: geometry.size.width, height: geometry.size.height)
@@ -75,7 +76,8 @@ struct SwipeableVideoView: View {
                             title: viewModel.currentTitle,
                             collection: viewModel.currentCollection,
                             description: viewModel.currentDescription,
-                            identifier: viewModel.currentIdentifier
+                            identifier: viewModel.currentIdentifier,
+                            viewModel: viewModel
                         )
                         .offset(y: -dragOffset)
                     }

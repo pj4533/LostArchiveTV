@@ -18,7 +18,11 @@ struct VideoInfoOverlay: View {
     @State private var downloadProgress: Float = 0
     @State private var showSaveSuccessAlert = false
     @State private var saveError: String? = nil
+    @State private var showTrimView = false
     @Environment(\.openURL) private var openURL
+    
+    // Reference to the view model - passed from parent
+    @ObservedObject var viewModel: VideoPlayerViewModel
     
     var body: some View {
         ZStack {
@@ -76,6 +80,26 @@ struct VideoInfoOverlay: View {
                     Spacer()
                     // Add more space for potential future buttons
                     
+                    // Trim button
+                    Button(action: {
+                        viewModel.pausePlayback()
+                        showTrimView = true
+                    }) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.black.opacity(0.1))
+                                .frame(width: 44, height: 44)
+                            
+                            Image(systemName: "timeline.selection")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 22, height: 22)
+                                .foregroundColor(.white)
+                                .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
+                        }
+                    }
+                    .disabled(viewModel.currentVideoURL == nil)
+                    
                     // Download button
                     Button(action: {
                         if !isDownloading {
@@ -130,6 +154,20 @@ struct VideoInfoOverlay: View {
                     // No extra bottom padding needed - will align with text at bottom
                 }
                 .padding(.trailing, 8)
+            }
+        }
+        .sheet(isPresented: $showTrimView) {
+            // Resume playback when dismissed
+            viewModel.resumePlayback()
+        } content: {
+            if let currentVideoURL = viewModel.currentVideoURL,
+               let currentTime = viewModel.currentVideoTime,
+               let duration = viewModel.currentVideoDuration {
+                VideoTrimView(viewModel: VideoTrimViewModel(
+                    assetURL: currentVideoURL,
+                    currentPlaybackTime: currentTime,
+                    duration: duration
+                ))
             }
         }
         .alert("Video Saved", isPresented: $showSaveSuccessAlert) {
@@ -223,7 +261,8 @@ struct VideoInfoOverlay: View {
         title: "Sample Video Title",
         collection: "avgeeks",
         description: "This is a sample description for the video that might span multiple lines when displayed in the app.",
-        identifier: "sample_id"
+        identifier: "sample_id",
+        viewModel: VideoPlayerViewModel()
     )
     .background(Color.black)
 }
