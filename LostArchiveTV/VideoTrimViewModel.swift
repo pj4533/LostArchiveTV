@@ -37,10 +37,14 @@ class VideoTrimViewModel: ObservableObject {
     @Published var isDraggingRightHandle = false
     
     // Timeline view configuration
-    private let defaultVisibleDuration = 90.0  // Show 90 seconds by default
     private let minimumTrimDuration = 1.0      // Minimum 1 second trim
     private var initialHandleTime: Double = 0  // For tracking drag start
     private var dragStartPos: CGFloat = 0      // Starting position of drag
+    
+    // Fixed timeline window (calculated once at init)
+    private var timelineWindowStart: Double = 0
+    private var timelineWindowEnd: Double = 0
+    private let paddingSeconds: Double = 15.0  // Padding before/after handles
     
     // Local video URL
     private var localVideoURL: URL?
@@ -80,18 +84,19 @@ class VideoTrimViewModel: ObservableObject {
         // This makes it easier for users to grab the handle
         let totalDuration = CMTimeGetSeconds(duration)
         
-        // Calculate start at 15% into the video from current position
+        // Use current playback time for left handle position
         let currentTimeSeconds = CMTimeGetSeconds(currentPlaybackTime)
-        // Adjust start position to be slightly offset from current position
-        let startTimeSeconds = max(0, currentTimeSeconds - 1.0)
+        let startTimeSeconds = currentTimeSeconds
         self.startTrimTime = CMTime(seconds: startTimeSeconds, preferredTimescale: 600)
         
-        // End handle should be 30s forward, creating a good default selection
-        // This creates a "zoomed in" timeline view similar to TikTok
-        let selectionDuration = min(30.0, totalDuration - startTimeSeconds - 1.0)
-        let maxEndTimeSeconds = startTimeSeconds + selectionDuration
+        // End handle should be 60s forward (or at end of asset)
+        let selectionDuration = min(60.0, totalDuration - startTimeSeconds)
+        let endTimeSeconds = startTimeSeconds + selectionDuration
+        self.endTrimTime = CMTime(seconds: endTimeSeconds, preferredTimescale: 600)
         
-        self.endTrimTime = CMTime(seconds: maxEndTimeSeconds, preferredTimescale: 600)
+        // Calculate fixed timeline window with padding
+        self.timelineWindowStart = max(0, startTimeSeconds - paddingSeconds)
+        self.timelineWindowEnd = min(totalDuration, endTimeSeconds + paddingSeconds)
         
         // Seek to start trim time but don't play automatically
         seekToTime(startTrimTime)
@@ -308,24 +313,9 @@ class VideoTrimViewModel: ObservableObject {
     
     // MARK: - Timeline Calculations
     
-    /// Calculate the visible time window for timeline display
+    /// Return the fixed visible time window for timeline display (calculated once at init)
     func calculateVisibleTimeWindow() -> (start: Double, end: Double) {
-        let visibleDuration = min(defaultVisibleDuration, assetDuration.seconds)
-        
-        // Center around the trimmed section
-        let trimMiddle = (startTrimTime.seconds + endTrimTime.seconds) / 2.0
-        
-        // Calculate start and end of window
-        var timelineStart = max(0, trimMiddle - visibleDuration / 2)
-        
-        // Ensure we don't go past the end of the video
-        if timelineStart + visibleDuration > assetDuration.seconds {
-            timelineStart = max(0, assetDuration.seconds - visibleDuration)
-        }
-        
-        let timelineEnd = min(assetDuration.seconds, timelineStart + visibleDuration)
-        
-        return (timelineStart, timelineEnd)
+        return (timelineWindowStart, timelineWindowEnd)
     }
     
     /// Convert a time value to a position in the timeline (in pixels)
