@@ -1,291 +1,255 @@
 import SwiftUI
 import AVFoundation
+import AVKit
 
 struct VideoTrimView: View {
     @ObservedObject var viewModel: VideoTrimViewModel
     @Environment(\.dismiss) private var dismiss
     
-    // For tracking gesture states
-    @State private var leftHandleDragOffset: CGFloat = 0
-    @State private var rightHandleDragOffset: CGFloat = 0
-    @State private var isDraggingLeftHandle = false
-    @State private var isDraggingRightHandle = false
-    @State private var isLongPressing = false
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // Video Player
-                TrimVideoPlayerView(viewModel: viewModel)
-                    .aspectRatio(16/9, contentMode: .fit)
-                    .padding(.bottom, 20)
-                
-                // Timeline Scrubber
-                TimelineScrubber(viewModel: viewModel, 
-                               leftHandleDragOffset: $leftHandleDragOffset,
-                               rightHandleDragOffset: $rightHandleDragOffset,
-                               isDraggingLeftHandle: $isDraggingLeftHandle,
-                               isDraggingRightHandle: $isDraggingRightHandle,
-                               isLongPressing: $isLongPressing)
-                
-                Spacer()
-            }
-            .padding()
-            .navigationTitle("Trim Video")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        // First clean up resources
-                        viewModel.prepareForDismissal()
-                        
-                        // Then dismiss the view
-                        dismiss()
-                    }
-                }
-                
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        Task {
-                            await viewModel.saveTrimmmedVideo()
-                            // Clean up before dismiss
-                            viewModel.prepareForDismissal()
-                            dismiss()
-                        }
-                    }
-                    .disabled(viewModel.isSaving)
-                }
-            }
-            .alert("Trim Error", isPresented: Binding<Bool>(
-                get: { viewModel.error != nil },
-                set: { if !$0 { viewModel.error = nil } }
-            )) {
-                Button("OK") {
-                    viewModel.error = nil
-                }
-            } message: {
-                Text(viewModel.error?.localizedDescription ?? "Unknown error")
-            }
-        }
-    }
-}
-
-// Video Player Component
-struct TrimVideoPlayerView: View {
-    @ObservedObject var viewModel: VideoTrimViewModel
+    // Constants for UI layout
+    private let handleWidth: CGFloat = 8
+    private let thumbnailHeight: CGFloat = 50
+    private let timelineHeight: CGFloat = 50
     
     var body: some View {
         ZStack {
-            VideoPlayerRepresentable(player: viewModel.player)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Background color
+            Color.black.edgesIgnoringSafeArea(.all)
             
-            // Play/Pause Button Overlay
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    Button(action: viewModel.togglePlayback) {
-                        Image(systemName: viewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                            .font(.system(size: 50))
+            if viewModel.isLoading {
+                // Download progress view
+                VStack {
+                    Text("Preparing video for trimming")
+                        .foregroundColor(.white)
+                        .padding(.bottom, 10)
+                    
+                    ProgressView(value: viewModel.downloadProgress)
+                        .progressViewStyle(LinearProgressViewStyle())
+                        .frame(width: 200)
+                        .tint(Color.white)
+                    
+                    Text("\(Int(viewModel.downloadProgress * 100))%")
+                        .foregroundColor(.white)
+                        .padding(.top, 8)
+                }
+            } else {
+                VStack(spacing: 0) {
+                    // Top toolbar
+                    HStack {
+                        Button("Cancel") {
+                            // Clean up resources
+                            viewModel.prepareForDismissal()
+                            dismiss()
+                        }
+                        .foregroundColor(.white)
+                        
+                        Spacer()
+                        
+                        Text("Adjust clip")
                             .foregroundColor(.white)
-                            .shadow(radius: 3)
+                            .fontWeight(.semibold)
+                        
+                        Spacer()
+                        
+                        Button("Save") {
+                            Task {
+                                await viewModel.saveTrimmmedVideo()
+                                // Clean up resources
+                                viewModel.prepareForDismissal()
+                                dismiss()
+                            }
+                        }
+                        .foregroundColor(.white)
+                        .disabled(viewModel.isSaving)
                     }
+                    .padding()
+                    
                     Spacer()
-                }
-                Spacer()
-            }
-        }
-    }
-}
-
-// UIViewRepresentable for AVPlayer
-struct VideoPlayerRepresentable: UIViewRepresentable {
-    var player: AVPlayer
-    
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
-        let playerLayer = AVPlayerLayer(player: player)
-        playerLayer.videoGravity = .resizeAspect
-        view.layer.addSublayer(playerLayer)
-        return view
-    }
-    
-    func updateUIView(_ uiView: UIView, context: Context) {
-        if let playerLayer = uiView.layer.sublayers?.first as? AVPlayerLayer {
-            playerLayer.frame = uiView.bounds
-            playerLayer.player = player
-        }
-    }
-}
-
-// Timeline Scrubber Component
-struct TimelineScrubber: View {
-    @ObservedObject var viewModel: VideoTrimViewModel
-    
-    @Binding var leftHandleDragOffset: CGFloat
-    @Binding var rightHandleDragOffset: CGFloat
-    @Binding var isDraggingLeftHandle: Bool
-    @Binding var isDraggingRightHandle: Bool
-    @Binding var isLongPressing: Bool
-    
-    // Constants for UI
-    private let handleWidth: CGFloat = 10
-    private let timelineHeight: CGFloat = 40
-    private let handleHeight: CGFloat = 60
-    private let timelineColor = Color.yellow
-    private let handleColor = Color.yellow
-    private let borderWidth: CGFloat = 3
-    
-    // Computed properties for scale and position calculations
-    private var totalDuration: Double {
-        viewModel.assetDuration.seconds
-    }
-    
-    private var trimmedDuration: Double {
-        CMTimeSubtract(viewModel.endTrimTime, viewModel.startTrimTime).seconds
-    }
-    
-    private var zoomedRatio: CGFloat {
-        viewModel.isZoomed ? 3.0 : 1.0
-    }
-    
-    var body: some View {
-        ZStack(alignment: .leading) {
-            // Timeline background
-            Rectangle()
-                .fill(Color.black.opacity(0.3))
-                .frame(height: timelineHeight)
-            
-            // Play button
-            Button(action: viewModel.togglePlayback) {
-                Image(systemName: viewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                    .font(.system(size: 30))
-                    .foregroundColor(.white)
-            }
-            .padding(.leading, -50)
-            
-            // Frame thumbnails would go here (simplified for now)
-            Rectangle()
-                .fill(Color.gray.opacity(0.5))
-                .frame(height: timelineHeight)
-            
-            // Current time indicator
-            GeometryReader { geo in
-                let timelineWidth = geo.size.width
-                let currentPosition = calculatePosition(time: viewModel.currentTime, in: timelineWidth)
-                
-                Rectangle()
-                    .fill(Color.white)
-                    .frame(width: 2, height: timelineHeight + 10)
-                    .position(x: currentPosition, y: timelineHeight / 2)
-            }
-            
-            // Trim handles and selection area
-            GeometryReader { geo in
-                let timelineWidth = geo.size.width
-                
-                ZStack {
-                    // Calculate positions
-                    let startPos = calculatePosition(time: viewModel.startTrimTime, in: timelineWidth)
-                    let endPos = calculatePosition(time: viewModel.endTrimTime, in: timelineWidth)
-                    let selectedWidth = max(0, endPos - startPos)
                     
-                    // Selected area
-                    Rectangle()
-                        .fill(Color.clear)
-                        .border(timelineColor, width: borderWidth)
-                        .frame(width: selectedWidth, height: timelineHeight)
-                        .position(x: startPos + selectedWidth / 2, y: timelineHeight / 2)
+                    // Video player in center (larger space)
+                    ZStack {
+                        // Video player using SwiftUI VideoPlayer
+                        VideoPlayer(player: viewModel.player)
+                            .aspectRatio(9/16, contentMode: ContentMode.fit)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.black)
+                            .overlay(
+                                // Play/pause button overlay
+                                Button(action: viewModel.togglePlayback) {
+                                    Image(systemName: viewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                                        .font(.system(size: 50))
+                                        .foregroundColor(.white)
+                                        .shadow(radius: 3)
+                                }
+                            )
+                    }
                     
-                    // Left handle
-                    TrimmingHandle(isDragging: $isDraggingLeftHandle, 
-                                 handleColor: handleColor,
-                                 orientation: .left)
-                        .position(x: startPos, y: timelineHeight / 2)
-                        .gesture(
-                            DragGesture()
-                                .onChanged { value in
-                                    isDraggingLeftHandle = true
-                                    let delta = value.translation.width
-                                    let positionRatio = delta / timelineWidth
-                                    let timeDelta = positionRatio * totalDuration
-                                    let newStartTime = CMTime(seconds: viewModel.startTrimTime.seconds + timeDelta, 
-                                                             preferredTimescale: viewModel.startTrimTime.timescale)
-                                    viewModel.updateStartTrimTime(newStartTime)
-                                    leftHandleDragOffset = delta
-                                }
-                                .onEnded { _ in
-                                    isDraggingLeftHandle = false
-                                    leftHandleDragOffset = 0
-                                }
-                        )
-                        .simultaneousGesture(
-                            LongPressGesture(minimumDuration: 0.5)
-                                .onEnded { _ in
-                                    viewModel.toggleZoom()
-                                    isLongPressing = true
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                        isLongPressing = false
+                    Spacer()
+                    
+                    // Duration text
+                    HStack {
+                        Text(formatTime(viewModel.startTrimTime.seconds))
+                            .font(.caption)
+                            .foregroundColor(.white)
+                        
+                        Spacer()
+                        
+                        Text("\(formatDuration(from: viewModel.startTrimTime, to: viewModel.endTrimTime)) selected")
+                            .font(.footnote)
+                            .foregroundColor(.white)
+                        
+                        Spacer()
+                        
+                        Text(formatTime(viewModel.endTrimTime.seconds))
+                            .font(.caption)
+                            .foregroundColor(.white)
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 4)
+                    
+                    // Timeline scrubber at bottom
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            // Calculate the timeline width for this view
+                            let timelineWidth = geo.size.width
+                            
+                            // Video thumbnails background
+                            Group {
+                                if viewModel.thumbnails.isEmpty {
+                                    // Show placeholder until thumbnails load
+                                    Rectangle()
+                                        .fill(Color.gray.opacity(0.3))
+                                        .frame(height: thumbnailHeight)
+                                } else {
+                                    // Show actual thumbnails
+                                    HStack(spacing: 0) {
+                                        ForEach(0..<viewModel.thumbnails.count, id: \.self) { index in
+                                            if let uiImage = viewModel.thumbnails[index] {
+                                                Image(uiImage: uiImage)
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fill)
+                                                    .frame(width: timelineWidth / CGFloat(viewModel.thumbnails.count), height: thumbnailHeight)
+                                                    .clipped()
+                                            }
+                                        }
                                     }
+                                    .frame(height: thumbnailHeight)
                                 }
-                        )
-                    
-                    // Right handle
-                    TrimmingHandle(isDragging: $isDraggingRightHandle, 
-                                 handleColor: handleColor,
-                                 orientation: .right)
-                        .position(x: endPos, y: timelineHeight / 2)
+                            }
+                            
+                            // Calculate positions for visualization
+                            let startPos = calculatePosition(time: viewModel.startTrimTime, in: timelineWidth)
+                            let endPos = calculatePosition(time: viewModel.endTrimTime, in: timelineWidth)
+                            let currentPos = calculatePosition(time: viewModel.currentTime, in: timelineWidth)
+                            let selectedWidth = max(0, endPos - startPos)
+                            
+                            // Current time indicator (vertical white line)
+                            Rectangle()
+                                .fill(Color.white)
+                                .frame(width: 2, height: thumbnailHeight + 20)
+                                .position(x: currentPos, y: thumbnailHeight / 2)
+                            
+                            // Left non-selected area overlay
+                            Rectangle()
+                                .fill(Color.black.opacity(0.5))
+                                .frame(width: startPos, height: thumbnailHeight)
+                                .position(x: startPos/2, y: thumbnailHeight/2)
+                            
+                            // Right non-selected area overlay
+                            Rectangle()
+                                .fill(Color.black.opacity(0.5))
+                                .frame(width: timelineWidth - endPos, height: thumbnailHeight)
+                                .position(x: (timelineWidth + endPos)/2, y: thumbnailHeight/2)
+                            
+                            // Selected area border
+                            Rectangle()
+                                .fill(Color.clear)
+                                .border(Color.white, width: 2)
+                                .frame(width: selectedWidth, height: thumbnailHeight)
+                                .position(x: startPos + selectedWidth/2, y: thumbnailHeight/2)
+                            
+                            // Left trim handle
+                            TrimHandle(isDragging: .constant(false), orientation: .left)
+                                .position(x: startPos, y: thumbnailHeight/2)
+                                .gesture(
+                                    DragGesture()
+                                        .onChanged { value in
+                                            let positionRatio = max(0, min(value.location.x / timelineWidth, 0.95))
+                                            let newTime = CMTime(seconds: viewModel.assetDuration.seconds * positionRatio, 
+                                                              preferredTimescale: 600)
+                                            viewModel.updateStartTrimTime(newTime)
+                                        }
+                                )
+                                .zIndex(10) // Ensure handle is above other elements
+                            
+                            // Right trim handle
+                            TrimHandle(isDragging: .constant(false), orientation: .right)
+                                .position(x: endPos, y: thumbnailHeight/2)
+                                .gesture(
+                                    DragGesture()
+                                        .onChanged { value in
+                                            let positionRatio = max(0.05, min(value.location.x / timelineWidth, 1.0))
+                                            let newTime = CMTime(seconds: viewModel.assetDuration.seconds * positionRatio, 
+                                                              preferredTimescale: 600)
+                                            viewModel.updateEndTrimTime(newTime)
+                                        }
+                                )
+                                .zIndex(10) // Ensure handle is above other elements
+                        }
                         .gesture(
-                            DragGesture()
+                            DragGesture(minimumDistance: 0)
                                 .onChanged { value in
-                                    isDraggingRightHandle = true
-                                    let delta = value.translation.width
-                                    let positionRatio = delta / timelineWidth
-                                    let timeDelta = positionRatio * totalDuration
-                                    let newEndTime = CMTime(seconds: viewModel.endTrimTime.seconds + timeDelta, 
-                                                           preferredTimescale: viewModel.endTrimTime.timescale)
-                                    viewModel.updateEndTrimTime(newEndTime)
-                                    rightHandleDragOffset = delta
-                                }
-                                .onEnded { _ in
-                                    isDraggingRightHandle = false
-                                    rightHandleDragOffset = 0
+                                    let positionRatio = value.location.x / geo.size.width
+                                    let newTime = CMTime(seconds: viewModel.assetDuration.seconds * positionRatio, 
+                                                      preferredTimescale: 600)
+                                    viewModel.seekToTime(newTime)
                                 }
                         )
-                        .simultaneousGesture(
-                            LongPressGesture(minimumDuration: 0.5)
-                                .onEnded { _ in
-                                    viewModel.toggleZoom()
-                                    isLongPressing = true
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                        isLongPressing = false
-                                    }
-                                }
-                        )
+                    }
+                    .frame(height: thumbnailHeight + 20)
+                    .padding(.horizontal)
+                    .padding(.bottom, 30)
                 }
             }
         }
-        .frame(height: handleHeight)
-        .animation(.easeInOut(duration: 0.2), value: viewModel.isZoomed)
+        .alert("Trim Error", isPresented: Binding<Bool>(
+            get: { viewModel.error != nil },
+            set: { if !$0 { viewModel.error = nil } }
+        )) {
+            Button("OK") {
+                viewModel.error = nil
+            }
+        } message: {
+            Text(viewModel.error?.localizedDescription ?? "Unknown error")
+        }
+        .onAppear {
+            // Start downloading the video for trimming if needed
+            Task {
+                await viewModel.prepareForTrimming()
+            }
+        }
     }
     
     private func calculatePosition(time: CMTime, in width: CGFloat) -> CGFloat {
-        let timePosition = (time.seconds - viewModel.startOffsetTime.seconds) / totalDuration
-        
-        // Apply zoom if active
-        if viewModel.isZoomed {
-            let zoomedTimePosition = timePosition * zoomedRatio
-            return min(max(0, width * zoomedTimePosition), width)
-        } else {
-            return min(max(0, width * timePosition), width)
-        }
+        let timePosition = time.seconds / viewModel.assetDuration.seconds
+        return min(max(0, width * CGFloat(timePosition)), width)
+    }
+    
+    private func formatTime(_ seconds: Double) -> String {
+        let minutes = Int(seconds) / 60
+        let secs = Int(seconds) % 60
+        return String(format: "%d:%02d", minutes, secs)
+    }
+    
+    private func formatDuration(from start: CMTime, to end: CMTime) -> String {
+        let durationSeconds = end.seconds - start.seconds
+        return "\(String(format: "%.1f", durationSeconds))s"
     }
 }
 
 // Trim Handle Component
-struct TrimmingHandle: View {
+struct TrimHandle: View {
     @Binding var isDragging: Bool
-    var handleColor: Color
     var orientation: HandleOrientation
     
     enum HandleOrientation {
@@ -293,27 +257,39 @@ struct TrimmingHandle: View {
         case right
     }
     
-    private let handleWidth: CGFloat = 10
-    private let handleHeight: CGFloat = 60
+    private let handleWidth: CGFloat = 8
+    private let handleHeight: CGFloat = 50
     
     var body: some View {
         ZStack {
             // Handle bar
             Rectangle()
-                .fill(handleColor)
-                .frame(width: handleWidth, height: handleHeight)
-                .cornerRadius(3)
+                .fill(Color.white)
+                .frame(width: handleWidth, height: 50)
             
-            // Handle grip (visual indicator)
-            VStack(spacing: 6) {
-                ForEach(0..<4) { _ in
-                    Rectangle()
-                        .fill(Color.white)
-                        .frame(width: 2, height: 2)
-                }
-            }
+            // Top handle
+            Circle()
+                .fill(Color.white)
+                .frame(width: 20, height: 20)
+                .overlay(
+                    Image(systemName: orientation == .left ? "chevron.left" : "chevron.right")
+                        .foregroundColor(.black)
+                        .font(.system(size: 10, weight: .bold))
+                )
+                .offset(y: -20)
+            
+            // Bottom handle
+            Circle()
+                .fill(Color.white)
+                .frame(width: 20, height: 20)
+                .overlay(
+                    Image(systemName: orientation == .left ? "chevron.left" : "chevron.right")
+                        .foregroundColor(.black)
+                        .font(.system(size: 10, weight: .bold))
+                )
+                .offset(y: 20)
         }
-        .scaleEffect(isDragging ? 1.2 : 1.0)
-        .animation(.spring(), value: isDragging)
+        .frame(width: 20, height: handleHeight) 
+        .contentShape(Rectangle())
     }
 }
