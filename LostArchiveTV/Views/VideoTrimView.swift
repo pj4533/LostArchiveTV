@@ -74,12 +74,18 @@ struct VideoTrimView: View {
                             .frame(maxWidth: .infinity)
                             .background(Color.black)
                             .overlay(
-                                // Play/pause button overlay
+                                // Play/pause button overlay - larger and more prominent
                                 Button(action: viewModel.togglePlayback) {
-                                    Image(systemName: viewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                                        .font(.system(size: 50))
-                                        .foregroundColor(.white)
-                                        .shadow(radius: 3)
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color.black.opacity(0.3))
+                                            .frame(width: 80, height: 80)
+                                        
+                                        Image(systemName: viewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                                            .font(.system(size: 50))
+                                            .foregroundColor(.white)
+                                            .shadow(radius: 3)
+                                    }
                                 }
                             )
                     }

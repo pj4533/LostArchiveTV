@@ -50,8 +50,18 @@ class VideoTrimViewModel: ObservableObject {
         self.assetDuration = duration
         self.startOffsetTime = currentPlaybackTime
         
-        // Initialize player
-        self.player = AVPlayer(url: assetURL)
+        // Initialize player with a unique audio configuration
+        let playerItem = AVPlayerItem(url: assetURL)
+        self.player = AVPlayer(playerItem: playerItem)
+        
+        // Configure a separate audio session with a different category
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback, options: .duckOthers)
+            try AVAudioSession.sharedInstance().setActive(true)
+            logger.debug("Set up dedicated audio session for trim view")
+        } catch {
+            logger.error("Failed to set up trim view audio session: \(error)")
+        }
         
         // Set initial values for trimming
         self.currentTime = currentPlaybackTime
@@ -67,15 +77,11 @@ class VideoTrimViewModel: ObservableObject {
         self.startTrimTime = CMTime(seconds: startTimeSeconds, preferredTimescale: 600)
         self.endTrimTime = CMTime(seconds: endTimeSeconds, preferredTimescale: 600)
         
-        // Seek to start trim time and start playing immediately
+        // Seek to start trim time but don't play automatically
         seekToTime(startTrimTime)
         
         // Set up playback time observer
         setupTimeObserver()
-        
-        // Start playing
-        isPlaying = true
-        player.play()
     }
     
     deinit {
@@ -194,6 +200,15 @@ class VideoTrimViewModel: ObservableObject {
         
         // Break any potential retain cycles
         player.replaceCurrentItem(with: nil)
+        
+        // Reset audio session
+        do {
+            // Deactivate our audio session
+            try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            logger.debug("Deactivated trim view audio session")
+        } catch {
+            logger.error("Failed to deactivate trim view audio session: \(error)")
+        }
         
         // Clean up any downloaded temp files if not saved
         if let localURL = localVideoURL, !isSaving {
