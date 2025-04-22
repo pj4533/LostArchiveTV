@@ -119,86 +119,72 @@ class VideoTrimViewModel: ObservableObject {
     func prepareForTrimming() async {
         isLoading = true
         
-        // Since we don't have a direct method to get cached URL by string,
-        // let's just use the original URL for now
-        // In a real implementation we would check the cache properly
-        
-        // Just proceed with direct downloading
+        // Reset the local URL
         localVideoURL = nil
         
-        // Download the video to a local file
+        // Create a unique temporary file path
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("trim_\(UUID().uuidString)")
+            .appendingPathExtension("mp4")
+        
         logger.debug("Downloading video for trimming: \(self.assetURL)")
+        logger.debug("Target location: \(tempURL.path)")
         
         do {
-            let tempURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("trim_\(UUID().uuidString)")
-                .appendingPathExtension("mp4")
+            // Use URLSession with async/await for download
+            let (downloadURL, response) = try await URLSession.shared.download(from: assetURL, delegate: nil)
             
-            // Create a download task
-            let downloadTask = URLSession.shared.downloadTask(with: assetURL) { [weak self] tempFileURL, response, error in
-                guard let self = self else { return }
-                
-                if let error = error {
-                    logger.error("Download failed: \(error.localizedDescription)")
-                    Task { @MainActor in
-                        self.error = error
-                        self.isLoading = false
-                    }
-                    return
-                }
-                
-                guard let tempFileURL = tempFileURL else {
-                    logger.error("No file URL in download response")
-                    Task { @MainActor in
-                        self.error = NSError(domain: "VideoTrimming", code: 1, userInfo: [NSLocalizedDescriptionKey: "Download failed with no file"])
-                        self.isLoading = false
-                    }
-                    return
-                }
-                
-                do {
-                    // Move the temp file to our target location
-                    try FileManager.default.moveItem(at: tempFileURL, to: tempURL)
-                    logger.debug("Download complete, moved to: \(tempURL)")
-                    
-                    Task { @MainActor in
-                        self.localVideoURL = tempURL
-                        self.isLoading = false
-                        
-                        // Update player with local file
-                        let asset = AVAsset(url: tempURL)
-                        let playerItem = AVPlayerItem(asset: asset)
-                        self.player.replaceCurrentItem(with: playerItem)
-                        
-                        // Seek to the start trim time
-                        self.seekToTime(self.startTrimTime)
-                        
-                        // Generate thumbnails
-                        self.generateThumbnails(from: asset)
-                    }
-                } catch {
-                    logger.error("Failed to move download: \(error.localizedDescription)")
-                    Task { @MainActor in
-                        self.error = error
-                        self.isLoading = false
-                    }
-                }
+            // Check response
+            if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
+                throw NSError(domain: "VideoTrimming", code: 4, userInfo: [
+                    NSLocalizedDescriptionKey: "Download failed with HTTP status: \(httpResponse.statusCode)"
+                ])
             }
             
-            // Track download progress
-            downloadTask.progress.observe(\.fractionCompleted) { [weak self] progress, _ in
-                Task { @MainActor in
-                    guard let self = self else { return }
-                    self.downloadProgress = progress.fractionCompleted
-                }
+            logger.debug("Download completed to temporary location: \(downloadURL.path)")
+            
+            // Move the downloaded file to our destination
+            try FileManager.default.moveItem(at: downloadURL, to: tempURL)
+            logger.debug("Moved downloaded file to: \(tempURL.path)")
+            
+            // Verify the file exists and has content
+            if !FileManager.default.fileExists(atPath: tempURL.path) {
+                throw NSError(domain: "VideoTrimming", code: 5, userInfo: [
+                    NSLocalizedDescriptionKey: "Downloaded file not found after move operation"
+                ])
             }
             
-            downloadTask.resume()
+            let attributes = try FileManager.default.attributesOfItem(atPath: tempURL.path)
+            let fileSize = attributes[.size] as? UInt64 ?? 0
+            logger.info("Download complete. File size: \(fileSize) bytes")
+            
+            if fileSize == 0 {
+                throw NSError(domain: "VideoTrimming", code: 6, userInfo: [
+                    NSLocalizedDescriptionKey: "Downloaded file is empty (0 bytes)"
+                ])
+            }
+            
+            // Save the URL for later use
+            self.localVideoURL = tempURL
+            
+            // Update the player with the local file
+            let asset = AVAsset(url: tempURL)
+            let playerItem = AVPlayerItem(asset: asset)
+            self.player.replaceCurrentItem(with: playerItem)
+            
+            // Seek to the start trim time
+            self.seekToTime(self.startTrimTime)
+            
+            // Generate thumbnails
+            self.generateThumbnails(from: asset)
+            
+            // Update UI
+            self.isLoading = false
             
         } catch {
-            logger.error("Failed to prepare for downloading: \(error.localizedDescription)")
+            logger.error("Download failed: \(error.localizedDescription)")
             self.error = error
-            isLoading = false
+            self.isLoading = false
         }
     }
     
@@ -449,13 +435,28 @@ class VideoTrimViewModel: ObservableObject {
             isPlaying = false
         }
         
-        // Use the downloaded local URL if available, otherwise use asset URL
-        let sourceURL = localVideoURL ?? assetURL
+        // Check if we have a local file to trim
+        guard let localURL = localVideoURL else {
+            self.error = NSError(domain: "VideoTrimming", code: 2, userInfo: [NSLocalizedDescriptionKey: "No local file available for trimming"])
+            isSaving = false
+            logger.error("Attempted to trim without a local file")
+            return
+        }
+        
+        // Verify the local file exists
+        if !FileManager.default.fileExists(atPath: localURL.path) {
+            self.error = NSError(domain: "VideoTrimming", code: 3, userInfo: [NSLocalizedDescriptionKey: "Local file not found: \(localURL.path)"])
+            isSaving = false
+            logger.error("Local file does not exist at: \(localURL.path)")
+            return
+        }
+        
+        logger.info("Trimming local file: \(localURL.path)")
         
         do {
             // Return to main thread for UI updates
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                trimManager.trimVideo(url: sourceURL, startTime: startTrimTime, endTime: endTrimTime) { result in
+                trimManager.trimVideo(url: localURL, startTime: startTrimTime, endTime: endTrimTime) { result in
                     switch result {
                     case .success(let outputURL):
                         self.logger.info("Trim successful. Output URL: \(outputURL)")
