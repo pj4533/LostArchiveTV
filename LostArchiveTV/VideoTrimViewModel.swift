@@ -459,6 +459,7 @@ class VideoTrimViewModel: ObservableObject {
                     switch result {
                     case .success(let outputURL):
                         self.logger.info("Trim successful. Output URL: \(outputURL)")
+                        // Successfully trimmed and saved to Photos
                         continuation.resume()
                     case .failure(let error):
                         self.logger.error("Trim failed: \(error.localizedDescription)")

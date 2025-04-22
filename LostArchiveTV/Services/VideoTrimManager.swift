@@ -30,7 +30,13 @@ class VideoTrimManager {
         // Configure the export session
         exportSession.outputURL = outputURL
         exportSession.outputFileType = .mp4
-        exportSession.timeRange = CMTimeRange(start: startTime, end: endTime)
+        
+        // Calculate the duration between start and end times
+        let duration = CMTimeSubtract(endTime, startTime)
+        exportSession.timeRange = CMTimeRange(start: startTime, duration: duration)
+        
+        // Log trim information for debugging
+        self.logger.info("Starting trim: start=\(startTime.seconds)s, end=\(endTime.seconds)s, duration=\(duration.seconds)s")
         
         // Export the trimmed video
         exportSession.exportAsynchronously {
@@ -51,6 +57,8 @@ class VideoTrimManager {
                                     self.logger.error("Failed to save to Photos: \(error.localizedDescription)")
                                 }
                             }
+                        } else {
+                            self.logger.warning("Photo library access not authorized")
                         }
                     }
                     
@@ -61,7 +69,7 @@ class VideoTrimManager {
                     self.logger.error("Video trim failed: \(error.localizedDescription)")
                     completion(.failure(error))
                 case .cancelled:
-                    self.logger.info("Video trim cancelled")
+                    self.logger.error("Video trim cancelled. Error: \(exportSession.error?.localizedDescription ?? "No error details")")
                     completion(.failure(NSError(domain: "VideoTrimManager", code: 3, userInfo: [NSLocalizedDescriptionKey: "Export cancelled"])))
                 default:
                     self.logger.warning("Unexpected export status: \(exportSession.status.rawValue)")
