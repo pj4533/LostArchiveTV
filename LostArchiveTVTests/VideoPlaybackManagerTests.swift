@@ -12,14 +12,15 @@ import AVKit
 struct VideoPlaybackManagerTests {
     
     @Test
-    func setupPlayer_createsPlayerWithAsset() {
+    func useExistingPlayer_setsPlayerDirectly() {
         // Arrange
         let playbackManager = VideoPlaybackManager()
         let url = URL(string: "https://example.com/test/test.mp4")!
         let asset = AVURLAsset(url: url)
+        let player = AVPlayer(playerItem: AVPlayerItem(asset: asset))
         
         // Act
-        playbackManager.setupPlayer(with: asset)
+        playbackManager.useExistingPlayer(player)
         
         // Assert
         #expect(playbackManager.player != nil)
@@ -31,7 +32,8 @@ struct VideoPlaybackManagerTests {
         let playbackManager = VideoPlaybackManager()
         let url = URL(string: "https://example.com/test/test.mp4")!
         let asset = AVURLAsset(url: url)
-        playbackManager.setupPlayer(with: asset)
+        let player = AVPlayer(playerItem: AVPlayerItem(asset: asset))
+        playbackManager.useExistingPlayer(player)
         
         // Initial state
         #expect(!playbackManager.isPlaying)
@@ -49,7 +51,8 @@ struct VideoPlaybackManagerTests {
         let playbackManager = VideoPlaybackManager()
         let url = URL(string: "https://example.com/test/test.mp4")!
         let asset = AVURLAsset(url: url)
-        playbackManager.setupPlayer(with: asset)
+        let player = AVPlayer(playerItem: AVPlayerItem(asset: asset))
+        playbackManager.useExistingPlayer(player)
         playbackManager.play()
         
         // Initial state
@@ -72,7 +75,8 @@ struct VideoPlaybackManagerTests {
         let playbackManager = VideoPlaybackManager()
         let url = URL(string: "https://example.com/test/test.mp4")!
         let asset = AVURLAsset(url: url)
-        playbackManager.setupPlayer(with: asset)
+        let player = AVPlayer(playerItem: AVPlayerItem(asset: asset))
+        playbackManager.useExistingPlayer(player)
         playbackManager.play()
         
         // Initial state

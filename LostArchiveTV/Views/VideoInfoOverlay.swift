@@ -25,7 +25,7 @@ struct VideoInfoOverlay: View {
     @Environment(\.openURL) private var openURL
     
     // Logger for debugging
-    private let logger = Logger(subsystem: "com.sourcetable.LostArchiveTV", category: "ui")
+    private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "ui")
     
     // Reference to the view model - passed from parent
     @ObservedObject var viewModel: VideoPlayerViewModel

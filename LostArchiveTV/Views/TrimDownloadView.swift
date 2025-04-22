@@ -18,7 +18,7 @@ struct TrimDownloadView: View {
     }
     
     // Logger for debugging
-    private let logger = Logger(subsystem: "com.sourcetable.LostArchiveTV", category: "trimming")
+    private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "trimming")
     
     var body: some View {
         // Simple transparent modal overlay with progress indicator

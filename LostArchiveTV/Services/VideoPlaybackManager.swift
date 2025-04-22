@@ -35,29 +35,6 @@ class VideoPlaybackManager: ObservableObject {
         return player.currentItem?.duration
     }
     
-    func setupPlayer(with asset: AVAsset) {
-        Logger.videoPlayback.debug("Setting up video player from asset")
-        
-        // Clean up existing player
-        cleanupPlayer()
-        
-        // Create player item with caching configuration
-        let playerItem = AVPlayerItem(asset: asset)
-        playerItem.preferredForwardBufferDuration = 60 // Buffer 60 seconds ahead at most
-        Logger.videoPlayback.debug("Configured player item with 60s forward buffer")
-        
-        // Create a new player
-        self.player = AVPlayer(playerItem: playerItem)
-        
-        // Set playback rate to 1 (normal speed)
-        self.player?.rate = 1.0
-        
-        // Add time observer
-        setupTimeObserver()
-        
-        // Add notification for playback ending
-        setupPlaybackEndNotification(for: playerItem)
-    }
     
     func useExistingPlayer(_ player: AVPlayer) {
         Logger.videoPlayback.debug("Using existing player (preserving seek position)")
@@ -200,9 +177,6 @@ class VideoPlaybackManager: ObservableObject {
         }
     }
     
-    func setCurrentVideoURL(_ url: URL) {
-        _currentVideoURL = url
-    }
     
     func cleanupPlayer() {
         Logger.videoPlayback.debug("Cleaning up player resources")

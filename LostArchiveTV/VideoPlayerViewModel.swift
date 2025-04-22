@@ -273,11 +273,6 @@ class VideoPlayerViewModel: ObservableObject {
         )
     }
     
-    // MARK: - Video download state management
-    
-    func setLoading(_ loading: Bool) {
-        isLoading = loading
-    }
     
     deinit {
         // Cancel any ongoing tasks

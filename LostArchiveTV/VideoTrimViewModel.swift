@@ -6,7 +6,7 @@ import Photos
 
 @MainActor
 class VideoTrimViewModel: ObservableObject {
-    private let logger = Logger(subsystem: "com.sourcetable.LostArchiveTV", category: "trimming")
+    private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "trimming")
     
     // Player
     let player: AVPlayer
@@ -54,12 +54,9 @@ class VideoTrimViewModel: ObservableObject {
     // Time observer token
     private var timeObserverToken: Any?
     
-    // Thumbnail generator
-    private var thumbnailGenerator: AVAssetImageGenerator?
     
     // Trim manager
     private let trimManager = VideoTrimManager()
-    private let cacheManager = VideoCacheManager()
     
     init(assetURL: URL, currentPlaybackTime: CMTime, duration: CMTime) {
         self.assetURL = assetURL

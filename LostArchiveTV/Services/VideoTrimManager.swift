@@ -5,7 +5,7 @@ import OSLog
 import UIKit
 
 class VideoTrimManager {
-    private let logger = Logger(subsystem: "com.sourcetable.LostArchiveTV", category: "trimming")
+    private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "trimming")
     
     func trimVideo(url: URL, startTime: CMTime, endTime: CMTime, completion: @escaping (Result<URL, Error>) -> Void) {
         self.logger.info("Starting trim process with URL: \(url.absoluteString)")
@@ -163,17 +163,6 @@ class VideoTrimManager {
         }
     }
     
-    // Legacy method for compatibility
-    func saveToPhotoLibrary(videoURL: URL, completion: @escaping (Bool, Error?) -> Void) {
-        Task {
-            do {
-                let success = try await saveToPhotosLibrary(videoURL: videoURL)
-                completion(success, nil)
-            } catch {
-                completion(false, error)
-            }
-        }
-    }
     
     // Generate thumbnails for trim interface
     func generateThumbnails(from asset: AVAsset, count: Int = 10, completion: @escaping ([UIImage]) -> Void) {
