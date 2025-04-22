@@ -21,96 +21,79 @@ struct TrimDownloadView: View {
     private let logger = Logger(subsystem: "com.sourcetable.LostArchiveTV", category: "trimming")
     
     var body: some View {
+        // Simple transparent modal overlay with progress indicator
         ZStack {
-            // Background color
-            Color.black.edgesIgnoringSafeArea(.all)
+            // Semi-transparent background
+            Color.black.opacity(0.7)
+                .edgesIgnoringSafeArea(.all)
             
-            VStack(spacing: 20) {
-                // Header
-                Text("Preparing Video")
-                    .font(.title)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .padding(.top, 40)
-                
-                Spacer()
-                
-                if isDownloading {
-                    // Download progress UI
-                    VStack(spacing: 30) {
-                        Text("Downloading video for trimming...")
-                            .foregroundColor(.white)
-                            .font(.headline)
-                            .multilineTextAlignment(.center)
-                        
-                        Text("This may take a few moments depending on the video size")
-                            .foregroundColor(.white.opacity(0.7))
-                            .font(.subheadline)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 40)
-                        
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .scaleEffect(2.0)
-                            .padding(.vertical, 40)
-                    }
-                    .padding(.horizontal, 30)
-                } else if let errorMessage = error {
-                    // Error message
-                    VStack(spacing: 20) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .resizable()
-                            .frame(width: 60, height: 60)
-                            .foregroundColor(.red)
-                            .padding(.bottom, 10)
-                        
-                        Text("Download Failed")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                        
-                        Text(errorMessage)
-                            .font(.body)
-                            .foregroundColor(.white.opacity(0.8))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 30)
-                    }
-                    .padding(.horizontal, 30)
+            // Container with rounded corners
+            VStack(spacing: 16) {
+                // Download progress indicator
+                ZStack {
+                    Circle()
+                        .stroke(Color.white.opacity(0.3), lineWidth: 4)
+                        .frame(width: 60, height: 60)
                     
-                    Button(action: {
-                        // Dismiss view and return to main player
-                        onDownloadComplete(nil)
-                    }) {
-                        Text("Cancel")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .padding()
-                            .frame(maxWidth: 250)
-                            .background(Color.red.opacity(0.7))
-                            .cornerRadius(10)
+                    if isDownloading {
+                        Circle()
+                            .trim(from: 0, to: CGFloat(downloadProgress))
+                            .stroke(Color.white, lineWidth: 4)
+                            .frame(width: 60, height: 60)
+                            .rotationEffect(.degrees(-90))
                     }
-                    .padding(.top, 40)
+                    
+                    // Show error icon if there's an error
+                    if let _ = error {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 30))
+                            .foregroundColor(.red)
+                    } else {
+                        // Download icon
+                        Image(systemName: "arrow.down")
+                            .font(.system(size: 24))
+                            .foregroundColor(.white)
+                    }
+                }
+                .frame(width: 70, height: 70)
+                
+                // Status text
+                if let errorMessage = error {
+                    Text("Download Failed")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    Text(errorMessage)
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .padding(.horizontal)
+                } else {
+                    Text("Downloading video")
+                        .font(.headline)
+                        .foregroundColor(.white)
                 }
                 
-                Spacer()
-                
-                // Always show cancel button during download
-                if isDownloading {
-                    Button(action: {
-                        // Dismiss view and return to main player
-                        onDownloadComplete(nil)
-                    }) {
-                        Text("Cancel")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .padding()
-                            .frame(maxWidth: 250)
-                            .background(Color.red.opacity(0.7))
-                            .cornerRadius(10)
-                    }
-                    .padding(.bottom, 40)
+                // Cancel button - smaller and less prominent
+                Button(action: {
+                    // Dismiss view and return to main player
+                    onDownloadComplete(nil)
+                }) {
+                    Text("Cancel")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.9))
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 16)
+                        .background(Color.gray.opacity(0.3))
+                        .cornerRadius(8)
                 }
+                .padding(.top, 8)
             }
+            .padding(24)
+            .background(Color.black.opacity(0.7))
+            .cornerRadius(16)
+            .shadow(radius: 10)
         }
         .onAppear {
             // Start downloading when view appears
@@ -148,37 +131,83 @@ struct TrimDownloadView: View {
                     
                     logger.debug("Downloading video for trimming: \(videoURL)")
                     
-                    // Use URLSession with async/await for download
-                    let (downloadURL, response) = try await URLSession.shared.download(from: videoURL, delegate: nil)
-                    
-                    // Check response
-                    if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
-                        throw NSError(domain: "TrimDownload", code: 3, userInfo: [
-                            NSLocalizedDescriptionKey: "Download failed with HTTP status: \(httpResponse.statusCode)"
-                        ])
+                    // Use VideoSaveManager to download with progress tracking
+                    let downloadTask = URLSession.shared.downloadTask(with: videoURL) { tempFileURL, response, error in
+                        // Handle download errors
+                        if let error = error {
+                            logger.error("Download failed: \(error.localizedDescription)")
+                            Task { @MainActor in
+                                self.isDownloading = false
+                                self.error = error.localizedDescription
+                            }
+                            return
+                        }
+                        
+                        guard let tempFileURL = tempFileURL else {
+                            logger.error("Download completed but file URL is nil")
+                            Task { @MainActor in
+                                self.isDownloading = false
+                                self.error = "Download failed with no file created"
+                            }
+                            return
+                        }
+                        
+                        // Check response
+                        if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
+                            Task { @MainActor in
+                                self.isDownloading = false
+                                self.error = "Download failed with HTTP status: \(httpResponse.statusCode)"
+                            }
+                            return
+                        }
+                        
+                        // Move the downloaded file to our destination
+                        do {
+                            try FileManager.default.moveItem(at: tempFileURL, to: tempURL)
+                            
+                            // Verify the file exists and has content
+                            let attributes = try FileManager.default.attributesOfItem(atPath: tempURL.path)
+                            let fileSize = attributes[.size] as? UInt64 ?? 0
+                            self.logger.info("Download complete. File size: \(fileSize) bytes")
+                            
+                            if fileSize == 0 {
+                                Task { @MainActor in
+                                    self.isDownloading = false
+                                    self.error = "Downloaded file is empty"
+                                }
+                                return
+                            }
+                            
+                            // Success - complete the download flow
+                            Task { @MainActor in
+                                self.onDownloadComplete(tempURL)
+                            }
+                        } catch {
+                            logger.error("Failed to process downloaded file: \(error.localizedDescription)")
+                            Task { @MainActor in
+                                self.isDownloading = false
+                                self.error = error.localizedDescription
+                            }
+                        }
                     }
                     
-                    // Move the downloaded file to our destination
-                    try FileManager.default.moveItem(at: downloadURL, to: tempURL)
+                    // Set up progress tracking
+                    downloadTask.resume()
                     
-                    // Verify the file exists and has content
-                    let attributes = try FileManager.default.attributesOfItem(atPath: tempURL.path)
-                    let fileSize = attributes[.size] as? UInt64 ?? 0
-                    logger.info("Download complete. File size: \(fileSize) bytes")
-                    
-                    if fileSize == 0 {
-                        throw NSError(domain: "TrimDownload", code: 4, userInfo: [
-                            NSLocalizedDescriptionKey: "Downloaded file is empty"
-                        ])
+                    // Track download progress using an observation
+                    let observation = downloadTask.progress.observe(\.fractionCompleted) { progress, _ in
+                        Task { @MainActor in
+                            self.downloadProgress = Float(progress.fractionCompleted)
+                        }
                     }
                     
-                    // Success - complete the download flow
-                    onDownloadComplete(tempURL)
+                    // Store the observation reference to keep it alive
+                    objc_setAssociatedObject(downloadTask, "progressObservation", observation, .OBJC_ASSOCIATION_RETAIN)
                     
                 } catch {
-                    // Download failed
-                    logger.error("Download failed: \(error.localizedDescription)")
-                    isDownloading = false
+                    // Download setup failed
+                    logger.error("Download setup failed: \(error.localizedDescription)")
+                    self.isDownloading = false
                     self.error = error.localizedDescription 
                 }
             }

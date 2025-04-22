@@ -125,15 +125,16 @@ class VideoTrimViewModel: ObservableObject {
         do {
             // We already have the file from our initialization
             // We're using assetURL directly which should be the local file URL
+            logger.debug("Preparing to trim video with URL: \(self.assetURL.absoluteString)")
             
             // Verify the file exists and has content
-            if !FileManager.default.fileExists(atPath: assetURL.path) {
+            if !FileManager.default.fileExists(atPath: self.assetURL.path) {
                 throw NSError(domain: "VideoTrimming", code: 5, userInfo: [
-                    NSLocalizedDescriptionKey: "Downloaded file not found at: \(assetURL.path)"
+                    NSLocalizedDescriptionKey: "Downloaded file not found at: \(self.assetURL.path)"
                 ])
             }
             
-            let attributes = try FileManager.default.attributesOfItem(atPath: assetURL.path)
+            let attributes = try FileManager.default.attributesOfItem(atPath: self.assetURL.path)
             let fileSize = attributes[.size] as? UInt64 ?? 0
             logger.info("Using local file for trimming. File size: \(fileSize) bytes")
             
@@ -143,11 +144,11 @@ class VideoTrimViewModel: ObservableObject {
                 ])
             }
             
-            // Save the URL for later use
-            self.localVideoURL = assetURL
+            // Save the URL for later use - EXPLICITLY set to ensure it's available for trimming
+            self.localVideoURL = self.assetURL
             
             // Initialize player with the asset
-            let asset = AVAsset(url: assetURL)
+            let asset = AVAsset(url: self.assetURL)
             let playerItem = AVPlayerItem(asset: asset)
             self.player.replaceCurrentItem(with: playerItem)
             
@@ -425,6 +426,12 @@ class VideoTrimViewModel: ObservableObject {
             return false
         }
         
+        // If localVideoURL is nil but we have assetURL, use that instead
+        if localVideoURL == nil {
+            logger.warning("localVideoURL is nil, using assetURL instead: \(self.assetURL.absoluteString)")
+            localVideoURL = self.assetURL
+        }
+        
         // Check if we have a local file to trim
         guard let localURL = localVideoURL else {
             // This is likely a timing issue - the user tapped Save before download completed
@@ -436,21 +443,41 @@ class VideoTrimViewModel: ObservableObject {
             return false
         }
         
+        // Log detailed information about the file we're trying to use
+        logger.info("Using file for trimming: \(localURL.absoluteString)")
+        
         // Verify the local file exists
         if !FileManager.default.fileExists(atPath: localURL.path) {
+            // Log more details about the file
+            logger.error("Local file does not exist at path: \(localURL.path)")
+            
+            // Try to use the original assetURL as a fallback
+            if localURL != self.assetURL && FileManager.default.fileExists(atPath: self.assetURL.path) {
+                logger.info("Falling back to original assetURL: \(self.assetURL.path)")
+                localVideoURL = self.assetURL
+            } else {
+                self.error = NSError(domain: "VideoTrimming", code: 4, userInfo: [
+                    NSLocalizedDescriptionKey: "Local file not found. The download may have failed."
+                ])
+                isSaving = false
+                return false
+            }
+        }
+        
+        // Get a guaranteed non-nil localURL for the rest of the function
+        guard let localFileURL = localVideoURL, FileManager.default.fileExists(atPath: localFileURL.path) else {
             self.error = NSError(domain: "VideoTrimming", code: 4, userInfo: [
-                NSLocalizedDescriptionKey: "Local file not found. The download may have failed."
+                NSLocalizedDescriptionKey: "Unable to access the downloaded video file."
             ])
             isSaving = false
-            logger.error("Local file does not exist at: \(localURL.path)")
             return false
         }
         
         // Get file size for verification
         do {
-            let attributes = try FileManager.default.attributesOfItem(atPath: localURL.path)
+            let attributes = try FileManager.default.attributesOfItem(atPath: localFileURL.path)
             let fileSize = attributes[.size] as? UInt64 ?? 0
-            logger.info("Trimming local file: \(localURL.path), size: \(fileSize) bytes")
+            logger.info("Trimming local file: \(localFileURL.path), size: \(fileSize) bytes")
             
             if fileSize == 0 {
                 self.error = NSError(domain: "VideoTrimming", code: 5, userInfo: [
@@ -461,6 +488,7 @@ class VideoTrimViewModel: ObservableObject {
             }
         } catch {
             logger.error("Failed to get file attributes: \(error.localizedDescription)")
+            // Continue anyway as the file exists
         }
         
         // First check for Photos permission
@@ -493,7 +521,7 @@ class VideoTrimViewModel: ObservableObject {
         do {
             // Return to main thread for UI updates
             let outputURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
-                trimManager.trimVideo(url: localURL, startTime: startTrimTime, endTime: endTrimTime) { result in
+                trimManager.trimVideo(url: localFileURL, startTime: startTrimTime, endTime: endTrimTime) { result in
                     switch result {
                     case .success(let outputURL):
                         self.logger.info("Trim successful. Output URL: \(outputURL)")
