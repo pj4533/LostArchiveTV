@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Photos
+import OSLog
 
 struct VideoInfoOverlay: View {
     let title: String?
@@ -20,6 +21,9 @@ struct VideoInfoOverlay: View {
     @State private var saveError: String? = nil
     @State private var showTrimView = false
     @Environment(\.openURL) private var openURL
+    
+    // Logger for debugging
+    private let logger = Logger(subsystem: "com.sourcetable.LostArchiveTV", category: "ui")
     
     // Reference to the view model - passed from parent
     @ObservedObject var viewModel: VideoPlayerViewModel
