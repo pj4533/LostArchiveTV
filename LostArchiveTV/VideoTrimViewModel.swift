@@ -55,8 +55,14 @@ class VideoTrimViewModel: ObservableObject {
         self.assetDuration = duration
         self.startOffsetTime = currentPlaybackTime
         
+        // Initialize logging
+        logger.debug("VideoTrimViewModel initializing with URL: \(assetURL.absoluteString)")
+        logger.debug("Asset exists: \(FileManager.default.fileExists(atPath: assetURL.path))")
+        logger.debug("Asset duration: \(duration.seconds) seconds")
+        
         // Initialize player with a unique audio configuration
-        let playerItem = AVPlayerItem(url: assetURL)
+        let asset = AVAsset(url: assetURL)
+        let playerItem = AVPlayerItem(asset: asset)
         self.player = AVPlayer(playerItem: playerItem)
         
         // Configure audio session
@@ -77,6 +83,8 @@ class VideoTrimViewModel: ObservableObject {
         let selectionDuration = min(60.0, totalDuration - startTimeSeconds)
         let endTimeSeconds = startTimeSeconds + selectionDuration
         self.endTrimTime = CMTime(seconds: endTimeSeconds, preferredTimescale: 600)
+        
+        logger.debug("Trim time window: \(startTimeSeconds) to \(endTimeSeconds) seconds")
         
         // Initialize timeline manager after properties are set
         self.timelineManager = TimelineManager(
@@ -120,11 +128,14 @@ class VideoTrimViewModel: ObservableObject {
     
     /// Use the already downloaded file to initialize trim view
     func prepareForTrimming() async {
+        logger.debug("prepareForTrimming started")
         isLoading = true
         
         do {
             // Verify the file exists and has content
+            logger.debug("Checking file at path: \(self.assetURL.path)")
             if !FileManager.default.fileExists(atPath: self.assetURL.path) {
+                logger.error("File does not exist at path: \(self.assetURL.path)")
                 throw NSError(domain: "VideoTrimming", code: 5, userInfo: [
                     NSLocalizedDescriptionKey: "Downloaded file not found at: \(self.assetURL.path)"
                 ])
@@ -135,6 +146,7 @@ class VideoTrimViewModel: ObservableObject {
             logger.info("Using local file for trimming. File size: \(fileSize) bytes")
             
             if fileSize == 0 {
+                logger.error("File is empty (0 bytes)")
                 throw NSError(domain: "VideoTrimming", code: 6, userInfo: [
                     NSLocalizedDescriptionKey: "Video file is empty (0 bytes)"
                 ])
@@ -144,17 +156,25 @@ class VideoTrimViewModel: ObservableObject {
             self.localVideoURL = self.assetURL
             
             // Initialize player with the asset
+            logger.debug("Creating AVAsset from URL: \(self.assetURL.absoluteString)")
             let asset = AVAsset(url: self.assetURL)
+            
+            logger.debug("Creating player item")
             let playerItem = AVPlayerItem(asset: asset)
+            
+            logger.debug("Replacing player's current item")
             self.player.replaceCurrentItem(with: playerItem)
             
             // Seek to the start trim time
+            logger.debug("Seeking to start time: \(self.startTrimTime.seconds) seconds")
             self.seekToTime(self.startTrimTime)
             
             // Generate thumbnails
+            logger.debug("Starting thumbnail generation")
             self.generateThumbnails(from: asset)
             
             // Update UI
+            logger.debug("Setting isLoading = false")
             self.isLoading = false
             
         } catch {

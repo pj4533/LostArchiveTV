@@ -1,11 +1,13 @@
 import SwiftUI
 import AVFoundation
 import AVKit
+import OSLog
 
 // MARK: - Main VideoTrimView
 struct VideoTrimView: View {
     @ObservedObject var viewModel: VideoTrimViewModel
     @Environment(\.dismiss) private var dismiss
+    private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "trimview")
     
     private let thumbnailHeight: CGFloat = 50
     
@@ -14,32 +16,34 @@ struct VideoTrimView: View {
             // Background color
             Color.black.edgesIgnoringSafeArea(.all)
             
-            if viewModel.isLoading {
-                // Download progress view
-                VStack {
-                    Text("Downloading video for trimming")
-                        .foregroundColor(.white)
-                        .font(.headline)
-                        .padding(.bottom, 10)
-                    
-                    Text("Please wait while the video is downloaded")
-                        .foregroundColor(.white.opacity(0.8))
-                        .font(.subheadline)
-                        .padding(.bottom, 20)
-                    
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .scaleEffect(1.5)
-                        .padding(.bottom, 20)
-                    
-                    Text("This may take a few moments depending on the video size")
-                        .foregroundColor(.white.opacity(0.7))
-                        .font(.caption)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                }
-            } else {
-                VStack(spacing: 0) {
+            // Main content
+            Group {
+                if viewModel.isLoading {
+                    // Download progress view
+                    VStack {
+                        Text("Downloading video for trimming")
+                            .foregroundColor(.white)
+                            .font(.headline)
+                            .padding(.bottom, 10)
+                        
+                        Text("Please wait while the video is downloaded")
+                            .foregroundColor(.white.opacity(0.8))
+                            .font(.subheadline)
+                            .padding(.bottom, 20)
+                        
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .scaleEffect(1.5)
+                            .padding(.bottom, 20)
+                        
+                        Text("This may take a few moments depending on the video size")
+                            .foregroundColor(.white.opacity(0.7))
+                            .font(.caption)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                    }
+                } else {
+                    VStack(spacing: 0) {
                     // Top toolbar
                     HStack {
                         Button("Cancel") {
@@ -83,6 +87,9 @@ struct VideoTrimView: View {
                             .aspectRatio(9/16, contentMode: ContentMode.fit)
                             .frame(maxWidth: .infinity)
                             .background(Color.black)
+                            .onAppear {
+                                logger.debug("VideoPlayer appeared")
+                            }
                             .overlay(
                                 // Play/pause button overlay
                                 Button(action: viewModel.togglePlayback) {
@@ -130,6 +137,7 @@ struct VideoTrimView: View {
                     .frame(height: thumbnailHeight + 20)
                     .padding(.horizontal)
                     .padding(.bottom, 30)
+                    }
                 }
             }
         }
@@ -160,8 +168,14 @@ struct VideoTrimView: View {
         }
         .onAppear {
             // Start downloading the video for trimming if needed
+            let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "trimview")
+            logger.debug("VideoTrimView appeared, viewModel.isLoading: \(viewModel.isLoading)")
+            logger.debug("VideoTrimView has player: \(viewModel.player)")
+            
             Task {
+                logger.debug("Starting prepareForTrimming")
                 await viewModel.prepareForTrimming()
+                logger.debug("Completed prepareForTrimming, viewModel.isLoading: \(viewModel.isLoading)")
             }
         }
     }

@@ -20,6 +20,9 @@ struct TrimDownloadView: View {
     // Logger for debugging
     private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "trimming")
     
+    // Service for handling downloads
+    private let downloadService = VideoDownloadService()
+    
     var body: some View {
         // Simple transparent modal overlay with progress indicator
         ZStack {
@@ -97,104 +100,113 @@ struct TrimDownloadView: View {
         }
         .onAppear {
             // Start downloading when view appears
-            Task {
-                isDownloading = true
+            downloadVideoForTrimming()
+        }
+    }
+    
+    private func downloadVideoForTrimming() {
+        Task {
+            guard let identifier = currentIdentifier else {
+                self.error = "No video selected for trimming"
+                self.isDownloading = false
+                return
+            }
+            
+            // Create temporary file location for trim operation
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("trim_\(UUID().uuidString)")
+                .appendingPathExtension("mp4")
+            
+            logger.debug("Starting download for trimming: \(identifier) to \(tempURL.path)")
+            
+            // Use custom download method for trim operation
+            do {
+                try await downloadVideoToFile(identifier: identifier, destinationURL: tempURL)
                 
+                // Success - return the downloaded file URL
+                self.onDownloadComplete(tempURL)
+            } catch {
+                logger.error("Video download for trimming failed: \(error.localizedDescription)")
+                self.error = error.localizedDescription
+                self.isDownloading = false
+            }
+        }
+    }
+    
+    // Custom download method that uses our service but saves to a specific location
+    private func downloadVideoToFile(identifier: String, destinationURL: URL) async throws {
+        return try await withCheckedThrowingContinuation { continuation in
+            // Create service instances
+            let archiveService = ArchiveService()
+            
+            // Start the process
+            Task {
                 do {
-                    // Manual download instead of using view model method
-                    guard let identifier = currentIdentifier else {
-                        throw NSError(domain: "TrimDownload", code: 1, userInfo: [
-                            NSLocalizedDescriptionKey: "No video selected for trimming"
-                        ])
-                    }
-                    
-                    // Create service instances directly
-                    let archiveService = ArchiveService()
-                    
                     // Get metadata
                     let metadata = try await archiveService.fetchMetadata(for: identifier)
                     
                     // Find MP4 file
-                    let mp4Files = await archiveService.findPlayableFiles(in: metadata)
+                    let playableFiles = await archiveService.findPlayableFiles(in: metadata)
                     
-                    guard let mp4File = mp4Files.first,
+                    guard let mp4File = playableFiles.first,
                           let videoURL = await archiveService.getFileDownloadURL(for: mp4File, identifier: identifier) else {
                         throw NSError(domain: "TrimDownload", code: 2, userInfo: [
                             NSLocalizedDescriptionKey: "Could not find playable file"
                         ])
                     }
                     
-                    // Create a unique temporary file path
-                    let tempURL = FileManager.default.temporaryDirectory
-                        .appendingPathComponent("trim_\(UUID().uuidString)")
-                        .appendingPathExtension("mp4")
-                    
-                    logger.debug("Downloading video for trimming: \(videoURL)")
-                    
-                    // Use VideoSaveManager to download with progress tracking
+                    // Now download to our specific location
                     let downloadTask = URLSession.shared.downloadTask(with: videoURL) { tempFileURL, response, error in
                         // Handle download errors
                         if let error = error {
-                            logger.error("Download failed: \(error.localizedDescription)")
-                            Task { @MainActor in
-                                self.isDownloading = false
-                                self.error = error.localizedDescription
-                            }
+                            continuation.resume(throwing: error)
                             return
                         }
                         
                         guard let tempFileURL = tempFileURL else {
-                            logger.error("Download completed but file URL is nil")
-                            Task { @MainActor in
-                                self.isDownloading = false
-                                self.error = "Download failed with no file created"
-                            }
+                            continuation.resume(throwing: NSError(domain: "TrimDownload", code: 3, userInfo: [
+                                NSLocalizedDescriptionKey: "Download failed with no file created"
+                            ]))
                             return
                         }
                         
                         // Check response
                         if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
-                            Task { @MainActor in
-                                self.isDownloading = false
-                                self.error = "Download failed with HTTP status: \(httpResponse.statusCode)"
-                            }
+                            continuation.resume(throwing: NSError(domain: "TrimDownload", code: 4, userInfo: [
+                                NSLocalizedDescriptionKey: "Download failed with HTTP status: \(httpResponse.statusCode)"
+                            ]))
                             return
                         }
                         
                         // Move the downloaded file to our destination
                         do {
-                            try FileManager.default.moveItem(at: tempFileURL, to: tempURL)
+                            if FileManager.default.fileExists(atPath: destinationURL.path) {
+                                try FileManager.default.removeItem(at: destinationURL)
+                            }
+                            try FileManager.default.moveItem(at: tempFileURL, to: destinationURL)
                             
                             // Verify the file exists and has content
-                            let attributes = try FileManager.default.attributesOfItem(atPath: tempURL.path)
+                            let attributes = try FileManager.default.attributesOfItem(atPath: destinationURL.path)
                             let fileSize = attributes[.size] as? UInt64 ?? 0
-                            self.logger.info("Download complete. File size: \(fileSize) bytes")
                             
                             if fileSize == 0 {
-                                Task { @MainActor in
-                                    self.isDownloading = false
-                                    self.error = "Downloaded file is empty"
-                                }
+                                continuation.resume(throwing: NSError(domain: "TrimDownload", code: 5, userInfo: [
+                                    NSLocalizedDescriptionKey: "Downloaded file is empty"
+                                ]))
                                 return
                             }
                             
-                            // Success - complete the download flow
-                            Task { @MainActor in
-                                self.onDownloadComplete(tempURL)
-                            }
+                            // Success
+                            continuation.resume(returning: ())
                         } catch {
-                            logger.error("Failed to process downloaded file: \(error.localizedDescription)")
-                            Task { @MainActor in
-                                self.isDownloading = false
-                                self.error = error.localizedDescription
-                            }
+                            continuation.resume(throwing: error)
                         }
                     }
                     
                     // Set up progress tracking
                     downloadTask.resume()
                     
-                    // Track download progress using an observation
+                    // Track download progress
                     let observation = downloadTask.progress.observe(\.fractionCompleted) { progress, _ in
                         Task { @MainActor in
                             self.downloadProgress = Float(progress.fractionCompleted)
@@ -205,10 +217,7 @@ struct TrimDownloadView: View {
                     objc_setAssociatedObject(downloadTask, "progressObservation", observation, .OBJC_ASSOCIATION_RETAIN)
                     
                 } catch {
-                    // Download setup failed
-                    logger.error("Download setup failed: \(error.localizedDescription)")
-                    self.isDownloading = false
-                    self.error = error.localizedDescription 
+                    continuation.resume(throwing: error)
                 }
             }
         }

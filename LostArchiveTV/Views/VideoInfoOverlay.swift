@@ -12,8 +12,6 @@ struct VideoInfoOverlay: View {
     @State private var downloadProgress: Float = 0
     @State private var showSaveSuccessAlert = false
     @State private var saveError: String? = nil
-    @State private var showTrimView = false
-    @State private var showTrimDownloadView = false
     @State private var downloadedVideoURL: URL? = nil
     
     // Logger for debugging
@@ -25,6 +23,15 @@ struct VideoInfoOverlay: View {
     // Reference to the view model - passed from parent
     @ObservedObject var viewModel: VideoPlayerViewModel
     
+    // Track the current step in the trim workflow
+    @State private var trimStep: TrimWorkflowStep = .none
+    
+    enum TrimWorkflowStep {
+        case none        // No trim action in progress
+        case downloading // Downloading video for trimming
+        case trimming    // Showing trim interface
+    }
+    
     var body: some View {
         ZStack {
             // Bottom info panel with gradient background
@@ -33,23 +40,44 @@ struct VideoInfoOverlay: View {
             // Right-side buttons
             buttonPanel
         }
-        // Sheets and alerts
-        .sheet(isPresented: $showTrimDownloadView, onDismiss: handleTrimDownloadDismissal) {
-            TrimDownloadView(viewModel: viewModel) { downloadedURL in
-                self.downloadedVideoURL = downloadedURL
-                self.showTrimDownloadView = false
+        // Single sheet with conditional content based on current step
+        .sheet(isPresented: Binding<Bool>(
+            get: { trimStep != .none },
+            set: { if !$0 { trimStep = .none }}
+        ), onDismiss: {
+            // Only handle dismissal if we're not advancing to the next step
+            if trimStep == .none {
+                self.downloadedVideoURL = nil
+                viewModel.resumePlayback()
             }
-        }
-        .sheet(isPresented: $showTrimView, onDismiss: handleTrimViewDismissal) {
-            if let downloadedURL = downloadedVideoURL,
-               let currentTime = viewModel.currentVideoTime,
-               let duration = viewModel.currentVideoDuration {
-                // Use the downloaded file URL
-                VideoTrimView(viewModel: VideoTrimViewModel(
-                    assetURL: downloadedURL,
-                    currentPlaybackTime: currentTime,
-                    duration: duration
-                ))
+        }) {
+            Group {
+                if trimStep == .downloading {
+                    // Download sheet
+                    TrimDownloadView(viewModel: viewModel) { downloadedURL in
+                        if let url = downloadedURL {
+                            // Success - move to trim step
+                            logger.debug("Download successful, transitioning to trim step with URL: \(url.absoluteString)")
+                            self.downloadedVideoURL = url
+                            self.trimStep = .trimming
+                        } else {
+                            // Failed download - dismiss everything
+                            logger.debug("Download failed or was cancelled, dismissing workflow")
+                            self.downloadedVideoURL = nil
+                            self.trimStep = .none
+                        }
+                    }
+                } else if trimStep == .trimming, 
+                          let downloadedURL = downloadedVideoURL,
+                          let currentTime = viewModel.currentVideoTime,
+                          let duration = viewModel.currentVideoDuration {
+                    // Trim view
+                    VideoTrimView(viewModel: VideoTrimViewModel(
+                        assetURL: downloadedURL,
+                        currentPlaybackTime: currentTime,
+                        duration: duration
+                    ))
+                }
             }
         }
         .alert("Video Saved", isPresented: $showSaveSuccessAlert) {
@@ -146,28 +174,11 @@ struct VideoInfoOverlay: View {
         logger.debug("Current video time: \(String(describing: viewModel.currentVideoTime))")
         logger.debug("Current video duration: \(String(describing: viewModel.currentVideoDuration))")
         
-        // Pause playback and start download flow
+        // Pause playback
         viewModel.pausePlayback()
-        showTrimDownloadView = true
-    }
-    
-    private func handleTrimDownloadDismissal() {
-        // If we got a downloaded URL, show the trim view
-        if let downloadedURL = downloadedVideoURL {
-            showTrimView = true
-        } else {
-            // If download failed, resume playback
-            logger.debug("Download sheet dismissed without URL, resuming main playback")
-            viewModel.resumePlayback()
-        }
-    }
-    
-    private func handleTrimViewDismissal() {
-        // Only resume playback - the cleanup is handled explicitly before dismissal
-        logger.debug("Trim sheet dismissed, resuming main playback")
-        // Reset the downloaded URL
-        downloadedVideoURL = nil
-        viewModel.resumePlayback()
+        
+        // Start the trim workflow with the download step
+        trimStep = .downloading
     }
     
     private func downloadVideo() {
