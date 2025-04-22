@@ -7,10 +7,11 @@ struct VideoTrimView: View {
     @Environment(\.dismiss) private var dismiss
     
     // State to track dragging to prevent zoom recalculation during drag
+    // Simple state tracking for drags
     @State private var isDraggingLeftHandle = false
     @State private var isDraggingRightHandle = false
-    @State private var frozenVisibleStartRatio: Double = 0
-    @State private var frozenVisibleDuration: Double = 0
+    @State private var dragStartPos: CGFloat = 0
+    @State private var initialHandleTime: Double = 0
     
     // Constants for UI layout
     private let handleWidth: CGFloat = 8
@@ -133,69 +134,82 @@ struct VideoTrimView: View {
                                         .fill(Color.gray.opacity(0.3))
                                         .frame(height: thumbnailHeight)
                                 } else {
-                                    // Calculate zoom parameters
-                                    let startRatio = viewModel.startTrimTime.seconds / viewModel.assetDuration.seconds
-                                    let endRatio = viewModel.endTrimTime.seconds / viewModel.assetDuration.seconds
+                                    // SIMPLIFIED APPROACH:
+                                    // 1. Show a fixed 90-second window (or less if video is shorter)
+                                    // 2. Center around the selected portion with padding
+                                    // 3. No dynamic zooming when handles move
                                     
-                                    // Add padding to show more context on either side (like TikTok)
-                                    let paddingRatio = 0.15 // 15% padding on each side
-                                    let visibleStartRatio = max(0, startRatio - paddingRatio)
-                                    let visibleEndRatio = min(1, endRatio + paddingRatio)
-                                    let visibleDuration = visibleEndRatio - visibleStartRatio
+                                    // Calculate how much time we want to show in the timeline
+                                    let windowDuration = min(90.0, viewModel.assetDuration.seconds) // Show 90 seconds or entire video
                                     
-                                    // Calculate the zoom factor
-                                    let zoomFactor = 1.0 / visibleDuration
+                                    // Calculate the middle of the trimmed section
+                                    let trimMiddle = (viewModel.startTrimTime.seconds + viewModel.endTrimTime.seconds) / 2.0
                                     
-                                    // Create a zoomed view of the thumbnails
+                                    // Calculate the start time of our visible window (centered on the trim)
+                                    let timelineStart = max(0, trimMiddle - windowDuration / 2)
+                                    let timelineEnd = min(viewModel.assetDuration.seconds, timelineStart + windowDuration)
+                                    
+                                    // Adjust to make sure we don't go out of bounds
+                                    let adjustedTimelineStart = min(timelineStart, viewModel.assetDuration.seconds - windowDuration)
+                                    let adjustedTimelineEnd = adjustedTimelineStart + windowDuration
+                                    
+                                    // Calculate pixels per second for the timeline
+                                    let pixelsPerSecond = timelineWidth / windowDuration
+                                    
+                                    // Create the thumbnails view with our fixed window
                                     ZStack(alignment: .leading) {
                                         // Container for all thumbnails
                                         HStack(spacing: 0) {
                                             ForEach(0..<viewModel.thumbnails.count, id: \.self) { index in
                                                 if let uiImage = viewModel.thumbnails[index] {
-                                                    Image(uiImage: uiImage)
-                                                        .resizable()
-                                                        .aspectRatio(contentMode: .fill)
-                                                        .frame(
-                                                            width: (timelineWidth / CGFloat(viewModel.thumbnails.count)) * zoomFactor,
-                                                            height: thumbnailHeight
-                                                        )
-                                                        .clipped()
+                                                    // Calculate the time position for this thumbnail
+                                                    let thumbTimeRatio = Double(index) / Double(viewModel.thumbnails.count)
+                                                    let thumbTime = viewModel.assetDuration.seconds * thumbTimeRatio
+                                                    
+                                                    // Only show thumbnails within our window
+                                                    if thumbTime >= adjustedTimelineStart && thumbTime <= adjustedTimelineEnd {
+                                                        let position = (thumbTime - adjustedTimelineStart) * pixelsPerSecond
+                                                        Image(uiImage: uiImage)
+                                                            .resizable()
+                                                            .aspectRatio(contentMode: .fill)
+                                                            .frame(
+                                                                width: timelineWidth / CGFloat(windowDuration / (viewModel.assetDuration.seconds / Double(viewModel.thumbnails.count))),
+                                                                height: thumbnailHeight
+                                                            )
+                                                            .clipped()
+                                                    }
                                                 }
                                             }
                                         }
                                         .frame(height: thumbnailHeight)
-                                        // Offset to show the visible section
-                                        .offset(x: -timelineWidth * visibleStartRatio * zoomFactor)
                                     }
                                     .frame(width: timelineWidth, height: thumbnailHeight)
                                     .clipped()
                                 }
                             }
                             
-                            // Calculate the zoom parameters (should match the thumbnail calculations)
-                            let startRatio = viewModel.startTrimTime.seconds / viewModel.assetDuration.seconds
-                            let endRatio = viewModel.endTrimTime.seconds / viewModel.assetDuration.seconds
-                            let paddingRatio = 0.15 // 15% padding on each side
-                            let visibleStartRatio = max(0, startRatio - paddingRatio)
-                            let visibleEndRatio = min(1, endRatio + paddingRatio)
-                            let visibleDuration = visibleEndRatio - visibleStartRatio
+                            // SIMPLIFIED - Fixed time window calculations
+                            // Calculate our fixed 90s window (or less if video is shorter)
+                            let windowDuration = min(90.0, viewModel.assetDuration.seconds)
                             
-                            // Calculate the zoom factor and visible width
-                            let zoomFactor = 1.0 / visibleDuration
+                            // Calculate the middle of the trimmed section
+                            let trimMiddle = (viewModel.startTrimTime.seconds + viewModel.endTrimTime.seconds) / 2.0
                             
-                            // Calculate position in the zoomed timeline
-                            // Formula: (actual ratio - visible start ratio) * zoom factor * timeline width
-                            let startPosRatio = (startRatio - visibleStartRatio) / visibleDuration
-                            let endPosRatio = (endRatio - visibleStartRatio) / visibleDuration
-                            let currentTimeRatio = (viewModel.currentTime.seconds / viewModel.assetDuration.seconds - visibleStartRatio) / visibleDuration
+                            // Calculate the start and end of our fixed visible window
+                            let timelineStart = max(0, trimMiddle - windowDuration / 2)
+                            let adjustedTimelineStart = min(timelineStart, viewModel.assetDuration.seconds - windowDuration)
+                            let timelineEnd = min(adjustedTimelineStart + windowDuration, viewModel.assetDuration.seconds)
                             
-                            // Convert to actual positions
-                            let startPos = timelineWidth * startPosRatio
-                            let endPos = timelineWidth * endPosRatio
+                            // Calculate pixels per second - fixed scale
+                            let pixelsPerSecond = timelineWidth / windowDuration
+                            
+                            // Calculate handle positions in pixels using simple linear mapping
+                            let startPos = (viewModel.startTrimTime.seconds - adjustedTimelineStart) * pixelsPerSecond
+                            let endPos = (viewModel.endTrimTime.seconds - adjustedTimelineStart) * pixelsPerSecond
                             let selectedWidth = endPos - startPos
                             
                             // Calculate current playhead position
-                            let currentPos = timelineWidth * currentTimeRatio
+                            let currentPos = (viewModel.currentTime.seconds - adjustedTimelineStart) * pixelsPerSecond
                             
                             // Current time indicator (vertical white line)
                             Rectangle()
@@ -223,23 +237,29 @@ struct VideoTrimView: View {
                                 .position(x: startPos + selectedWidth/2, y: thumbnailHeight/2)
                             
                             // Left trim handle - fixed at left edge in TikTok style
-                            TrimHandle(isDragging: .constant(false), orientation: .left)
+                            TrimHandle(isDragging: $isDraggingLeftHandle, orientation: .left)
                                 .position(x: startPos, y: thumbnailHeight/2)
                                 .gesture(
                                     DragGesture(minimumDistance: 0)
                                         .onChanged { value in
-                                            handleLeftDrag(value, timelineWidth: timelineWidth, zoomFactor: zoomFactor)
+                                            handleLeftDrag(value, timelineWidth: timelineWidth, zoomFactor: 1.0)
+                                        }
+                                        .onEnded { _ in
+                                            isDraggingLeftHandle = false
                                         }
                                 )
                                 .zIndex(10) // Ensure handle is above other elements
                             
                             // Right trim handle - fixed at right edge in TikTok style
-                            TrimHandle(isDragging: .constant(false), orientation: .right)
+                            TrimHandle(isDragging: $isDraggingRightHandle, orientation: .right)
                                 .position(x: endPos, y: thumbnailHeight/2)
                                 .gesture(
                                     DragGesture(minimumDistance: 0)
                                         .onChanged { value in
-                                            handleRightDrag(value, timelineWidth: timelineWidth, zoomFactor: zoomFactor)
+                                            handleRightDrag(value, timelineWidth: timelineWidth, zoomFactor: 1.0)
+                                        }
+                                        .onEnded { _ in
+                                            isDraggingRightHandle = false
                                         }
                                 )
                                 .zIndex(10) // Ensure handle is above other elements
@@ -303,62 +323,84 @@ struct VideoTrimView: View {
     // Handle drag methods to fix handle independence
     
     private func handleLeftDrag(_ value: DragGesture.Value, timelineWidth: CGFloat, zoomFactor: Double) {
-        // Use the direct drag translation without recalculating the zoom
-        // This will move handles independently of each other
-        let translation = value.translation.width
+        // Simple direct conversion from position to time
+        let windowDuration = min(90.0, viewModel.assetDuration.seconds)
+        let trimMiddle = (viewModel.startTrimTime.seconds + viewModel.endTrimTime.seconds) / 2.0
+        let timelineStart = max(0, trimMiddle - windowDuration / 2)
+        let adjustedTimelineStart = min(timelineStart, viewModel.assetDuration.seconds - windowDuration)
+        let pixelsPerSecond = timelineWidth / windowDuration
         
-        // Convert translation to video time delta (considering zoom factor)
-        let timePerPixel = viewModel.assetDuration.seconds / timelineWidth / zoomFactor
-        let timeChange = translation * timePerPixel
+        // When drag starts, store initial position and time
+        if !isDraggingLeftHandle {
+            isDraggingLeftHandle = true
+            dragStartPos = value.startLocation.x
+            initialHandleTime = viewModel.startTrimTime.seconds
+        }
         
-        // Calculate new time by adjusting from the original position
-        let originalStartSeconds = viewModel.startTrimTime.seconds
-        let newSeconds = originalStartSeconds + timeChange
+        // Calculate drag distance in pixels and convert to time
+        let dragDelta = value.location.x - dragStartPos
+        let timeDelta = dragDelta / pixelsPerSecond
+        
+        // Calculate new time
+        let newStartTime = initialHandleTime + timeDelta
         
         // Apply constraints
-        let minimumDuration = 1.0 // 1 second minimum
+        let minimumDuration = 1.0
         let maxStartTime = viewModel.endTrimTime.seconds - minimumDuration
-        let clampedTime = max(0, min(newSeconds, maxStartTime))
+        let clampedStartTime = max(0, min(newStartTime, maxStartTime))
         
-        // Update only the start time
-        let newTime = CMTime(seconds: clampedTime, preferredTimescale: 600)
+        // Update ONLY the start time
+        let newTime = CMTime(seconds: clampedStartTime, preferredTimescale: 600)
         viewModel.updateStartTrimTime(newTime)
     }
     
     private func handleRightDrag(_ value: DragGesture.Value, timelineWidth: CGFloat, zoomFactor: Double) {
-        // Use the direct drag translation without recalculating the zoom
-        // This will move handles independently of each other
-        let translation = value.translation.width
+        // Simple direct conversion from position to time
+        let windowDuration = min(90.0, viewModel.assetDuration.seconds)
+        let trimMiddle = (viewModel.startTrimTime.seconds + viewModel.endTrimTime.seconds) / 2.0
+        let timelineStart = max(0, trimMiddle - windowDuration / 2)
+        let adjustedTimelineStart = min(timelineStart, viewModel.assetDuration.seconds - windowDuration)
+        let pixelsPerSecond = timelineWidth / windowDuration
         
-        // Convert translation to video time delta (considering zoom factor)
-        let timePerPixel = viewModel.assetDuration.seconds / timelineWidth / zoomFactor
-        let timeChange = translation * timePerPixel
+        // When drag starts, store initial position and time
+        if !isDraggingRightHandle {
+            isDraggingRightHandle = true
+            dragStartPos = value.startLocation.x
+            initialHandleTime = viewModel.endTrimTime.seconds
+        }
         
-        // Calculate new time by adjusting from the original position
-        let originalEndSeconds = viewModel.endTrimTime.seconds
-        let newSeconds = originalEndSeconds + timeChange
+        // Calculate drag distance in pixels and convert to time
+        let dragDelta = value.location.x - dragStartPos
+        let timeDelta = dragDelta / pixelsPerSecond
+        
+        // Calculate new time
+        let newEndTime = initialHandleTime + timeDelta
         
         // Apply constraints
-        let minimumDuration = 1.0 // 1 second minimum
+        let minimumDuration = 1.0
         let minEndTime = viewModel.startTrimTime.seconds + minimumDuration
-        let clampedTime = min(viewModel.assetDuration.seconds, max(newSeconds, minEndTime))
+        let clampedEndTime = min(viewModel.assetDuration.seconds, max(newEndTime, minEndTime))
         
-        // Update only the end time
-        let newTime = CMTime(seconds: clampedTime, preferredTimescale: 600)
+        // Update ONLY the end time
+        let newTime = CMTime(seconds: clampedEndTime, preferredTimescale: 600)
         viewModel.updateEndTrimTime(newTime)
     }
     
     private func handleTimelineScrub(_ value: DragGesture.Value, geometry: GeometryProxy, visibleStartRatio: Double, visibleDuration: Double) {
-        // Direct positioning within the zoomed timeline
-        let locationInTimeline = value.location.x
+        // Simple direct conversion from position to time using our fixed window
+        let windowDuration = min(90.0, viewModel.assetDuration.seconds)
+        let trimMiddle = (viewModel.startTrimTime.seconds + viewModel.endTrimTime.seconds) / 2.0
+        let timelineStart = max(0, trimMiddle - windowDuration / 2)
+        let adjustedTimelineStart = min(timelineStart, viewModel.assetDuration.seconds - windowDuration)
         
-        // Convert zoomed position to full video position
-        let zoomedPositionRatio = max(0, min(locationInTimeline / geometry.size.width, 1.0))
-        let fullVideoRatio = visibleStartRatio + (zoomedPositionRatio * visibleDuration)
-        let timeInSeconds = viewModel.assetDuration.seconds * fullVideoRatio
+        // Convert screen position to time
+        let locationInTimeline = value.location.x
+        let pixelsPerSecond = geometry.size.width / windowDuration
+        let positionRatio = max(0, min(locationInTimeline / geometry.size.width, 1.0))
+        let timeInSeconds = adjustedTimelineStart + (positionRatio * windowDuration)
         
         // Create and seek to the new time
-        let newTime = CMTime(seconds: timeInSeconds, preferredTimescale: 600)
+        let newTime = CMTime(seconds: min(timeInSeconds, viewModel.assetDuration.seconds), preferredTimescale: 600)
         viewModel.seekToTime(newTime)
     }
 }
