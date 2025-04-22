@@ -65,17 +65,23 @@ class VideoTrimViewModel: ObservableObject {
         
         // Set initial values for trimming
         self.currentTime = currentPlaybackTime
-        self.startTrimTime = currentPlaybackTime
         
-        // Set trim selection to span most of the video by default (80%)
+        // TikTok-style trimming: Start handle near beginning, but not at the edge
+        // This makes it easier for users to grab the handle
         let totalDuration = CMTimeGetSeconds(duration)
-        // Start from the beginning of the video by default
-        let startTimeSeconds = 0.0
-        // End about 80% of the way through the video
-        let endTimeSeconds = totalDuration * 0.8
         
+        // Calculate start at 15% into the video from current position
+        let currentTimeSeconds = CMTimeGetSeconds(currentPlaybackTime)
+        // Adjust start position to be slightly offset from current position
+        let startTimeSeconds = max(0, currentTimeSeconds - 1.0)
         self.startTrimTime = CMTime(seconds: startTimeSeconds, preferredTimescale: 600)
-        self.endTrimTime = CMTime(seconds: endTimeSeconds, preferredTimescale: 600)
+        
+        // End handle should be 30s forward, creating a good default selection
+        // This creates a "zoomed in" timeline view similar to TikTok
+        let selectionDuration = min(30.0, totalDuration - startTimeSeconds - 1.0)
+        let maxEndTimeSeconds = startTimeSeconds + selectionDuration
+        
+        self.endTrimTime = CMTime(seconds: maxEndTimeSeconds, preferredTimescale: 600)
         
         // Seek to start trim time but don't play automatically
         seekToTime(startTrimTime)
