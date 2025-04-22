@@ -59,10 +59,14 @@ struct VideoTrimView: View {
                         
                         Button("Save") {
                             Task {
-                                await viewModel.saveTrimmmedVideo()
-                                // Clean up resources
-                                viewModel.prepareForDismissal()
-                                dismiss()
+                                // Reset any previous success message
+                                viewModel.successMessage = nil
+                                
+                                // Perform the save operation
+                                let success = await viewModel.saveTrimmmedVideo()
+                                
+                                // Handle success - alert will show
+                                // The view will be dismissed after user confirms the success alert
                             }
                         }
                         .foregroundColor(.white)
@@ -129,6 +133,7 @@ struct VideoTrimView: View {
                 }
             }
         }
+        // Error alert
         .alert("Trim Error", isPresented: Binding<Bool>(
             get: { viewModel.error != nil },
             set: { if !$0 { viewModel.error = nil } }
@@ -138,6 +143,20 @@ struct VideoTrimView: View {
             }
         } message: {
             Text(viewModel.error?.localizedDescription ?? "Unknown error")
+        }
+        
+        // Success alert
+        .alert("Success", isPresented: Binding<Bool>(
+            get: { viewModel.successMessage != nil },
+            set: { if !$0 { viewModel.successMessage = nil } }
+        )) {
+            Button("OK") {
+                // On success confirmation, dismiss the view
+                viewModel.prepareForDismissal()
+                dismiss()
+            }
+        } message: {
+            Text(viewModel.successMessage ?? "Operation completed successfully")
         }
         .onAppear {
             // Start downloading the video for trimming if needed

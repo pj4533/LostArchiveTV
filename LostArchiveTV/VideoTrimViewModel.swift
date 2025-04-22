@@ -2,6 +2,7 @@ import Foundation
 import AVFoundation
 import SwiftUI
 import OSLog
+import Photos
 
 @MainActor
 class VideoTrimViewModel: ObservableObject {
@@ -24,6 +25,7 @@ class VideoTrimViewModel: ObservableObject {
     @Published var isZoomed = false
     @Published var isSaving = false
     @Published var error: Error?
+    @Published var successMessage: String? = nil
     
     // Loading state
     @Published var isLoading = false
@@ -426,7 +428,7 @@ class VideoTrimViewModel: ObservableObject {
         }
     }
     
-    func saveTrimmmedVideo() async {
+    func saveTrimmmedVideo() async -> Bool {
         isSaving = true
         
         // Stop playback
@@ -443,7 +445,7 @@ class VideoTrimViewModel: ObservableObject {
             ])
             isSaving = false
             logger.warning("Attempted to save while still downloading")
-            return
+            return false
         }
         
         // Check if we have a local file to trim
@@ -454,7 +456,7 @@ class VideoTrimViewModel: ObservableObject {
             ])
             isSaving = false
             logger.error("Attempted to trim without a local file")
-            return
+            return false
         }
         
         // Verify the local file exists
@@ -464,7 +466,7 @@ class VideoTrimViewModel: ObservableObject {
             ])
             isSaving = false
             logger.error("Local file does not exist at: \(localURL.path)")
-            return
+            return false
         }
         
         // Get file size for verification
@@ -478,31 +480,67 @@ class VideoTrimViewModel: ObservableObject {
                     NSLocalizedDescriptionKey: "Downloaded file is empty. Please try again."
                 ])
                 isSaving = false
-                return
+                return false
             }
         } catch {
             logger.error("Failed to get file attributes: \(error.localizedDescription)")
         }
         
+        // First check for Photos permission
+        var authStatus: PHAuthorizationStatus = .notDetermined
+        
+        // Use a separate try-catch as this is not part of our main error handling
+        do {
+            authStatus = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<PHAuthorizationStatus, Error>) in
+                PHPhotoLibrary.requestAuthorization { status in
+                    continuation.resume(returning: status)
+                }
+            }
+        } catch {
+            self.error = NSError(domain: "VideoTrimming", code: 5, userInfo: [
+                NSLocalizedDescriptionKey: "Error checking photo permissions: \(error.localizedDescription)"
+            ])
+            isSaving = false
+            return false
+        }
+        
+        if authStatus != .authorized {
+            self.error = NSError(domain: "VideoTrimming", code: 6, userInfo: [
+                NSLocalizedDescriptionKey: "Permission to save to Photos is required. Please allow in Settings."
+            ])
+            isSaving = false
+            logger.error("Photos permission denied")
+            return false
+        }
+        
         do {
             // Return to main thread for UI updates
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let outputURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
                 trimManager.trimVideo(url: localURL, startTime: startTrimTime, endTime: endTrimTime) { result in
                     switch result {
                     case .success(let outputURL):
                         self.logger.info("Trim successful. Output URL: \(outputURL)")
                         // Successfully trimmed and saved to Photos
-                        continuation.resume()
+                        continuation.resume(returning: outputURL)
                     case .failure(let error):
                         self.logger.error("Trim failed: \(error.localizedDescription)")
                         continuation.resume(throwing: error)
                     }
                 }
             }
+            
+            // Success! Show a success message in the view
+            logger.info("Video successfully saved to Photos")
+            self.error = nil
+            self.successMessage = "Video successfully saved to Photos!"
             isSaving = false
+            return true
+            
         } catch {
+            logger.error("Trim process failed: \(error.localizedDescription)")
             self.error = error
             isSaving = false
+            return false
         }
     }
 }
