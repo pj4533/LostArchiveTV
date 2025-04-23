@@ -80,8 +80,8 @@ class VideoPlaybackManager: ObservableObject {
             // Update player state
             self.isPlaying = (self.player?.rate ?? 0) > 0
             
-            // Update duration if needed
-            if self.videoDuration == 0, let currentItem = self.player?.currentItem {
+            // Always check and update duration to make sure it's current
+            if let currentItem = self.player?.currentItem {
                 let itemDuration = currentItem.duration
                 if itemDuration.isValid && !itemDuration.isIndefinite {
                     self.videoDuration = itemDuration.seconds

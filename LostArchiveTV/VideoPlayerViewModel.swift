@@ -49,6 +49,9 @@ class VideoPlayerViewModel: ObservableObject {
         // Set initial state
         isInitializing = true
         
+        // Setup duration observation
+        setupDurationObserver()
+        
         // Load identifiers and start preloading videos when the ViewModel is initialized
         Task {
             // Load identifiers first - must complete before preloading
@@ -128,9 +131,7 @@ class VideoPlayerViewModel: ObservableObject {
         }
     }
     
-    var videoDuration: Double {
-        playbackManager.videoDuration
-    }
+    @Published var videoDuration: Double = 0
     
     // MARK: - Video trimming
     
@@ -229,6 +230,9 @@ class VideoPlayerViewModel: ObservableObject {
             // This will also extract and store the URL internally
             playbackManager.useExistingPlayer(player)
             
+            // Setup observation of playback manager's duration
+            setupDurationObserver()
+            
             // Always start playback of the video
             playbackManager.play()
             
@@ -273,6 +277,17 @@ class VideoPlayerViewModel: ObservableObject {
         )
     }
     
+    // MARK: - Duration Observation
+    
+    private func setupDurationObserver() {
+        // Create an observation of the playbackManager's videoDuration property
+        Task {
+            for await _ in playbackManager.$videoDuration.values {
+                // Update our own published property when playbackManager's duration changes
+                self.videoDuration = playbackManager.videoDuration
+            }
+        }
+    }
     
     deinit {
         // Cancel any ongoing tasks

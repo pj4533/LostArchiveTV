@@ -114,6 +114,7 @@ struct VideoInfoOverlay: View {
                     currentTime: viewModel.player?.currentTime().seconds,
                     duration: viewModel.videoDuration
                 )
+                .id(viewModel.videoDuration) // Force view refresh when duration updates
                 
                 // Swipe hint
                 Text("Swipe up for next video")
@@ -145,7 +146,7 @@ struct VideoInfoOverlay: View {
                     action: startTrimFlow,
                     disabled: viewModel.currentVideoURL == nil
                 ) {
-                    Image(systemName: "timeline.selection")
+                    Image(systemName: "selection.pin.in.out")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 22, height: 22)
