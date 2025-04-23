@@ -246,6 +246,7 @@ class VideoTrimViewModel: ObservableObject {
         if isPlaying {
             // If right handle was the last one dragged, always start from the left handle
             if lastDraggedRightHandle {
+                lastDraggedRightHandle = false // Reset flag once used
                 seekToTime(startTrimTime)
                 // The seek completion handler will start playback
                 return
