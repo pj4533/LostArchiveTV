@@ -53,7 +53,15 @@ struct CollectionConfigView: View {
                                 viewModel.selectAll()
                                 settingsModified = true
                             }
+                            
                             Spacer()
+                            
+                            Text("\(viewModel.collections.filter { $0.isEnabled }.count) selected")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            Spacer()
+                            
                             Button("Deselect All") {
                                 viewModel.deselectAll()
                                 settingsModified = true
