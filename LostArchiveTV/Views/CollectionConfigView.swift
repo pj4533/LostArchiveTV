@@ -65,9 +65,10 @@ struct CollectionConfigView: View {
                         HStack {
                             Image(systemName: "magnifyingglass")
                                 .foregroundColor(.gray)
+                                .padding(.leading, 10)
                             
                             TextField("Search collections", text: $viewModel.searchText)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .padding(.vertical, 10)
                             
                             if !viewModel.searchText.isEmpty {
                                 Button(action: {
@@ -75,9 +76,20 @@ struct CollectionConfigView: View {
                                 }) {
                                     Image(systemName: "xmark.circle.fill")
                                         .foregroundColor(.gray)
+                                        .padding(.trailing, 10)
                                 }
+                            } else {
+                                // Add padding to maintain consistent width
+                                Spacer()
+                                    .frame(width: 30)
                             }
                         }
+                        .background(Color(.systemGray6))
+                        .cornerRadius(10)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color(.systemGray4), lineWidth: 1)
+                        )
                         .padding(.horizontal)
                         .padding(.bottom, 8)
                         
