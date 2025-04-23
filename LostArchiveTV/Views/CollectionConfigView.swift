@@ -4,15 +4,12 @@ struct CollectionConfigView: View {
     @ObservedObject var viewModel: CollectionConfigViewModel
     @Environment(\.dismiss) private var dismiss
     
-    // Callback for when changes should be applied
-    var onSaveChanges: () -> Void
+    // Callback for when view is dismissed
+    var onDismiss: () -> Void
     
-    // Track if settings were modified
-    @State private var settingsModified = false
-    
-    init(viewModel: CollectionConfigViewModel, onSaveChanges: @escaping () -> Void = {}) {
+    init(viewModel: CollectionConfigViewModel, onDismiss: @escaping () -> Void = {}) {
         self.viewModel = viewModel
-        self.onSaveChanges = onSaveChanges
+        self.onDismiss = onDismiss
     }
     
     var body: some View {
@@ -22,7 +19,6 @@ struct CollectionConfigView: View {
                     .padding()
                     .onChange(of: viewModel.useDefaultCollections) { _ in
                         viewModel.toggleDefaultCollections()
-                        settingsModified = true
                     }
                 
                 Divider()
@@ -51,7 +47,6 @@ struct CollectionConfigView: View {
                         HStack {
                             Button("Select All") {
                                 viewModel.selectAll()
-                                settingsModified = true
                             }
                             
                             Spacer()
@@ -64,7 +59,6 @@ struct CollectionConfigView: View {
                             
                             Button("Deselect All") {
                                 viewModel.deselectAll()
-                                settingsModified = true
                             }
                         }
                         .padding()
@@ -131,7 +125,6 @@ struct CollectionConfigView: View {
                                             get: { collection.isEnabled },
                                             set: { _ in 
                                                 viewModel.toggleCollection(collection.id)
-                                                settingsModified = true
                                             }
                                         ))
                                         .labelsHidden()
@@ -147,18 +140,10 @@ struct CollectionConfigView: View {
             .navigationTitle("Collection Settings")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
-                leading: Button("Cancel") {
-                    // Close without saving
-                    dismiss()
-                },
-                trailing: Button("Save") {
-                    // Only trigger callback if settings were modified
-                    if settingsModified {
-                        onSaveChanges()
-                    }
+                trailing: Button("Close") {
+                    onDismiss()
                     dismiss()
                 }
-                .disabled(!settingsModified)
             )
         }
     }

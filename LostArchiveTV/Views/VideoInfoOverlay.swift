@@ -192,8 +192,8 @@ struct VideoInfoOverlay: View {
         } content: {
             CollectionConfigView(
                 viewModel: CollectionConfigViewModel(databaseService: DatabaseService()),
-                onSaveChanges: { 
-                    // Explicit callback when settings are saved
+                onDismiss: { 
+                    // Callback when view is dismissed
                     Task {
                         await viewModel.reloadIdentifiers()
                     }
