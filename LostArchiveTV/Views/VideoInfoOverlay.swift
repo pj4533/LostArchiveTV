@@ -110,7 +110,9 @@ struct VideoInfoOverlay: View {
                     title: title,
                     collection: collection,
                     description: description,
-                    identifier: identifier
+                    identifier: identifier,
+                    currentTime: viewModel.player?.currentTime().seconds,
+                    duration: viewModel.videoDuration
                 )
                 
                 // Swipe hint
