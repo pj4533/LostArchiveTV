@@ -36,6 +36,9 @@ class VideoTrimViewModel: ObservableObject {
     @Published var isDraggingLeftHandle = false
     @Published var isDraggingRightHandle = false
     
+    // Track which handle was last dragged
+    private var lastDraggedRightHandle = false
+    
     // Local video URL
     private var localVideoURL: URL?
     
@@ -241,7 +244,14 @@ class VideoTrimViewModel: ObservableObject {
         isPlaying.toggle()
         
         if isPlaying {
-            // Ensure current time is within trim bounds before playing
+            // If right handle was the last one dragged, always start from the left handle
+            if lastDraggedRightHandle {
+                seekToTime(startTrimTime)
+                // The seek completion handler will start playback
+                return
+            }
+            
+            // Otherwise, check if current time is within trim bounds
             let currentPlayerTime = player.currentTime()
             
             if CMTimeCompare(currentPlayerTime, startTrimTime) < 0 || 
@@ -301,6 +311,7 @@ class VideoTrimViewModel: ObservableObject {
     func endLeftHandleDrag() {
         timelineManager.endLeftHandleDrag()
         isDraggingLeftHandle = timelineManager.isDraggingLeftHandle
+        lastDraggedRightHandle = false
     }
     
     func startRightHandleDrag(position: CGFloat) {
@@ -315,10 +326,14 @@ class VideoTrimViewModel: ObservableObject {
     func endRightHandleDrag() {
         timelineManager.endRightHandleDrag()
         isDraggingRightHandle = timelineManager.isDraggingRightHandle
+        lastDraggedRightHandle = true
     }
     
     func scrubTimeline(position: CGFloat, timelineWidth: CGFloat) {
         timelineManager.scrubTimeline(position: position, timelineWidth: timelineWidth)
+        
+        // When user manually scrubs timeline, reset the handle drag tracking
+        lastDraggedRightHandle = false
     }
     
     // MARK: - Thumbnail Generation
