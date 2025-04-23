@@ -42,12 +42,14 @@ class CollectionConfigViewModel: ObservableObject {
             let allCollections = try await databaseService.getAllCollections()
             let userDefaults = UserDefaults.standard
             let enabledCollectionIds = userDefaults.stringArray(forKey: "EnabledCollections") ?? []
+            let isEmptySelectionList = enabledCollectionIds.isEmpty
             
             self.collections = allCollections.map { collection in
+                // If the enabled list is empty, default all collections to enabled
                 CollectionItem(
                     id: collection.name,
                     name: collection.name,
-                    isEnabled: enabledCollectionIds.contains(collection.name) || enabledCollectionIds.isEmpty,
+                    isEnabled: isEmptySelectionList || enabledCollectionIds.contains(collection.name),
                     isPreferred: collection.preferred
                 )
             }
@@ -93,8 +95,11 @@ class CollectionConfigViewModel: ObservableObject {
             useDefaultCollections = userDefaults.bool(forKey: "UseDefaultCollections")
         }
         
-        Task {
-            await loadCollections()
+        // Load collections only once at init
+        if collections.isEmpty {
+            Task {
+                await loadCollections()
+            }
         }
     }
     

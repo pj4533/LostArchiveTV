@@ -143,7 +143,11 @@ struct VideoInfoOverlay: View {
             VStack(spacing: 12) {
                 // Settings button at the top
                 OverlayButton(
-                    action: { showCollectionConfig = true },
+                    action: { 
+                        // Pause video while settings are open
+                        viewModel.pausePlayback()
+                        showCollectionConfig = true 
+                    },
                     disabled: false
                 ) {
                     Image(systemName: "gearshape.fill")
@@ -183,7 +187,18 @@ struct VideoInfoOverlay: View {
             .padding(.trailing, 8)
         }
         .sheet(isPresented: $showCollectionConfig) {
-            CollectionConfigView(viewModel: CollectionConfigViewModel(databaseService: DatabaseService()))
+            // Resume playback when the sheet is dismissed
+            viewModel.resumePlayback()
+        } content: {
+            CollectionConfigView(
+                viewModel: CollectionConfigViewModel(databaseService: DatabaseService()),
+                onSaveChanges: { 
+                    // Explicit callback when settings are saved
+                    Task {
+                        await viewModel.reloadIdentifiers()
+                    }
+                }
+            )
         }
     }
     

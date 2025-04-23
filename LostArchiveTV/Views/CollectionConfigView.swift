@@ -4,6 +4,17 @@ struct CollectionConfigView: View {
     @ObservedObject var viewModel: CollectionConfigViewModel
     @Environment(\.dismiss) private var dismiss
     
+    // Callback for when changes should be applied
+    var onSaveChanges: () -> Void
+    
+    // Track if settings were modified
+    @State private var settingsModified = false
+    
+    init(viewModel: CollectionConfigViewModel, onSaveChanges: @escaping () -> Void = {}) {
+        self.viewModel = viewModel
+        self.onSaveChanges = onSaveChanges
+    }
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
@@ -11,6 +22,7 @@ struct CollectionConfigView: View {
                     .padding()
                     .onChange(of: viewModel.useDefaultCollections) { _ in
                         viewModel.toggleDefaultCollections()
+                        settingsModified = true
                     }
                 
                 Divider()
@@ -39,10 +51,12 @@ struct CollectionConfigView: View {
                         HStack {
                             Button("Select All") {
                                 viewModel.selectAll()
+                                settingsModified = true
                             }
                             Spacer()
                             Button("Deselect All") {
                                 viewModel.deselectAll()
+                                settingsModified = true
                             }
                         }
                         .padding()
@@ -95,7 +109,10 @@ struct CollectionConfigView: View {
                                         
                                         Toggle("", isOn: Binding(
                                             get: { collection.isEnabled },
-                                            set: { _ in viewModel.toggleCollection(collection.id) }
+                                            set: { _ in 
+                                                viewModel.toggleCollection(collection.id)
+                                                settingsModified = true
+                                            }
                                         ))
                                         .labelsHidden()
                                     }
@@ -109,12 +126,20 @@ struct CollectionConfigView: View {
             }
             .navigationTitle("Collection Settings")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(trailing: Button(action: {
-                dismiss()
-            }) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title2)
-            })
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    // Close without saving
+                    dismiss()
+                },
+                trailing: Button("Save") {
+                    // Only trigger callback if settings were modified
+                    if settingsModified {
+                        onSaveChanges()
+                    }
+                    dismiss()
+                }
+                .disabled(!settingsModified)
+            )
         }
     }
 }
