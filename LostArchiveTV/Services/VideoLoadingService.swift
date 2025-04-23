@@ -74,8 +74,8 @@ actor VideoLoadingService {
     }
     
     private func loadFreshRandomVideo() async throws -> (identifier: String, collection: String, title: String, description: String, asset: AVAsset, startPosition: Double) {
-        // Get random identifier
-        let identifiers = try await archiveService.loadArchiveIdentifiers()
+        // Get random identifier with user preferences
+        let identifiers = try await loadIdentifiersWithUserPreferences()
         guard let randomArchiveIdentifier = await archiveService.getRandomIdentifier(from: identifiers) else {
             Logger.metadata.error("No identifiers available")
             throw NSError(domain: "VideoPlayerError", code: 1, userInfo: [NSLocalizedDescriptionKey: "No identifiers available"])
