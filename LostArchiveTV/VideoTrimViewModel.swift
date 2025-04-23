@@ -239,15 +239,35 @@ class VideoTrimViewModel: ObservableObject {
     
     func togglePlayback() {
         isPlaying.toggle()
+        
         if isPlaying {
-            player.play()
+            // Ensure current time is within trim bounds before playing
+            let currentPlayerTime = player.currentTime()
+            
+            if CMTimeCompare(currentPlayerTime, startTrimTime) < 0 || 
+               CMTimeCompare(currentPlayerTime, endTrimTime) > 0 {
+                // If outside trim bounds, seek to start and play from there
+                seekToTime(startTrimTime)
+                // The seek completion handler will start playback
+            } else {
+                // Otherwise just play from current position
+                player.play()
+            }
         } else {
             player.pause()
         }
     }
     
     func seekToTime(_ time: CMTime) {
-        player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
+        // Seek with completion handler to ensure operation finishes
+        player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] completed in
+            guard let self = self, completed else { return }
+            
+            // If player is already in playing state, ensure it's actually playing
+            if self.isPlaying {
+                self.player.play()
+            }
+        }
     }
     
     // MARK: - Timeline Delegation
