@@ -84,29 +84,31 @@ class TimelineManager {
         isDraggingLeftHandle = true
         dragStartPos = position
         initialHandleTime = startTrimTime.seconds
+        
+        // Immediately seek to the start trim time to show the frame at the handle
+        onSeekToTime?(startTrimTime)
     }
     
     /// Process left handle drag
     func updateLeftHandleDrag(currentPosition: CGFloat, timelineWidth: CGFloat) {
-        // Calculate drag distance in pixels
-        let dragDelta = currentPosition - dragStartPos
+        // Calculate the time at this position directly
+        let timeInSeconds = positionToTime(position: currentPosition, timelineWidth: timelineWidth)
         
-        // Calculate time window and pixels per second
-        let timeWindow = calculateVisibleTimeWindow()
-        let visibleDuration = timeWindow.end - timeWindow.start
-        let secondsPerPixel = visibleDuration / timelineWidth
-        
-        // Convert drag distance to time delta
-        let timeDelta = dragDelta * secondsPerPixel
-        
-        // Calculate new time and apply constraints
-        let newStartTime = initialHandleTime + timeDelta
+        // Apply constraints to ensure it's valid
         let maxStartTime = endTrimTime.seconds - minimumTrimDuration
-        let clampedTime = max(0, min(newStartTime, maxStartTime))
+        let clampedTime = max(0, min(timeInSeconds, maxStartTime))
         
-        // Update start trim time
+        // Create time object
         let newTime = CMTime(seconds: clampedTime, preferredTimescale: 600)
-        updateStartTrimTime(newTime)
+        
+        // Set start trim time
+        startTrimTime = newTime
+        
+        // Update the caller
+        onUpdateStartTime?(newTime)
+        
+        // Set the playhead to this position
+        onSeekToTime?(newTime)
     }
     
     /// End left handle drag
@@ -119,29 +121,31 @@ class TimelineManager {
         isDraggingRightHandle = true
         dragStartPos = position
         initialHandleTime = endTrimTime.seconds
+        
+        // Immediately seek to the end trim time to show the frame at the handle
+        onSeekToTime?(endTrimTime)
     }
     
     /// Process right handle drag
     func updateRightHandleDrag(currentPosition: CGFloat, timelineWidth: CGFloat) {
-        // Calculate drag distance in pixels
-        let dragDelta = currentPosition - dragStartPos
+        // Calculate the time at this position directly
+        let timeInSeconds = positionToTime(position: currentPosition, timelineWidth: timelineWidth)
         
-        // Calculate time window and pixels per second
-        let timeWindow = calculateVisibleTimeWindow()
-        let visibleDuration = timeWindow.end - timeWindow.start
-        let secondsPerPixel = visibleDuration / timelineWidth
-        
-        // Convert drag distance to time delta
-        let timeDelta = dragDelta * secondsPerPixel
-        
-        // Calculate new time and apply constraints
-        let newEndTime = initialHandleTime + timeDelta
+        // Apply constraints to ensure it's valid
         let minEndTime = startTrimTime.seconds + minimumTrimDuration
-        let clampedTime = min(assetDuration.seconds, max(newEndTime, minEndTime))
+        let clampedTime = min(assetDuration.seconds, max(timeInSeconds, minEndTime))
         
-        // Update end trim time
+        // Create time object
         let newTime = CMTime(seconds: clampedTime, preferredTimescale: 600)
-        updateEndTrimTime(newTime)
+        
+        // Set end trim time
+        endTrimTime = newTime
+        
+        // Update the caller
+        onUpdateEndTime?(newTime)
+        
+        // Set the playhead to this position
+        onSeekToTime?(newTime)
     }
     
     /// End right handle drag
@@ -158,48 +162,20 @@ class TimelineManager {
     
     /// Update the start time of the trim window
     func updateStartTrimTime(_ newStartTime: CMTime) {
-        // Ensure start time is within valid bounds (not before 0, not after end time)
-        let validStartTime = max(CMTime.zero, newStartTime)
+        // This is now just a passthrough method since we've moved the logic to updateLeftHandleDrag
+        // We keep it for compatibility with code that still calls this directly
         
-        // Minimum trim duration is 1 second
-        let minimumDuration = CMTime(seconds: minimumTrimDuration, preferredTimescale: 600)
-        let latestPossibleStart = CMTimeSubtract(endTrimTime, minimumDuration)
-        
-        // Apply the valid start time
-        if CMTimeCompare(validStartTime, latestPossibleStart) <= 0 {
-            startTrimTime = validStartTime
-            
-            // Notify the owner
-            onUpdateStartTime?(startTrimTime)
-            
-            // If current time is before new start time, seek to start time
-            if CMTimeCompare(currentTime, startTrimTime) < 0 {
-                onSeekToTime?(startTrimTime)
-            }
-        }
+        // Notify the owner about the change
+        onUpdateStartTime?(newStartTime)
     }
     
     /// Update the end time of the trim window
     func updateEndTrimTime(_ newEndTime: CMTime) {
-        // Ensure end time is within valid bounds (not after duration, not before start time)
-        let validEndTime = min(assetDuration, newEndTime)
+        // This is now just a passthrough method since we've moved the logic to updateRightHandleDrag
+        // We keep it for compatibility with code that still calls this directly
         
-        // Minimum trim duration is 1 second
-        let minimumDuration = CMTime(seconds: minimumTrimDuration, preferredTimescale: 600)
-        let earliestPossibleEnd = CMTimeAdd(startTrimTime, minimumDuration)
-        
-        // Apply the valid end time
-        if CMTimeCompare(validEndTime, earliestPossibleEnd) >= 0 {
-            endTrimTime = validEndTime
-            
-            // Notify the owner
-            onUpdateEndTime?(endTrimTime)
-            
-            // If current time is after new end time, seek to start time
-            if CMTimeCompare(currentTime, endTrimTime) > 0 {
-                onSeekToTime?(startTrimTime)
-            }
-        }
+        // Notify the owner about the change
+        onUpdateEndTime?(newEndTime)
     }
     
     /// Update current playback time
