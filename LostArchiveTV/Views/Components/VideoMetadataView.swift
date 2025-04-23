@@ -10,10 +10,16 @@ struct VideoMetadataView: View {
     var duration: Double? = nil
     
     private func formatTime(_ seconds: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.maximumFractionDigits = 1
-        formatter.minimumFractionDigits = 0
-        return formatter.string(from: NSNumber(value: seconds)) ?? "\(seconds)"
+        let totalSeconds = Int(seconds)
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let seconds = totalSeconds % 60
+        
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            return String(format: "%d:%02d", minutes, seconds)
+        }
     }
     
     var body: some View {
@@ -31,7 +37,7 @@ struct VideoMetadataView: View {
             }
             
             if let currentTime = currentTime, let duration = duration {
-                Text("Clip: \(formatTime(currentTime))s of \(formatTime(duration))s")
+                Text("Time: \(formatTime(currentTime)) / \(formatTime(duration))")
                     .font(.footnote)
                     .foregroundColor(.white.opacity(0.8))
                     .lineLimit(1)
