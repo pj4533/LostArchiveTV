@@ -42,14 +42,17 @@ class CollectionConfigViewModel: ObservableObject {
             let allCollections = try await databaseService.getAllCollections()
             let userDefaults = UserDefaults.standard
             let enabledCollectionIds = userDefaults.stringArray(forKey: "EnabledCollections") ?? []
-            let isEmptySelectionList = enabledCollectionIds.isEmpty
+            
+            // Only default all collections to enabled if this is the first time loading
+            // (i.e., no user preference has been saved yet)
+            let hasUserMadeSelection = userDefaults.object(forKey: "EnabledCollections") != nil
+            let defaultToEnabled = !hasUserMadeSelection
             
             self.collections = allCollections.map { collection in
-                // If the enabled list is empty, default all collections to enabled
                 CollectionItem(
                     id: collection.name,
                     name: collection.name,
-                    isEnabled: isEmptySelectionList || enabledCollectionIds.contains(collection.name),
+                    isEnabled: defaultToEnabled || enabledCollectionIds.contains(collection.name),
                     isPreferred: collection.preferred
                 )
             }
