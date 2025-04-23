@@ -300,6 +300,12 @@ class VideoTrimViewModel: ObservableObject {
     // MARK: - Handle Dragging
     
     func startLeftHandleDrag(position: CGFloat) {
+        // Pause playback if currently playing
+        if isPlaying {
+            player.pause()
+            isPlaying = false
+        }
+        
         timelineManager.startLeftHandleDrag(position: position)
         isDraggingLeftHandle = timelineManager.isDraggingLeftHandle
     }
@@ -315,6 +321,12 @@ class VideoTrimViewModel: ObservableObject {
     }
     
     func startRightHandleDrag(position: CGFloat) {
+        // Pause playback if currently playing
+        if isPlaying {
+            player.pause()
+            isPlaying = false
+        }
+        
         timelineManager.startRightHandleDrag(position: position)
         isDraggingRightHandle = timelineManager.isDraggingRightHandle
     }
@@ -330,6 +342,12 @@ class VideoTrimViewModel: ObservableObject {
     }
     
     func scrubTimeline(position: CGFloat, timelineWidth: CGFloat) {
+        // Pause playback if currently playing
+        if isPlaying {
+            player.pause()
+            isPlaying = false
+        }
+        
         timelineManager.scrubTimeline(position: position, timelineWidth: timelineWidth)
         
         // When user manually scrubs timeline, reset the handle drag tracking
