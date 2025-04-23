@@ -134,11 +134,26 @@ struct VideoInfoOverlay: View {
         }
     }
     
+    @State private var showCollectionConfig = false
+    
     private var buttonPanel: some View {
         HStack {
             Spacer() // This pushes the VStack to the right edge
             
             VStack(spacing: 12) {
+                // Settings button at the top
+                OverlayButton(
+                    action: { showCollectionConfig = true },
+                    disabled: false
+                ) {
+                    Image(systemName: "gearshape.fill")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 22, height: 22)
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
+                }
+                
                 Spacer()
                 
                 // Trim button - starts download flow first
@@ -166,6 +181,9 @@ struct VideoInfoOverlay: View {
                 ArchiveButton(identifier: identifier)
             }
             .padding(.trailing, 8)
+        }
+        .sheet(isPresented: $showCollectionConfig) {
+            CollectionConfigView(viewModel: CollectionConfigViewModel(databaseService: DatabaseService()))
         }
     }
     

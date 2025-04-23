@@ -22,6 +22,37 @@ actor VideoLoadingService {
         return try await archiveService.loadArchiveIdentifiers()
     }
     
+    func loadIdentifiersWithUserPreferences() async throws -> [ArchiveIdentifier] {
+        // Check if user has custom collection settings using the utility class
+        let enabledCollections = CollectionPreferences.getEnabledCollections()
+        
+        if let enabledCollections = enabledCollections, !enabledCollections.isEmpty {
+            // User has custom collections enabled
+            Logger.metadata.info("Using user-defined collections: \(enabledCollections)")
+            
+            var identifiers: [ArchiveIdentifier] = []
+            for collection in enabledCollections {
+                do {
+                    let collectionIdentifiers = try await archiveService.loadIdentifiersForCollection(collection)
+                    identifiers.append(contentsOf: collectionIdentifiers)
+                } catch {
+                    Logger.metadata.error("Failed to load identifiers for collection \(collection): \(error.localizedDescription)")
+                }
+            }
+            
+            if identifiers.isEmpty {
+                Logger.metadata.warning("No identifiers found in user-enabled collections, falling back to all collections")
+                return try await archiveService.loadArchiveIdentifiers()
+            }
+            
+            return identifiers
+        } else {
+            // Use default collection behavior
+            Logger.metadata.info("Using default collection behavior")
+            return try await archiveService.loadArchiveIdentifiers()
+        }
+    }
+    
     func loadRandomVideo() async throws -> (identifier: String, collection: String, title: String, description: String, asset: AVAsset, startPosition: Double) {
         // Check if we have cached videos available
         if let cachedVideo = await cacheManager.removeFirstCachedVideo() {

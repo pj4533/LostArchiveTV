@@ -59,6 +59,20 @@ actor ArchiveService {
         return identifiers
     }
     
+    func loadIdentifiersForCollection(_ collectionName: String) async throws -> [ArchiveIdentifier] {
+        Logger.metadata.debug("Loading archive identifiers for collection: \(collectionName)")
+        
+        let identifiers = try dbService.loadIdentifiersForCollection(collectionName)
+        
+        if identifiers.isEmpty {
+            Logger.metadata.warning("No identifiers found for collection: \(collectionName)")
+        } else {
+            Logger.metadata.info("Loaded \(identifiers.count) identifiers from collection \(collectionName)")
+        }
+        
+        return identifiers
+    }
+    
     func fetchMetadata(for identifier: String) async throws -> ArchiveMetadata {
         let metadataURL = URL(string: "https://archive.org/metadata/\(identifier)")!
         Logger.network.debug("Fetching metadata from: \(metadataURL)")
@@ -85,6 +99,14 @@ actor ArchiveService {
     }
     
     func getRandomIdentifier(from identifiers: [ArchiveIdentifier]) -> ArchiveIdentifier? {
+        // First check if user has disabled default collection behavior
+        if !CollectionPreferences.shouldUseDefaultCollections() {
+            // When using custom collections, just select randomly from all available identifiers
+            Logger.metadata.info("Using random selection from user-selected collections")
+            return identifiers.randomElement()
+        }
+        
+        // Continue with default preferred/not-preferred behavior
         guard !collections.isEmpty else {
             Logger.metadata.error("No collections available for random selection")
             return identifiers.randomElement()
@@ -102,7 +124,7 @@ actor ArchiveService {
             selectionPool.append("non-preferred")
         }
         
-        Logger.metadata.info("Collection pool: \(selectionPool)")
+        Logger.metadata.info("Collection pool (default behavior): \(selectionPool)")
         
         // Randomly select from the pool
         guard let selection = selectionPool.randomElement() else {

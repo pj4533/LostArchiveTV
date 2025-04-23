@@ -161,8 +161,9 @@ class VideoPlayerViewModel: ObservableObject {
     
     private func loadIdentifiers() async {
         do {
-            identifiers = try await videoLoadingService.loadIdentifiers()
-            Logger.metadata.info("Successfully loaded \(self.identifiers.count) identifiers")
+            // Use user preferences when loading identifiers
+            identifiers = try await videoLoadingService.loadIdentifiersWithUserPreferences()
+            Logger.metadata.info("Successfully loaded \(self.identifiers.count) identifiers with user preferences")
         } catch {
             Logger.metadata.error("Failed to load identifiers: \(error.localizedDescription)")
             self.errorMessage = "Failed to load video identifiers: \(error.localizedDescription)"

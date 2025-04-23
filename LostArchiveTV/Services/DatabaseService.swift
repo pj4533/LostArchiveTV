@@ -76,6 +76,44 @@ class DatabaseService {
         return collections
     }
     
+    func getAllCollections() async throws -> [ArchiveCollection] {
+        // Ensure database is open
+        guard db != nil else {
+            try openDatabase()
+            return try loadCollections()
+        }
+        
+        return try loadCollections()
+    }
+    
+    func getRandomIdentifierFromEnabledCollections(_ enabledCollections: [String]) throws -> ArchiveIdentifier {
+        // Ensure database is open
+        guard db != nil else {
+            try openDatabase()
+            return try getRandomIdentifierFromEnabledCollections(enabledCollections)
+        }
+        
+        if enabledCollections.isEmpty {
+            Logger.metadata.error("No enabled collections provided")
+            throw NSError(domain: "DatabaseService", code: 7, userInfo: [NSLocalizedDescriptionKey: "No enabled collections provided"])
+        }
+        
+        // First, randomly select one of the enabled collections
+        let randomIndex = Int.random(in: 0..<enabledCollections.count)
+        let selectedCollection = enabledCollections[randomIndex]
+        
+        // Now get a random identifier from the selected collection
+        let identifiers = try loadIdentifiersForCollection(selectedCollection)
+        
+        if identifiers.isEmpty {
+            Logger.metadata.error("No identifiers found in collection \(selectedCollection)")
+            throw NSError(domain: "DatabaseService", code: 8, userInfo: [NSLocalizedDescriptionKey: "No identifiers found in collection \(selectedCollection)"])
+        }
+        
+        let randomIdentifierIndex = Int.random(in: 0..<identifiers.count)
+        return identifiers[randomIdentifierIndex]
+    }
+    
     func loadIdentifiersForCollection(_ collection: String) throws -> [ArchiveIdentifier] {
         var identifiers: [ArchiveIdentifier] = []
         
