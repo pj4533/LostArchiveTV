@@ -8,7 +8,7 @@ struct TimelineView: View {
     let thumbnailHeight: CGFloat = 50
     
     var body: some View {
-        ZStack(alignment: .leading) {
+        ZStack(alignment: .center) {
             // Calculate window times
             let timeWindow = viewModel.calculateVisibleTimeWindow()
             
@@ -55,7 +55,7 @@ struct TimelineView: View {
             // Current time indicator (playhead)
             Rectangle()
                 .fill(Color.white)
-                .frame(width: 2, height: thumbnailHeight + 20)
+                .frame(width: 2, height: thumbnailHeight)
                 .position(x: currentPos, y: thumbnailHeight / 2)
             
             // Left non-selected area overlay
@@ -123,7 +123,7 @@ struct TimelineView: View {
                     viewModel.scrubTimeline(position: value.location.x, timelineWidth: timelineWidth)
                 }
         )
-        .frame(height: thumbnailHeight + 20)
+        .frame(height: thumbnailHeight)
         .clipped()
     }
 }

@@ -23,7 +23,7 @@ struct TrimHandle: View {
             // Handle bar
             Rectangle()
                 .fill(Color.white)
-                .frame(width: handleWidth, height: 50)
+                .frame(width: handleWidth, height: handleHeight)
             
             // Top handle
             Circle()
@@ -34,7 +34,7 @@ struct TrimHandle: View {
                         .foregroundColor(.black)
                         .font(.system(size: 10, weight: .bold))
                 )
-                .offset(y: -20)
+                .offset(y: -((handleHeight / 2) + 10))
             
             // Bottom handle
             Circle()
@@ -45,7 +45,7 @@ struct TrimHandle: View {
                         .foregroundColor(.black)
                         .font(.system(size: 10, weight: .bold))
                 )
-                .offset(y: 20)
+                .offset(y: (handleHeight / 2) + 10)
         }
         .frame(width: 44, height: handleHeight + 40)
         .contentShape(Rectangle())

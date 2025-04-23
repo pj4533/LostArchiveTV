@@ -134,9 +134,10 @@ struct VideoTrimView: View {
                     GeometryReader { geo in
                         TimelineView(viewModel: viewModel, timelineWidth: geo.size.width)
                     }
-                    .frame(height: thumbnailHeight + 20)
+                    .frame(height: thumbnailHeight)
                     .padding(.horizontal)
                     .padding(.bottom, 30)
+                    .padding(.top, 10)
                     }
                 }
             }
