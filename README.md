@@ -1,13 +1,13 @@
 # LostArchiveTV
 
-A TikTok-style iOS video player for exploring videos from the Internet Archive.
+A TikTok-style iOS video player for exploring videos from the Internet Archive with video trimming capabilities.
 
 ![LostArchiveTV Screenshot](lostarchivetv.gif)
 
 # [Join the TestFlight](https://testflight.apple.com/join/5u5qyTWh)
 ## About
 
-LostArchiveTV lets you discover historical films, educational videos, and other public domain content from [Archive.org](https://archive.org) in a modern, swipeable interface. Each swipe presents a new randomly selected video clip from the Archive's vast collection.
+LostArchiveTV lets you discover historical films, educational videos, and other public domain content from [Archive.org](https://archive.org) in a modern, swipeable interface. Each swipe presents a new randomly selected video clip from the Archive's vast collection. You can also trim and save segments of videos to your Photos library.
 
 ## Features
 
@@ -19,6 +19,9 @@ LostArchiveTV lets you discover historical films, educational videos, and other 
 - Smart time offset selection to show interesting parts of longer videos
 - Collection-based video selection with preferred collection weighting
 - SQLite database for efficient identifier storage
+- Video trimming functionality with timeline scrubbing
+- Export trimmed video clips to Photos library
+- Thumbnail generation for visual timeline navigation
 
 ## How It Works
 
@@ -30,6 +33,8 @@ LostArchiveTV lets you discover historical films, educational videos, and other 
 - Preloads upcoming videos in the background
 - Maintains a video cache for optimal performance
 - Comprehensive logging via OSLog for diagnostics
+- Provides a trim interface with adjustable handles for selecting video segments
+- Uses AVFoundation for trimming and exporting video clips
 
 ## Requirements
 
