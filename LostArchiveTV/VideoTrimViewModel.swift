@@ -301,12 +301,18 @@ class VideoTrimViewModel: ObservableObject {
     
     /// Generate thumbnails from the video asset
     private func generateThumbnails(from asset: AVAsset) {
+        // Calculate appropriate number of thumbnails based on video duration
+        // We'll aim for roughly 1 thumbnail per 5 seconds of video
+        let duration = assetDuration.seconds
+        let idealCount = min(60, max(20, Int(ceil(duration / 5.0))))
+        
+        logger.debug("Generating \(idealCount) thumbnails for \(duration) second video")
+        
         // Pre-allocate array with placeholders
-        let count = 20 // Number of thumbnails to generate
-        thumbnails = Array(repeating: nil, count: count)
+        thumbnails = Array(repeating: nil, count: idealCount)
         
         // Use our trim manager to generate thumbnails
-        trimManager.generateThumbnails(from: asset, count: count) { [weak self] (images: [UIImage]) in
+        trimManager.generateThumbnails(from: asset, count: idealCount) { [weak self] (images: [UIImage]) in
             guard let self = self else { return }
             
             // Switch to main thread for UI updates

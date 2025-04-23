@@ -20,29 +20,47 @@ struct TimelineView: View {
                         .fill(Color.gray.opacity(0.3))
                         .frame(height: thumbnailHeight)
                 } else {
-                    // Create a simple container for all thumbnails
-                    HStack(spacing: 0) {
+                    // Create a ZStack for more precise thumbnail positioning
+                    ZStack {
+                        // Base background for thumbnails
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(height: thumbnailHeight)
+                        
+                        // Calculate visible window parameters
+                        let visibleDuration = timeWindow.end - timeWindow.start
+                        
+                        // Only process thumbnails that would be visible
                         ForEach(0..<viewModel.thumbnails.count, id: \.self) { index in
                             if let uiImage = viewModel.thumbnails[index] {
                                 // Calculate the time position for this thumbnail
-                                let thumbTimeRatio = Double(index) / Double(viewModel.thumbnails.count)
+                                let thumbTimeRatio = Double(index) / Double(viewModel.thumbnails.count - 1)
                                 let thumbTime = viewModel.assetDuration.seconds * thumbTimeRatio
                                 
-                                // Check if it's in our visible window
+                                // Only show thumbnails in the visible window
                                 if thumbTime >= timeWindow.start && thumbTime <= timeWindow.end {
+                                    // Calculate thumbnail position
+                                    let relativePosition = (thumbTime - timeWindow.start) / visibleDuration
+                                    let xPosition = CGFloat(relativePosition) * timelineWidth
+                                    
+                                    // Calculate thumbnail width
+                                    let thumbsPerVisibleWindow = Double(viewModel.thumbnails.count) * (visibleDuration / viewModel.assetDuration.seconds)
+                                    let approxWidth = timelineWidth / CGFloat(thumbsPerVisibleWindow)
+                                    
+                                    // Ensure we don't have gaps by making thumbnails slightly wider
+                                    let thumbnailWidth = approxWidth * 1.1
+                                    
                                     Image(uiImage: uiImage)
                                         .resizable()
                                         .aspectRatio(contentMode: .fill)
-                                        .frame(
-                                            width: timelineWidth / CGFloat(viewModel.thumbnails.count),
-                                            height: thumbnailHeight
-                                        )
-                                        .clipped()
+                                        .frame(width: thumbnailWidth, height: thumbnailHeight)
+                                        .position(x: xPosition, y: thumbnailHeight/2)
                                 }
                             }
                         }
                     }
                     .frame(height: thumbnailHeight)
+                    .clipped()
                 }
             }
             
