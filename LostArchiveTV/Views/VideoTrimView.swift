@@ -90,9 +90,16 @@ struct VideoTrimView: View {
                             .onAppear {
                                 logger.debug("VideoPlayer appeared")
                             }
+                            .onTapGesture {
+                                // Show play button when tapping the video area
+                                viewModel.shouldShowPlayButton = true
+                            }
                             .overlay(
-                                // Play/pause button overlay
-                                Button(action: viewModel.togglePlayback) {
+                                // Play/pause button overlay that disappears after tapping
+                                Button(action: {
+                                    viewModel.togglePlayback()
+                                    viewModel.shouldShowPlayButton = false
+                                }) {
                                     ZStack {
                                         Circle()
                                             .fill(Color.black.opacity(0.3))
@@ -104,6 +111,8 @@ struct VideoTrimView: View {
                                             .shadow(radius: 3)
                                     }
                                 }
+                                .opacity(viewModel.shouldShowPlayButton ? 1 : 0)
+                                .animation(.easeOut(duration: 0.3), value: viewModel.shouldShowPlayButton)
                             )
                     }
                     

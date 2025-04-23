@@ -18,6 +18,7 @@ class VideoTrimViewModel: ObservableObject {
     
     // Trimming properties
     @Published var isPlaying = false
+    @Published var shouldShowPlayButton = true
     @Published var currentTime: CMTime
     @Published var startTrimTime: CMTime
     @Published var endTrimTime: CMTime
@@ -177,6 +178,8 @@ class VideoTrimViewModel: ObservableObject {
             // Update UI
             logger.debug("Setting isLoading = false")
             self.isLoading = false
+            // Reset play button visibility
+            self.shouldShowPlayButton = true
             
         } catch {
             logger.error("Failed to prepare trim view: \(error.localizedDescription)")
@@ -267,6 +270,9 @@ class VideoTrimViewModel: ObservableObject {
         } else {
             player.pause()
         }
+        
+        // Show the play button again when interacting with the timeline, dragging handles, or tapping the video
+        // This is handled in the UI layer by setting shouldShowPlayButton = false when button is tapped
     }
     
     func seekToTime(_ time: CMTime) {
@@ -307,6 +313,9 @@ class VideoTrimViewModel: ObservableObject {
             isPlaying = false
         }
         
+        // Show play button when interacting with handles
+        shouldShowPlayButton = true
+        
         timelineManager.startLeftHandleDrag(position: position)
         isDraggingLeftHandle = timelineManager.isDraggingLeftHandle
     }
@@ -328,6 +337,9 @@ class VideoTrimViewModel: ObservableObject {
             isPlaying = false
         }
         
+        // Show play button when interacting with handles
+        shouldShowPlayButton = true
+        
         timelineManager.startRightHandleDrag(position: position)
         isDraggingRightHandle = timelineManager.isDraggingRightHandle
     }
@@ -348,6 +360,9 @@ class VideoTrimViewModel: ObservableObject {
             player.pause()
             isPlaying = false
         }
+        
+        // Show play button when interacting with timeline
+        shouldShowPlayButton = true
         
         timelineManager.scrubTimeline(position: position, timelineWidth: timelineWidth)
         
