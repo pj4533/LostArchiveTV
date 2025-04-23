@@ -72,7 +72,7 @@ struct TrimDownloadView: View {
                         .lineLimit(2)
                         .padding(.horizontal)
                 } else {
-                    Text("Downloading video")
+                    Text("Preparing...")
                         .font(.headline)
                         .foregroundColor(.white)
                 }
