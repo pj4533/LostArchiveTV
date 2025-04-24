@@ -59,6 +59,8 @@ class VideoTransitionManager: ObservableObject {
     
     // Preload the next video while current one is playing
     func preloadNextVideo(provider: VideoProvider) async {
+        Logger.caching.info("preloadNextVideo: Starting for \(String(describing: type(of: provider)))")
+        
         // Reset next video ready flag
         await MainActor.run {
             nextVideoReady = false
@@ -151,9 +153,13 @@ class VideoTransitionManager: ObservableObject {
         } else if let favoritesViewModel = provider as? FavoritesViewModel {
             // For favorites view, check if we still have favorites in the list
             let favorites = await MainActor.run { favoritesViewModel.favorites }
+            let currentIndex = await MainActor.run { favoritesViewModel.currentIndex }
+            
+            Logger.caching.info("Preloading NEXT for FavoritesViewModel: \(favorites.count) favorites, currentIndex: \(currentIndex)")
             
             // If we have more than one favorite, circularly navigate to enable looping
             if favorites.count > 1 {
+                Logger.caching.info("Multiple favorites found (\(favorites.count)), attempting to get next video")
                 // We can always loop around in favorites
                 if let nextVideo = await provider.getNextVideo() {
                     // Create a new player for the asset
@@ -183,11 +189,13 @@ class VideoTransitionManager: ObservableObject {
                         nextVideoReady = true
                     }
                     
-                    Logger.caching.info("Successfully preloaded next favorite video: \(nextVideo.identifier)")
+                    Logger.caching.info("✅ Successfully preloaded next favorite video: \(nextVideo.identifier)")
+                } else {
+                    Logger.caching.error("❌ Failed to get next video for favorites - returned nil")
                 }
             } else {
                 // If only one favorite exists, don't enable swiping
-                Logger.caching.info("Only one favorite video found, not marking as ready")
+                Logger.caching.info("⚠️ Only one favorite video found, not marking as ready")
             }
         } else {
             // Unknown provider type
@@ -197,6 +205,8 @@ class VideoTransitionManager: ObservableObject {
     
     // Preload the previous video from history/sequence
     func preloadPreviousVideo(provider: VideoProvider) async {
+        Logger.caching.info("preloadPreviousVideo: Starting for \(String(describing: type(of: provider)))")
+        
         // Reset previous video ready flag
         await MainActor.run {
             prevVideoReady = false

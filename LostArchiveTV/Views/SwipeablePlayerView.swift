@@ -257,11 +257,17 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                             // Upward swipe (for next video) - only if next video is ready
                             if transitionManager.nextVideoReady {
                                 dragOffset = max(translation, -geometry.size.height)
+                                Logger.caching.debug("Dragging UP (next): nextVideoReady=true, dragOffset=\(dragOffset)")
+                            } else {
+                                Logger.caching.debug("⚠️ BLOCKED Dragging UP: nextVideoReady=false")
                             }
                         } else {
                             // Downward swipe (for previous video) - only if previous video is ready
                             if transitionManager.prevVideoReady {
                                 dragOffset = min(translation, geometry.size.height)
+                                Logger.caching.debug("Dragging DOWN (prev): prevVideoReady=true, dragOffset=\(dragOffset)")
+                            } else {
+                                Logger.caching.debug("⚠️ BLOCKED Dragging DOWN: prevVideoReady=false")
                             }
                         }
                     }
@@ -337,6 +343,12 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                 
                 // Ensure we have a video loaded and videos are ready for swiping in both directions
                 if provider.player != nil {
+                    Logger.caching.info("SwipeablePlayerView onAppear: Player exists, starting preload for \(String(describing: type(of: provider)))")
+                    
+                    if let favProvider = provider as? FavoritesViewModel {
+                        Logger.caching.info("Favorites count: \(favProvider.favorites.count), currentIndex: \(favProvider.currentIndex)")
+                    }
+                    
                     Task {
                         Logger.caching.info("SwipeablePlayerView: Preloading videos for bidirectional swiping")
                         
@@ -344,8 +356,13 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                         async let nextTask = transitionManager.preloadNextVideo(provider: provider)
                         async let prevTask = transitionManager.preloadPreviousVideo(provider: provider)
                         _ = await (nextTask, prevTask)
+                        
+                        // Log ready state after preloading
+                        Logger.caching.info("Preloading complete - nextVideoReady: \(transitionManager.nextVideoReady), prevVideoReady: \(transitionManager.prevVideoReady)")
                     }
-                } 
+                } else {
+                    Logger.caching.error("⚠️ SwipeablePlayerView onAppear: Player is nil, cannot preload")
+                }
             }
         }
     }

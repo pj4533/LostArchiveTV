@@ -26,8 +26,8 @@ class FavoritesViewModel: ObservableObject, VideoProvider {
     @Published var showMetadata = false
     @Published var videoDuration: Double = 0
     
-    // Video management
-    private var currentIndex: Int = 0
+    // Video management - needs to be public for VideoTransitionManager
+    private(set) var currentIndex: Int = 0
     
     init(favoritesManager: FavoritesManager) {
         self.favoritesManager = favoritesManager
@@ -108,8 +108,11 @@ class FavoritesViewModel: ObservableObject, VideoProvider {
         // Create a fresh player with a new AVPlayerItem
         createAndSetupPlayer(for: video)
         
+        // Important: Start a task to preload videos for swiping AFTER the player is set up
+        // Use a slight delay to ensure the player is fully initialized
         Task {
-            // Preload videos for swiping after setting the current video
+            try? await Task.sleep(for: .seconds(0.5))
+            Logger.caching.info("Starting preload after player initialization")
             await ensureVideosAreCached()
         }
         
@@ -125,6 +128,8 @@ class FavoritesViewModel: ObservableObject, VideoProvider {
     
     // Helper method to create a fresh player for a video
     private func createAndSetupPlayer(for video: CachedVideo) {
+        Logger.caching.info("FavoritesViewModel: Creating player for video \(video.identifier)")
+        
         // Clean up existing player first
         playbackManager.cleanupPlayer()
         
@@ -135,9 +140,11 @@ class FavoritesViewModel: ObservableObject, VideoProvider {
         
         // Seek to the correct position
         Task {
+            Logger.caching.info("FavoritesViewModel: Setting up player and seeking to start position")
             await player.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
             playbackManager.useExistingPlayer(player)
             playbackManager.play()
+            Logger.caching.info("FavoritesViewModel: Player setup complete, playback started")
         }
     }
     
