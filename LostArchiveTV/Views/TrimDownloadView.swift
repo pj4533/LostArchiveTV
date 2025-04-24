@@ -224,5 +224,5 @@ struct TrimDownloadView: View {
 }
 
 #Preview {
-    TrimDownloadView(viewModel: VideoPlayerViewModel()) { _ in }
+    TrimDownloadView(viewModel: VideoPlayerViewModel(favoritesManager: FavoritesManager())) { _ in }
 }

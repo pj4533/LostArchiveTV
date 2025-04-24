@@ -9,9 +9,35 @@ import SwiftUI
 import AVKit
 
 struct ContentView: View {
-    @StateObject private var videoPlayerViewModel = VideoPlayerViewModel()
+    @StateObject private var favoritesManager = FavoritesManager()
+    @StateObject private var videoPlayerViewModel: VideoPlayerViewModel
+    
+    init() {
+        // Create the view model with the same favorites manager that will be used throughout the app
+        let favManager = FavoritesManager()
+        self._favoritesManager = StateObject(wrappedValue: favManager)
+        self._videoPlayerViewModel = StateObject(wrappedValue: VideoPlayerViewModel(favoritesManager: favManager))
+    }
     
     var body: some View {
+        TabView {
+            // Home Tab
+            homeTab
+                .tabItem {
+                    Label("Home", systemImage: "house.fill")
+                }
+            
+            // Favorites Tab
+            FavoritesView(favoritesManager: favoritesManager)
+                .tabItem {
+                    Label("Favorites", systemImage: "heart.fill")
+                }
+        }
+        .accentColor(.white)
+        .preferredColorScheme(.dark)
+    }
+    
+    private var homeTab: some View {
         ZStack {
             // Black background
             Color.black.ignoresSafeArea()

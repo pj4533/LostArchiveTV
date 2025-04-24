@@ -8,7 +8,7 @@
 import Foundation
 import AVKit
 
-struct CachedVideo {
+struct CachedVideo: Identifiable, Equatable {
     let identifier: String
     let collection: String
     let metadata: ArchiveMetadata
@@ -18,11 +18,21 @@ struct CachedVideo {
     let playerItem: AVPlayerItem
     let startPosition: Double
     
+    var id: String { identifier }
+    
     var title: String {
         metadata.metadata?.title ?? identifier
     }
     
     var description: String {
         metadata.metadata?.description ?? "Internet Archive random video clip"
+    }
+    
+    var thumbnailURL: URL? {
+        URL(string: "https://archive.org/services/img/\(identifier)")
+    }
+    
+    static func == (lhs: CachedVideo, rhs: CachedVideo) -> Bool {
+        lhs.identifier == rhs.identifier
     }
 }

@@ -44,6 +44,6 @@ struct VideoPlayerContent: View {
 #Preview {
     // Use a mock player for preview
     let player = AVPlayer()
-    let viewModel = VideoPlayerViewModel()
-    return VideoPlayerContent(player: player, viewModel: viewModel)
+    let viewModel = VideoPlayerViewModel(favoritesManager: FavoritesManager())
+    VideoPlayerContent(player: player, viewModel: viewModel)
 }

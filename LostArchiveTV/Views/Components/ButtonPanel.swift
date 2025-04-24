@@ -32,6 +32,21 @@ struct ButtonPanel: View {
                         .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
                 }
                 
+                // Favorite button
+                OverlayButton(
+                    action: {
+                        viewModel.toggleFavorite()
+                    },
+                    disabled: viewModel.currentCachedVideo == nil
+                ) {
+                    Image(systemName: viewModel.isFavorite ? "heart.fill" : "heart")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 22, height: 22)
+                        .foregroundColor(viewModel.isFavorite ? .red : .white)
+                        .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
+                }
+                
                 Spacer()
                 
                 // Restart video button

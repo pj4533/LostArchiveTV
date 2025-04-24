@@ -254,6 +254,5 @@ struct SwipeableVideoView: View {
 
 #Preview {
     // Use a mock ViewModel for preview
-    let viewModel = VideoPlayerViewModel()
-    return SwipeableVideoView(viewModel: viewModel)
+    SwipeableVideoView(viewModel: VideoPlayerViewModel(favoritesManager: FavoritesManager()))
 }

@@ -22,6 +22,9 @@ class VideoPlayerViewModel: ObservableObject {
         cacheManager: cacheManager
     )
     
+    // Favorites manager
+    let favoritesManager: FavoritesManager
+    
     // Published properties - these are the public interface of our ViewModel
     @Published var isLoading = false
     @Published var errorMessage: String?
@@ -43,8 +46,13 @@ class VideoPlayerViewModel: ObservableObject {
     private var videoHistory: [CachedVideo] = []
     private var currentHistoryIndex: Int = -1
     
+    // Current cached video reference for favorites
+    private var _currentCachedVideo: CachedVideo?
+    
     // MARK: - Initialization and Cleanup
-    init() {
+    init(favoritesManager: FavoritesManager) {
+        self.favoritesManager = favoritesManager
+        
         // Configure audio session for proper playback on all devices
         playbackManager.setupAudioSession()
         
@@ -265,6 +273,7 @@ class VideoPlayerViewModel: ObservableObject {
             // Save the first loaded video to history
             if let currentVideo = await createCachedVideoFromCurrentState() {
                 addVideoToHistory(currentVideo)
+                _currentCachedVideo = currentVideo
                 Logger.caching.info("Added initial video to history")
             }
             
@@ -415,6 +424,25 @@ class VideoPlayerViewModel: ObservableObject {
                 self.videoDuration = playbackManager.videoDuration
             }
         }
+    }
+    
+    // MARK: - Favorites Functionality
+    
+    var currentCachedVideo: CachedVideo? {
+        _currentCachedVideo
+    }
+    
+    var isFavorite: Bool {
+        guard let currentVideo = _currentCachedVideo else { return false }
+        return favoritesManager.isFavorite(currentVideo)
+    }
+    
+    func toggleFavorite() {
+        guard let currentVideo = _currentCachedVideo else { return }
+        
+        Logger.metadata.info("Toggling favorite status for video: \(currentVideo.identifier)")
+        favoritesManager.toggleFavorite(currentVideo)
+        objectWillChange.send()
     }
     
     deinit {

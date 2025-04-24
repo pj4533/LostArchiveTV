@@ -162,7 +162,7 @@ struct VideoInfoOverlay: View {
         collection: "avgeeks",
         description: "This is a sample description for the video that might span multiple lines when displayed in the app.",
         identifier: "sample_id",
-        viewModel: VideoPlayerViewModel()
+        viewModel: VideoPlayerViewModel(favoritesManager: FavoritesManager())
     )
     .background(Color.black)
 }
