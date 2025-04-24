@@ -70,8 +70,9 @@ class VideoTransitionManager: ObservableObject {
             // We'll move forward again when the transition actually happens
             _ = await provider.getPreviousVideo()
             
-            // Create a new player for the next video from history
-            let player = AVPlayer(playerItem: AVPlayerItem(asset: nextVideo.asset))
+            // Create a new player with a fresh player item
+            let freshPlayerItem = AVPlayerItem(asset: nextVideo.asset)
+            let player = AVPlayer(playerItem: freshPlayerItem)
             
             // Prepare player but keep it paused and muted
             player.isMuted = true
@@ -114,7 +115,8 @@ class VideoTransitionManager: ObservableObject {
                 let videoInfo = try await service.loadRandomVideo()
                 
                 // Create a new player for the asset
-                let player = AVPlayer(playerItem: AVPlayerItem(asset: videoInfo.asset))
+                let freshPlayerItem = AVPlayerItem(asset: videoInfo.asset)
+                let player = AVPlayer(playerItem: freshPlayerItem)
                 
                 // Prepare player but keep it paused and muted
                 player.isMuted = true
@@ -155,7 +157,8 @@ class VideoTransitionManager: ObservableObject {
                 // We can always loop around in favorites
                 if let nextVideo = await provider.getNextVideo() {
                     // Create a new player for the asset
-                    let player = AVPlayer(playerItem: AVPlayerItem(asset: nextVideo.asset))
+                    let freshPlayerItem = AVPlayerItem(asset: nextVideo.asset)
+                    let player = AVPlayer(playerItem: freshPlayerItem)
                     
                     // Prepare player but keep it paused and muted
                     player.isMuted = true
@@ -209,7 +212,8 @@ class VideoTransitionManager: ObservableObject {
             }
             
             // Create a new player for the asset
-            let player = AVPlayer(playerItem: AVPlayerItem(asset: previousVideo.asset))
+            let freshPlayerItem = AVPlayerItem(asset: previousVideo.asset)
+            let player = AVPlayer(playerItem: freshPlayerItem)
             
             // Prepare player but keep it paused and muted
             player.isMuted = true

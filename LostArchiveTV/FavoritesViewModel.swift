@@ -102,21 +102,11 @@ class FavoritesViewModel: ObservableObject, VideoProvider {
         // Get the selected favorite
         let video = favoritesManager.favorites[index]
         
-        // Ensure we create a player before showing the player view
-        if player == nil {
-            // Create a player with the asset
-            let newPlayer = AVPlayer(playerItem: video.playerItem)
-            let startTime = CMTime(seconds: video.startPosition, preferredTimescale: 600)
-            
-            // Seek to the correct position
-            Task {
-                await newPlayer.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
-                playbackManager.useExistingPlayer(newPlayer)
-                playbackManager.play()
-            }
-        }
+        // Set the current video reference
+        self.currentVideo = video
         
-        setCurrentVideo(video)
+        // Create a fresh player with a new AVPlayerItem
+        createAndSetupPlayer(for: video)
         
         Task {
             // Preload videos for swiping after setting the current video
@@ -129,8 +119,18 @@ class FavoritesViewModel: ObservableObject, VideoProvider {
     func setCurrentVideo(_ video: CachedVideo) {
         self.currentVideo = video
         
-        // Create a player with the asset
-        let player = AVPlayer(playerItem: video.playerItem)
+        // Create a fresh player with a new AVPlayerItem
+        createAndSetupPlayer(for: video)
+    }
+    
+    // Helper method to create a fresh player for a video
+    private func createAndSetupPlayer(for video: CachedVideo) {
+        // Clean up existing player first
+        playbackManager.cleanupPlayer()
+        
+        // Create a fresh player item from the asset
+        let freshPlayerItem = AVPlayerItem(asset: video.asset)
+        let player = AVPlayer(playerItem: freshPlayerItem)
         let startTime = CMTime(seconds: video.startPosition, preferredTimescale: 600)
         
         // Seek to the correct position
