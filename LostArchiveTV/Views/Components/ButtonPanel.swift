@@ -32,7 +32,9 @@ struct ButtonPanel: View {
                         .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
                 }
                 
-                // Favorite button
+                Spacer()
+                
+                // Favorite button - above the rewind button
                 OverlayButton(
                     action: {
                         viewModel.toggleFavorite()
@@ -46,8 +48,6 @@ struct ButtonPanel: View {
                         .foregroundColor(viewModel.isFavorite ? .red : .white)
                         .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
                 }
-                
-                Spacer()
                 
                 // Restart video button
                 OverlayButton(
