@@ -433,8 +433,12 @@ class VideoPlayerViewModel: ObservableObject {
     }
     
     var isFavorite: Bool {
-        guard let currentVideo = _currentCachedVideo else { return false }
-        return favoritesManager.isFavorite(currentVideo)
+        if let currentVideo = _currentCachedVideo {
+            return favoritesManager.isFavorite(currentVideo)
+        } else if let identifier = currentIdentifier {
+            return favoritesManager.isFavoriteIdentifier(identifier)
+        }
+        return false
     }
     
     func toggleFavorite() {

@@ -38,6 +38,8 @@ struct ButtonPanel: View {
                 OverlayButton(
                     action: {
                         viewModel.toggleFavorite()
+                        // Add haptic feedback
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     },
                     disabled: viewModel.currentCachedVideo == nil
                 ) {

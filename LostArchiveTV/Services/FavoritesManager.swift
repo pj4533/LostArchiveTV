@@ -21,6 +21,7 @@ class FavoritesManager: ObservableObject {
         let title: String
         let description: String
         let videoURLString: String
+        let startPosition: Double
     }
     
     init() {
@@ -36,9 +37,48 @@ class FavoritesManager: ObservableObject {
             return
         }
         
-        // We'll load the actual CachedVideo objects when we need to display them
-        // For now, we just populate the identifiers list
-        Logger.metadata.debug("Loaded \(storedFavorites.count) favorite identifiers")
+        // Convert stored favorites to CachedVideo objects
+        for storedFavorite in storedFavorites {
+            if let videoURL = URL(string: storedFavorite.videoURLString) {
+                // Create an asset from the URL
+                let asset = AVURLAsset(url: videoURL)
+                let playerItem = AVPlayerItem(asset: asset)
+                
+                // Create metadata objects
+                let metadata = ArchiveMetadata(
+                    files: [],
+                    metadata: ItemMetadata(
+                        identifier: storedFavorite.identifier,
+                        title: storedFavorite.title,
+                        description: storedFavorite.description
+                    )
+                )
+                
+                // Create basic MP4 file representation
+                let mp4File = ArchiveFile(
+                    name: storedFavorite.identifier,
+                    format: "h.264",
+                    size: "",
+                    length: nil
+                )
+                
+                // Create cached video
+                let cachedVideo = CachedVideo(
+                    identifier: storedFavorite.identifier,
+                    collection: storedFavorite.collection,
+                    metadata: metadata,
+                    mp4File: mp4File,
+                    videoURL: videoURL,
+                    asset: asset,
+                    playerItem: playerItem,
+                    startPosition: storedFavorite.startPosition
+                )
+                
+                favorites.append(cachedVideo)
+            }
+        }
+        
+        Logger.metadata.debug("Loaded \(favorites.count) favorite videos from UserDefaults")
     }
     
     func saveFavorites() {
@@ -48,12 +88,14 @@ class FavoritesManager: ObservableObject {
                 collection: video.collection,
                 title: video.title,
                 description: video.description,
-                videoURLString: video.videoURL.absoluteString
+                videoURLString: video.videoURL.absoluteString,
+                startPosition: video.startPosition
             )
         }
         
         if let data = try? encoder.encode(storedFavorites) {
             UserDefaults.standard.set(data, forKey: favoritesKey)
+            UserDefaults.standard.synchronize()
             Logger.metadata.debug("Saved \(storedFavorites.count) favorites to UserDefaults")
         }
     }
@@ -74,6 +116,10 @@ class FavoritesManager: ObservableObject {
     
     func isFavorite(_ video: CachedVideo) -> Bool {
         return favorites.contains { $0.identifier == video.identifier }
+    }
+    
+    func isFavoriteIdentifier(_ identifier: String) -> Bool {
+        return favorites.contains { $0.identifier == identifier }
     }
     
     func toggleFavorite(_ video: CachedVideo) {

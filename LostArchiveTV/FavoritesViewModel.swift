@@ -105,7 +105,7 @@ class FavoritesViewModel: ObservableObject {
         self.currentVideo = video
         
         // Create a player with the asset
-        let player = AVPlayer(playerItem: AVPlayerItem(asset: video.asset))
+        let player = AVPlayer(playerItem: video.playerItem)
         let startTime = CMTime(seconds: video.startPosition, preferredTimescale: 600)
         
         // Seek to the correct position
