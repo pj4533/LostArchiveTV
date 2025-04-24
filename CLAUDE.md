@@ -6,10 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - LostArchiveTV is an app that plays random videos from the Internet Archive
 - Uses the Archive.org API to fetch metadata and stream videos
 - Implements a TikTok-style video player with random clip selection
+- Features bidirectional swiping with history tracking for navigating forward and backward
 - Features video preloading and caching for smoother playback experience
 - Uses SQLite database for storing video identifiers organized by collections
 - Prioritizes content from preferred collections for better user experience
 - Provides video trimming functionality to save clips to Photos library
+- Optimized loading experience that shows content as soon as the first video is ready
 
 ## Build and Test Commands
 - Build app: `xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhone 16' build`
@@ -27,6 +29,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - App entry point in `LostArchiveTVApp.swift`
 - Video identifiers stored in `identifiers.sqlite` database with collections table and individual collection tables
 - You NEVER have to alter the Xcode project file to add new files - the project uses folder references that automatically include any new files
+
+## Feature: Bidirectional Swiping
+- Supports swiping up for next (new) videos and down for previous videos
+- Maintains a history of viewed videos for consistent navigation
+- VideoTransitionManager handles the swiping logic and history tracking
+- Properly manages history when navigating backward then forward again
+- Preserves video positions when returning to previously viewed content
+
+## Feature: Video Preloading and Caching
+- PreloadService manages the preloading of videos for smooth playback
+- VideoCacheManager handles the caching of videos for improved performance
+- VideoLoadingService coordinates the loading of videos from the API
+- Maintains a small cache of preloaded videos (typically 3 videos at a time)
+- Continuously preloads new videos as others are consumed from the cache
+- See `docs/preloading_and_cacheing.md` for detailed documentation
 
 ## Feature: Video Trimming
 - VideoTrimView provides the UI for trimming videos with a timeline and handles
