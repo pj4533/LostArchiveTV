@@ -273,7 +273,7 @@ class VideoPlayerViewModel: ObservableObject {
             // Save the first loaded video to history
             if let currentVideo = await createCachedVideoFromCurrentState() {
                 addVideoToHistory(currentVideo)
-                _currentCachedVideo = currentVideo
+                updateCurrentCachedVideo(currentVideo)
                 Logger.caching.info("Added initial video to history")
             }
             
@@ -432,8 +432,14 @@ class VideoPlayerViewModel: ObservableObject {
         _currentCachedVideo
     }
     
+    // Method to update the current cached video reference
+    func updateCurrentCachedVideo(_ video: CachedVideo?) {
+        _currentCachedVideo = video
+        objectWillChange.send()
+    }
+    
     var isFavorite: Bool {
-        if let currentVideo = _currentCachedVideo {
+        if let currentVideo = _currentCachedVideo, currentVideo.identifier == currentIdentifier {
             return favoritesManager.isFavorite(currentVideo)
         } else if let identifier = currentIdentifier {
             return favoritesManager.isFavoriteIdentifier(identifier)

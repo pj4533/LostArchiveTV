@@ -250,10 +250,17 @@ class VideoTransitionManager: ObservableObject {
                         
                         // Add the new video to history
                         viewModel.addVideoToHistory(nextVideo)
+                        
+                        // Update the current cached video
+                        viewModel.updateCurrentCachedVideo(nextVideo)
                     }
                 } else {
                     // We're just moving forward in history
-                    _ = await viewModel.getNextVideo()
+                    let nextVideo = await viewModel.getNextVideo()
+                    // Update the current cached video reference
+                    if let nextVideo = nextVideo {
+                        viewModel.updateCurrentCachedVideo(nextVideo)
+                    }
                 }
             }
             
@@ -322,7 +329,11 @@ class VideoTransitionManager: ObservableObject {
             // 2. But then we called getNextVideo() to reset position
             // 3. So now we need to move the index back once more
             Task {
-                _ = await viewModel.getPreviousVideo()
+                let prevVideo = await viewModel.getPreviousVideo()
+                // Update the current cached video reference
+                if let prevVideo = prevVideo {
+                    viewModel.updateCurrentCachedVideo(prevVideo)
+                }
             }
             
             // Update the view model with the previous video's metadata
