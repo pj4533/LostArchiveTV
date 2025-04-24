@@ -13,6 +13,7 @@ struct VideoInfoOverlay: View {
     @State private var showSaveSuccessAlert = false
     @State private var saveError: String? = nil
     @State private var downloadedVideoURL: URL? = nil
+    @State private var showCollectionConfig = false
     
     // Logger for debugging
     private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "ui")
@@ -35,10 +36,25 @@ struct VideoInfoOverlay: View {
     var body: some View {
         ZStack {
             // Bottom info panel with gradient background
-            bottomInfoPanel
+            BottomInfoPanel(
+                title: title,
+                collection: collection,
+                description: description,
+                identifier: identifier,
+                currentTime: viewModel.player?.currentTime().seconds,
+                duration: viewModel.videoDuration
+            )
             
             // Right-side buttons
-            buttonPanel
+            ButtonPanel(
+                viewModel: viewModel,
+                showCollectionConfig: $showCollectionConfig,
+                isDownloading: $isDownloading,
+                downloadProgress: $downloadProgress,
+                identifier: identifier,
+                startTrimFlow: startTrimFlow,
+                downloadVideo: downloadVideo
+            )
         }
         // Single sheet with conditional content based on current step
         .sheet(isPresented: Binding<Bool>(
@@ -94,126 +110,6 @@ struct VideoInfoOverlay: View {
             if let error = saveError {
                 Text(error)
             }
-        }
-    }
-    
-    // MARK: - Components
-    
-    private var bottomInfoPanel: some View {
-        VStack {
-            Spacer()
-            
-            // Bottom overlay with title and description
-            VStack(alignment: .leading, spacing: 8) {
-                // Video metadata (title, collection, description)
-                VideoMetadataView(
-                    title: title,
-                    collection: collection,
-                    description: description,
-                    identifier: identifier,
-                    currentTime: viewModel.player?.currentTime().seconds,
-                    duration: viewModel.videoDuration
-                )
-                .id(viewModel.videoDuration) // Force view refresh when duration updates
-                
-                // Swipe hint
-                Text("Swipe up for next video")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.7))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.bottom, 8)
-            }
-            .frame(maxWidth: .infinity)
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [.clear, .black.opacity(0.7)]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-        }
-    }
-    
-    @State private var showCollectionConfig = false
-    
-    private var buttonPanel: some View {
-        HStack {
-            Spacer() // This pushes the VStack to the right edge
-            
-            VStack(spacing: 12) {
-                // Settings button at the top
-                OverlayButton(
-                    action: { 
-                        // Pause video while settings are open
-                        viewModel.pausePlayback()
-                        showCollectionConfig = true 
-                    },
-                    disabled: false
-                ) {
-                    Image(systemName: "gearshape.fill")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 22, height: 22)
-                        .foregroundColor(.white)
-                        .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
-                }
-                
-                Spacer()
-                
-                // Restart video button
-                OverlayButton(
-                    action: {
-                        viewModel.restartVideo()
-                    },
-                    disabled: viewModel.currentVideoURL == nil
-                ) {
-                    Image(systemName: "backward.end.fill")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 22, height: 22)
-                        .foregroundColor(.white)
-                        .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
-                }
-                
-                // Trim button - starts download flow first
-                OverlayButton(
-                    action: startTrimFlow,
-                    disabled: viewModel.currentVideoURL == nil
-                ) {
-                    Image(systemName: "selection.pin.in.out")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 22, height: 22)
-                        .foregroundColor(.white)
-                        .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
-                }
-                
-                // Download button with progress indicator
-                ProgressOverlayButton(
-                    action: { if !isDownloading { downloadVideo() } },
-                    progress: downloadProgress,
-                    isInProgress: isDownloading,
-                    normalIcon: "square.and.arrow.down.fill"
-                )
-                
-                // Archive.org link button
-                ArchiveButton(identifier: identifier)
-            }
-            .padding(.trailing, 8)
-        }
-        .sheet(isPresented: $showCollectionConfig) {
-            // Resume playback when the sheet is dismissed
-            viewModel.resumePlayback()
-        } content: {
-            CollectionConfigView(
-                viewModel: CollectionConfigViewModel(databaseService: DatabaseService()),
-                onDismiss: { 
-                    // Callback when view is dismissed
-                    Task {
-                        await viewModel.reloadIdentifiers()
-                    }
-                }
-            )
         }
     }
     
