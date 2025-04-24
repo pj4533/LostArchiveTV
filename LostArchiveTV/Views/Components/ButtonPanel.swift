@@ -41,10 +41,10 @@ struct ButtonPanel: View {
                     },
                     disabled: viewModel.currentVideoURL == nil
                 ) {
-                    Image(systemName: "backward.end.fill")
+                    Image(systemName: "backward.end")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 22, height: 22)
+                        .frame(width: 16, height: 16)
                         .foregroundColor(.white)
                         .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
                 }
