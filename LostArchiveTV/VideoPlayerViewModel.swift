@@ -145,6 +145,10 @@ class VideoPlayerViewModel: ObservableObject, VideoProvider {
         playbackManager.durationAsCMTime
     }
     
+    var isPlaying: Bool {
+        playbackManager.isPlaying
+    }
+    
     func pausePlayback() {
         Logger.videoPlayback.debug("Pausing playback for trimming")
         playbackManager.pause()

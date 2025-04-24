@@ -9,7 +9,7 @@ import SwiftUI
 import AVKit
 
 struct FavoritesView: View {
-    @StateObject private var viewModel: FavoritesViewModel
+    @ObservedObject var viewModel: FavoritesViewModel
     @State private var showPlayer = false
     
     private let columns = [
@@ -18,8 +18,8 @@ struct FavoritesView: View {
         GridItem(.flexible())
     ]
     
-    init(favoritesManager: FavoritesManager) {
-        self._viewModel = StateObject(wrappedValue: FavoritesViewModel(favoritesManager: favoritesManager))
+    init(favoritesManager: FavoritesManager, viewModel: FavoritesViewModel) {
+        self.viewModel = viewModel
     }
     
     var body: some View {
