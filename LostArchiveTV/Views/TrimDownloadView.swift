@@ -2,8 +2,8 @@ import SwiftUI
 import OSLog
 import AVFoundation
 
-struct TrimDownloadView: View {
-    @ObservedObject var viewModel: VideoPlayerViewModel
+struct TrimDownloadView<Provider: VideoProvider & ObservableObject>: View {
+    @ObservedObject var provider: Provider
     var onDownloadComplete: (URL?) -> Void
     
     @State private var isDownloading = true
@@ -11,9 +11,9 @@ struct TrimDownloadView: View {
     @State private var error: String? = nil
     @Environment(\.dismiss) private var dismiss
     
-    // Get the current identifier directly from viewModel
+    // Get the current identifier directly from provider
     private var currentIdentifier: String? {
-        return viewModel.currentIdentifier
+        return provider.currentIdentifier
     }
     
     // Logger for debugging
@@ -224,5 +224,5 @@ struct TrimDownloadView: View {
 }
 
 #Preview {
-    TrimDownloadView(viewModel: VideoPlayerViewModel(favoritesManager: FavoritesManager())) { _ in }
+    TrimDownloadView(provider: VideoPlayerViewModel(favoritesManager: FavoritesManager())) { _ in }
 }

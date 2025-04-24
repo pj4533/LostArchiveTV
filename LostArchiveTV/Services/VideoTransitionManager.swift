@@ -370,7 +370,7 @@ class VideoTransitionManager: ObservableObject {
                         }
                     }
                 } else {
-                    // Different handling based on provider type
+                    // Handle index updating and cached video tracking
                     if let viewModel = provider as? VideoPlayerViewModel {
                         // For VideoPlayerViewModel, history navigation updates the index
                         let nextVideo = await provider.getNextVideo()
@@ -380,10 +380,10 @@ class VideoTransitionManager: ObservableObject {
                             viewModel.updateCurrentCachedVideo(nextVideo)
                         }
                     } else if let favoritesViewModel = provider as? FavoritesViewModel {
-                        // For FavoritesViewModel, we need to use goToNextVideo to update the index
-                        // Call on main thread because this is triggered from a non-async context
+                        // For FavoritesViewModel, we update the index without changing the UI yet
+                        // (UI will be updated by the transition manager)
                         await MainActor.run {
-                            favoritesViewModel.goToNextVideo()
+                            favoritesViewModel.updateToNextVideo()
                         }
                     }
                 }
@@ -463,10 +463,10 @@ class VideoTransitionManager: ObservableObject {
                         viewModel.updateCurrentCachedVideo(prevVideo)
                     }
                 } else if let favoritesViewModel = provider as? FavoritesViewModel {
-                    // For FavoritesViewModel, we need to use goToPreviousVideo to update the index
-                    // Call on main thread because this is triggered from a non-async context
+                    // For FavoritesViewModel, we update the index without changing the UI yet
+                    // (UI will be updated by the transition manager)
                     await MainActor.run {
-                        favoritesViewModel.goToPreviousVideo()
+                        favoritesViewModel.updateToPreviousVideo()
                     }
                 }
             }

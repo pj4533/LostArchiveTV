@@ -95,9 +95,34 @@ class FavoritesViewModel: ObservableObject, VideoProvider {
     func playVideoAt(index: Int) {
         guard index >= 0 && index < favoritesManager.favorites.count else { return }
         
+        Logger.caching.info("FavoritesViewModel.playVideoAt: Playing video at index \(index)")
         isLoading = true
         currentIndex = index
-        setCurrentVideo(favoritesManager.favorites[index])
+        
+        // Get the selected favorite
+        let video = favoritesManager.favorites[index]
+        
+        // Ensure we create a player before showing the player view
+        if player == nil {
+            // Create a player with the asset
+            let newPlayer = AVPlayer(playerItem: video.playerItem)
+            let startTime = CMTime(seconds: video.startPosition, preferredTimescale: 600)
+            
+            // Seek to the correct position
+            Task {
+                await newPlayer.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
+                playbackManager.useExistingPlayer(newPlayer)
+                playbackManager.play()
+            }
+        }
+        
+        setCurrentVideo(video)
+        
+        Task {
+            // Preload videos for swiping after setting the current video
+            await ensureVideosAreCached()
+        }
+        
         isLoading = false
     }
     
@@ -143,29 +168,48 @@ class FavoritesViewModel: ObservableObject, VideoProvider {
         return favorites[previousIndex]
     }
     
-    // Original methods that use the protocol methods internally
-    func goToNextVideo() {
+    // Methods for VideoTransitionManager to use when transitioning
+    func updateToNextVideo() {
         let favorites = favoritesManager.favorites
         guard !favorites.isEmpty else { return }
         
         // Update the index when actually moving to the next video
         let nextIndex = (currentIndex + 1) % favorites.count
         currentIndex = nextIndex
-        Logger.caching.info("FavoritesViewModel.goToNextVideo: Moving to index \(self.currentIndex)")
+        Logger.caching.info("FavoritesViewModel.updateToNextVideo: Updated index to \(self.currentIndex)")
         
-        setCurrentVideo(favorites[nextIndex])
+        // DO NOT call setCurrentVideo here - that will be handled by the transition manager
+        // This method only updates the index, not the UI
     }
     
-    func goToPreviousVideo() {
+    func updateToPreviousVideo() {
         let favorites = favoritesManager.favorites
         guard !favorites.isEmpty else { return }
         
         // Update the index when actually moving to the previous video
         let previousIndex = (currentIndex - 1 + favorites.count) % favorites.count
         currentIndex = previousIndex
-        Logger.caching.info("FavoritesViewModel.goToPreviousVideo: Moving to index \(self.currentIndex)")
+        Logger.caching.info("FavoritesViewModel.updateToPreviousVideo: Updated index to \(self.currentIndex)")
         
-        setCurrentVideo(favorites[previousIndex])
+        // DO NOT call setCurrentVideo here - that will be handled by the transition manager
+        // This method only updates the index, not the UI
+    }
+    
+    // Public methods for direct navigation (not during swipe)
+    func goToNextVideo() {
+        let favorites = favoritesManager.favorites
+        guard !favorites.isEmpty else { return }
+        
+        updateToNextVideo()
+        setCurrentVideo(favorites[currentIndex])
+    }
+    
+    func goToPreviousVideo() {
+        let favorites = favoritesManager.favorites
+        guard !favorites.isEmpty else { return }
+        
+        updateToPreviousVideo()
+        setCurrentVideo(favorites[currentIndex])
     }
     
     func pausePlayback() {
@@ -208,22 +252,26 @@ class FavoritesViewModel: ObservableObject, VideoProvider {
     
     var currentIdentifier: String? {
         get { currentVideo?.identifier }
-        set { /* No-op - handled via currentVideo */ }
+        set {
+            if let newValue = newValue, let index = favorites.firstIndex(where: { $0.identifier == newValue }) {
+                currentVideo = favorites[index]
+            }
+        }
     }
     
     var currentTitle: String? {
         get { currentVideo?.title }
-        set { /* No-op - handled via currentVideo */ }
+        set { /* Title is determined by currentIdentifier or currentVideo */ }
     }
     
     var currentCollection: String? {
         get { currentVideo?.collection }
-        set { /* No-op - handled via currentVideo */ }
+        set { /* Collection is determined by currentIdentifier or currentVideo */ }
     }
     
     var currentDescription: String? {
         get { currentVideo?.description }
-        set { /* No-op - handled via currentVideo */ }
+        set { /* Description is determined by currentIdentifier or currentVideo */ }
     }
     
     func isAtEndOfHistory() -> Bool {
@@ -239,7 +287,19 @@ class FavoritesViewModel: ObservableObject, VideoProvider {
     }
     
     func ensureVideosAreCached() async {
-        // No additional preloading needed for favorites - they're already loaded
+        Logger.caching.info("FavoritesViewModel.ensureVideosAreCached: Preparing videos for swipe navigation")
+        
+        // Start concurrent tasks to preload in both directions
+        async let nextTask = Task {
+            await getNextVideo()
+        }
+        
+        async let prevTask = Task {
+            await getPreviousVideo()
+        }
+        
+        // Wait for both tasks to complete
+        _ = await [nextTask.value, prevTask.value]
     }
     
     // MARK: - Duration Observation

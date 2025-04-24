@@ -70,7 +70,7 @@ struct VideoInfoOverlay: View {
             Group {
                 if trimStep == .downloading {
                     // Download sheet
-                    TrimDownloadView(viewModel: viewModel) { downloadedURL in
+                    TrimDownloadView(provider: viewModel) { downloadedURL in
                         if let url = downloadedURL {
                             // Success - move to trim step
                             logger.debug("Download successful, transitioning to trim step with URL: \(url.absoluteString)")
