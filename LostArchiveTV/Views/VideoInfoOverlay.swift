@@ -160,6 +160,21 @@ struct VideoInfoOverlay: View {
                 
                 Spacer()
                 
+                // Restart video button
+                OverlayButton(
+                    action: {
+                        viewModel.restartVideo()
+                    },
+                    disabled: viewModel.currentVideoURL == nil
+                ) {
+                    Image(systemName: "backward.end.fill")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 22, height: 22)
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
+                }
+                
                 // Trim button - starts download flow first
                 OverlayButton(
                     action: startTrimFlow,

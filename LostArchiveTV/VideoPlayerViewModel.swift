@@ -147,6 +147,11 @@ class VideoPlayerViewModel: ObservableObject {
         playbackManager.play()
     }
     
+    func restartVideo() {
+        Logger.videoPlayback.info("Restarting video from the beginning")
+        playbackManager.seekToBeginning()
+    }
+    
     // MARK: - Video Loading
     
     private func loadIdentifiers() async {

@@ -139,6 +139,16 @@ class VideoPlaybackManager: ObservableObject {
         }
     }
     
+    func seekToBeginning() {
+        Logger.videoPlayback.info("Seeking to beginning of video and playing")
+        player?.seek(to: CMTime.zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] completed in
+            if completed {
+                self?.player?.play()
+                self?.isPlaying = true
+            }
+        }
+    }
+    
     func monitorBufferStatus(for playerItem: AVPlayerItem) async {
         Task { @MainActor in
             for monitorCount in 0..<10 {
