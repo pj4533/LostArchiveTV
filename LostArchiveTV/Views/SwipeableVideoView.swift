@@ -101,7 +101,7 @@ struct SwipeableVideoView: View {
             .frame(width: geometry.size.width, height: geometry.size.height)
             .contentShape(Rectangle())
             // Gesture for vertical swipe - only enable when we have a video playing and next video is ready
-            .gesture(
+            .simultaneousGesture(
                 viewModel.player == nil || viewModel.isLoading || !transitionManager.nextVideoReady ? nil :
                     DragGesture()
                     .onChanged { value in
