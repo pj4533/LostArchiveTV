@@ -14,6 +14,7 @@ class VideoPlaybackManager: ObservableObject {
     @Published var isPlaying = false
     @Published var currentTime: Double = 0
     @Published var videoDuration: Double = 0
+    @Published var isLoopingEnabled = false
     
     private var timeObserverToken: Any?
     
@@ -100,8 +101,11 @@ class VideoPlaybackManager: ObservableObject {
     }
     
     @objc private func playerItemDidReachEnd(notification: Notification) {
-        Logger.videoPlayback.info("Video playback reached end")
-        isPlaying = false
+        Logger.videoPlayback.info("Video playback reached end - restarting from beginning")
+        // Seek to the beginning and continue playing
+        player?.seek(to: CMTime.zero)
+        player?.play()
+        isPlaying = true
     }
     
     func setupAudioSession() {

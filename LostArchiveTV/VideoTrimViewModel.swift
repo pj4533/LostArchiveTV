@@ -232,13 +232,16 @@ class VideoTrimViewModel: ObservableObject {
             self.currentTime = time
             self.timelineManager.updateCurrentTime(time)
             
-            // If playhead is outside trim bounds, move it to the appropriate boundary
+            // If playhead is outside trim bounds, handle appropriately
             if CMTimeCompare(time, self.startTrimTime) < 0 {
                 // If before start time, move to start
                 self.seekToTime(self.startTrimTime)
-            } else if CMTimeCompare(time, self.endTrimTime) > 0 {
-                // If after end time, move to end
-                self.seekToTime(self.endTrimTime)
+            } else if CMTimeCompare(time, self.endTrimTime) >= 0 {
+                // If at or after end time, loop back to start
+                if self.isPlaying {
+                    logger.info("Reached end of trimmed section - looping back to start")
+                    self.seekToTime(self.startTrimTime)
+                }
             }
         }
     }
