@@ -25,6 +25,29 @@ struct SwipeableVideoView: View {
                 // Black background
                 Color.black.ignoresSafeArea()
                 
+                // Previous video positioned above current video
+                if let prevPlayer = transitionManager.prevPlayer, transitionManager.prevVideoReady {
+                    ZStack {
+                        // Previous video content
+                        VideoPlayerContent(
+                            player: prevPlayer,
+                            viewModel: viewModel
+                        )
+                        
+                        // Previous video info
+                        VideoInfoOverlay(
+                            title: transitionManager.prevTitle,
+                            collection: transitionManager.prevCollection,
+                            description: transitionManager.prevDescription,
+                            identifier: transitionManager.prevIdentifier,
+                            viewModel: viewModel
+                        )
+                    }
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    // Position above current view, moves down as current view moves down
+                    .offset(y: -geometry.size.height + dragOffset)
+                }
+                
                 // Next video positioned below current video
                 if let nextPlayer = transitionManager.nextPlayer, transitionManager.nextVideoReady {
                     ZStack {
@@ -45,7 +68,7 @@ struct SwipeableVideoView: View {
                     }
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     // Position below current view, moves up as current view moves up
-                    .offset(y: geometry.size.height - dragOffset)
+                    .offset(y: geometry.size.height + dragOffset)
                 }
                 
                 // Current video
@@ -64,12 +87,12 @@ struct SwipeableVideoView: View {
                 } else if let player = viewModel.player {
                     // Show the current video when available
                     ZStack {
-                        // Current video content - moves up with swipe
+                        // Current video content - moves with swipe
                         VideoPlayerContent(
                             player: player,
                             viewModel: viewModel
                         )
-                        .offset(y: -dragOffset)  // Move up as user swipes up
+                        .offset(y: dragOffset)  // Move based on drag - IMPORTANT: positive for down, negative for up
                         
                         // Bottom video info - moves with video
                         VideoInfoOverlay(
@@ -79,7 +102,7 @@ struct SwipeableVideoView: View {
                             identifier: viewModel.currentIdentifier,
                             viewModel: viewModel
                         )
-                        .offset(y: -dragOffset)
+                        .offset(y: dragOffset)
                     }
                 } else {
                     // Fallback if player isn't loaded yet but not in loading state
@@ -90,9 +113,11 @@ struct SwipeableVideoView: View {
                         if !viewModel.isLoading {
                             Task {
                                 await viewModel.loadRandomVideo()
-                                await transitionManager.preloadNextVideo(
-                                    viewModel: viewModel
-                                )
+                                
+                                // Load both directions in parallel
+                                async let nextTask = transitionManager.preloadNextVideo(viewModel: viewModel)
+                                async let prevTask = transitionManager.preloadPreviousVideo(viewModel: viewModel)
+                                _ = await (nextTask, prevTask)
                             }
                         }
                     }
@@ -100,27 +125,37 @@ struct SwipeableVideoView: View {
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .contentShape(Rectangle())
-            // Gesture for vertical swipe - only enable when we have a video playing and next video is ready
+            // Gesture for vertical swipe - only enable when we have a video playing
             .simultaneousGesture(
-                viewModel.player == nil || viewModel.isLoading || !transitionManager.nextVideoReady ? nil :
+                viewModel.player == nil || viewModel.isLoading ? nil :
                     DragGesture()
                     .onChanged { value in
                         guard !transitionManager.isTransitioning else { return }
                         
                         let translation = value.translation.height
                         isDragging = true
-                        // Only allow upward swipes (negative translation values)
+                        
+                        // Allow both upward and downward swipes
                         if translation < 0 {
-                            // Convert negative translation to positive offset
-                            dragOffset = min(-translation, geometry.size.height)
+                            // Upward swipe (for next video) - only if next video is ready
+                            if transitionManager.nextVideoReady {
+                                dragOffset = max(translation, -geometry.size.height)
+                            }
                         } else {
-                            // Allow slight bounce-back but with resistance
-                            dragOffset = 0
+                            // Downward swipe (for previous video) - only if previous video is ready
+                            if transitionManager.prevVideoReady {
+                                dragOffset = min(translation, geometry.size.height)
+                            }
                         }
                     }
                     .onEnded { value in
-                        guard !transitionManager.isTransitioning && dragOffset > 0 else {
-                            // If we're not actually dragging up, just reset
+                        guard !transitionManager.isTransitioning else { return }
+                        
+                        let translation = value.translation.height
+                        let velocity = value.predictedEndTranslation.height - value.translation.height
+                        
+                        // If we're not actually dragging significantly, just reset
+                        if abs(dragOffset) < 10 {
                             withAnimation(.spring(response: animationDuration, dampingFraction: 0.7)) {
                                 dragOffset = 0
                                 isDragging = false
@@ -128,23 +163,50 @@ struct SwipeableVideoView: View {
                             return
                         }
                         
-                        let translation = value.translation.height
-                        let velocity = value.predictedEndTranslation.height - value.translation.height
-                        
-                        // Determine if swipe should complete based on threshold or velocity
-                        let shouldComplete = -translation > swipeThreshold || -velocity > 500
-                        
-                        if shouldComplete {
-                            // Complete the swipe animation upward
-                            transitionManager.completeTransition(
-                                geometry: geometry,
-                                viewModel: viewModel,
-                                dragOffset: $dragOffset,
-                                isDragging: $isDragging,
-                                animationDuration: animationDuration
-                            )
+                        if dragOffset < 0 {
+                            // Upward swipe (next video)
+                            let shouldComplete = -dragOffset > swipeThreshold || -velocity > 500
+                            
+                            if shouldComplete && transitionManager.nextVideoReady {
+                                // Complete the swipe animation upward (to next video)
+                                transitionManager.completeTransition(
+                                    geometry: geometry,
+                                    viewModel: viewModel,
+                                    dragOffset: $dragOffset,
+                                    isDragging: $isDragging,
+                                    animationDuration: animationDuration,
+                                    direction: .up
+                                )
+                            } else {
+                                // Bounce back to original position
+                                withAnimation(.spring(response: animationDuration, dampingFraction: 0.7)) {
+                                    dragOffset = 0
+                                    isDragging = false
+                                }
+                            }
+                        } else if dragOffset > 0 {
+                            // Downward swipe (previous video)
+                            let shouldComplete = dragOffset > swipeThreshold || velocity > 500
+                            
+                            if shouldComplete && transitionManager.prevVideoReady {
+                                // Complete the swipe animation downward (to previous video)
+                                transitionManager.completeTransition(
+                                    geometry: geometry,
+                                    viewModel: viewModel,
+                                    dragOffset: $dragOffset,
+                                    isDragging: $isDragging,
+                                    animationDuration: animationDuration,
+                                    direction: .down
+                                )
+                            } else {
+                                // Bounce back to original position
+                                withAnimation(.spring(response: animationDuration, dampingFraction: 0.7)) {
+                                    dragOffset = 0
+                                    isDragging = false
+                                }
+                            }
                         } else {
-                            // Bounce back to original position
+                            // Reset animation if no significant drag
                             withAnimation(.spring(response: animationDuration, dampingFraction: 0.7)) {
                                 dragOffset = 0
                                 isDragging = false
@@ -153,30 +215,37 @@ struct SwipeableVideoView: View {
                     }
             )
             .onAppear {
-                // Ensure we have a video loaded and the next video is ready
+                // Ensure we have a video loaded and videos are ready for swiping in both directions
                 if viewModel.player == nil && !viewModel.isLoading {
                     Task {
                         Logger.caching.info("SwipeableVideoView: No video loaded, loading first video")
                         await viewModel.loadRandomVideo()
                         
-                        // Ensure next video is preloaded for swiping
+                        // Preload videos in both directions for swiping
+                        Logger.caching.info("SwipeableVideoView: Preloading videos for bidirectional swiping")
+                        
+                        // Load both directions concurrently
+                        async let nextTask = transitionManager.preloadNextVideo(viewModel: viewModel)
+                        async let prevTask = transitionManager.preloadPreviousVideo(viewModel: viewModel)
+                        _ = await (nextTask, prevTask)
+                    }
+                } else if viewModel.player != nil {
+                    // Preload videos if needed in either direction
+                    Task {
+                        // Preload next video if not ready
                         if !transitionManager.nextVideoReady {
                             Logger.caching.info("SwipeableVideoView: Preloading next video for swiping")
-                            await transitionManager.preloadNextVideo(
-                                viewModel: viewModel
-                            )
+                            await transitionManager.preloadNextVideo(viewModel: viewModel)
+                        }
+                        
+                        // Preload previous video if not ready
+                        if !transitionManager.prevVideoReady {
+                            Logger.caching.info("SwipeableVideoView: Preloading previous video for swiping")
+                            await transitionManager.preloadPreviousVideo(viewModel: viewModel)
                         }
                     }
-                } else if viewModel.player != nil && !transitionManager.nextVideoReady {
-                    // Preload next video if we already have current video but no next video ready
-                    Task {
-                        Logger.caching.info("SwipeableVideoView: Current video loaded but next video not ready, preloading now")
-                        await transitionManager.preloadNextVideo(
-                            viewModel: viewModel
-                        )
-                    }
                 } else {
-                    Logger.caching.info("SwipeableVideoView: Video playing and next video ready")
+                    Logger.caching.info("SwipeableVideoView: Video player initialized")
                 }
             }
         }

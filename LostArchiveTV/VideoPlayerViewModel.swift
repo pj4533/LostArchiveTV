@@ -41,6 +41,10 @@ class VideoPlayerViewModel: ObservableObject {
     // Archive.org video identifiers
     private var identifiers: [ArchiveIdentifier] = []
     
+    // Video history tracking
+    private var videoHistory: [CachedVideo] = []
+    private var currentHistoryIndex: Int = -1
+    
     // MARK: - Initialization and Cleanup
     init() {
         // Configure audio session for proper playback on all devices
@@ -267,6 +271,11 @@ class VideoPlayerViewModel: ObservableObject {
                 }
             }
             
+            // Save this video to history
+            if let currentVideo = await createCachedVideoFromCurrentState() {
+                addVideoToHistory(currentVideo)
+            }
+            
             // Only update loading state if we're showing immediately
             if showImmediately {
                 isLoading = false
@@ -289,6 +298,84 @@ class VideoPlayerViewModel: ObservableObject {
             // Always exit initialization mode on error to prevent being stuck in loading
             isInitializing = false
         }
+    }
+    
+    // MARK: - History Management
+    
+    func addVideoToHistory(_ video: CachedVideo) {
+        // If we're currently in the middle of the history, truncate forward history
+        if currentHistoryIndex < self.videoHistory.count - 1 {
+            self.videoHistory = Array(self.videoHistory[0...self.currentHistoryIndex])
+        }
+        
+        // Add new video to history
+        self.videoHistory.append(video)
+        self.currentHistoryIndex = self.videoHistory.count - 1
+        
+        Logger.caching.info("Added video to history: \(video.identifier), history size: \(self.videoHistory.count), index: \(self.currentHistoryIndex)")
+    }
+    
+    func getPreviousVideo() async -> CachedVideo? {
+        // Ensure we're not at the beginning of history
+        guard self.currentHistoryIndex > 0, !self.videoHistory.isEmpty else {
+            Logger.caching.info("No previous video available in history")
+            return nil
+        }
+        
+        // Move back in history
+        self.currentHistoryIndex -= 1
+        let previousVideo = self.videoHistory[self.currentHistoryIndex]
+        Logger.caching.info("Retrieved previous video from history: \(previousVideo.identifier), index: \(self.currentHistoryIndex)")
+        
+        return previousVideo
+    }
+    
+    func createCachedVideoFromCurrentState() async -> CachedVideo? {
+        guard let identifier = currentIdentifier,
+              let collection = currentCollection,
+              let title = currentTitle,
+              let description = currentDescription,
+              let videoURL = playbackManager.currentVideoURL,
+              let playerItem = playbackManager.player?.currentItem,
+              let asset = playerItem.asset as? AVURLAsset else {
+            Logger.caching.error("Could not create cached video from current state: missing required properties")
+            return nil
+        }
+        
+        // Create a simplified metadata object with just title and description
+        let metadata = ArchiveMetadata(
+            files: [], 
+            metadata: ItemMetadata(
+                identifier: identifier,
+                title: title, 
+                description: description
+            )
+        )
+        
+        // Create a basic MP4 file representation
+        let mp4File = ArchiveFile(
+            name: identifier, 
+            format: "h.264", 
+            size: "", 
+            length: nil
+        )
+        
+        // Get the current position
+        let currentTime = playbackManager.player?.currentTime().seconds ?? 0
+        
+        // Create cached video
+        let cachedVideo = CachedVideo(
+            identifier: identifier,
+            collection: collection,
+            metadata: metadata,
+            mp4File: mp4File,
+            videoURL: videoURL,
+            asset: asset,
+            playerItem: playerItem,
+            startPosition: currentTime
+        )
+        
+        return cachedVideo
     }
     
     // MARK: - Caching and Video Trimming

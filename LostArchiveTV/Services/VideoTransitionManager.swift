@@ -10,13 +10,24 @@ import AVKit
 import OSLog
 
 class VideoTransitionManager: ObservableObject {
-    @Published var nextVideoReady = false
+    // State tracking
     @Published var isTransitioning = false
+    
+    // Next (down) video properties
+    @Published var nextVideoReady = false
     @Published var nextPlayer: AVPlayer?
     @Published var nextTitle: String = ""
     @Published var nextCollection: String = ""
     @Published var nextDescription: String = ""
     @Published var nextIdentifier: String = ""
+    
+    // Previous (up) video properties
+    @Published var prevVideoReady = false
+    @Published var prevPlayer: AVPlayer?
+    @Published var prevTitle: String = ""
+    @Published var prevCollection: String = ""
+    @Published var prevDescription: String = ""
+    @Published var prevIdentifier: String = ""
     
     // Preload the next video while current one is playing
     func preloadNextVideo(viewModel: VideoPlayerViewModel) async {
@@ -67,7 +78,80 @@ class VideoTransitionManager: ObservableObject {
         }
     }
     
+    // Preload the previous video from history
+    func preloadPreviousVideo(viewModel: VideoPlayerViewModel) async {
+        // Reset previous video ready flag
+        await MainActor.run {
+            prevVideoReady = false
+        }
+        
+        // Get previous video from history
+        guard let previousVideo = await viewModel.getPreviousVideo() else {
+            Logger.caching.warning("No previous video available in history")
+            return
+        }
+        
+        do {
+            // Create a new player for the asset
+            let player = AVPlayer(playerItem: AVPlayerItem(asset: previousVideo.asset))
+            
+            // Prepare player but keep it paused and muted
+            player.isMuted = true
+            player.pause()
+            
+            // Seek to the start position
+            let startTime = CMTime(seconds: previousVideo.startPosition, preferredTimescale: 600)
+            await player.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
+            
+            // Update UI on main thread
+            await MainActor.run {
+                // Update previous video metadata
+                prevTitle = previousVideo.title
+                prevCollection = previousVideo.collection
+                prevDescription = previousVideo.description
+                prevIdentifier = previousVideo.identifier
+                
+                // Store reference to previous player
+                prevPlayer = player
+                
+                // Mark previous video as ready
+                prevVideoReady = true
+            }
+            
+            Logger.caching.info("Successfully preloaded previous video: \(previousVideo.identifier)")
+        } catch {
+            Logger.caching.error("Failed to preload previous video: \(error.localizedDescription)")
+        }
+    }
+    
     func completeTransition(
+        geometry: GeometryProxy,
+        viewModel: VideoPlayerViewModel,
+        dragOffset: Binding<CGFloat>,
+        isDragging: Binding<Bool>,
+        animationDuration: Double,
+        direction: SwipeDirection = .up
+    ) {
+        switch direction {
+        case .up:
+            // Swiping UP to see NEXT video
+            completeNextVideoTransition(geometry: geometry, viewModel: viewModel, dragOffset: dragOffset, 
+                                   isDragging: isDragging, animationDuration: animationDuration)
+        case .down:
+            // Swiping DOWN to see PREVIOUS video
+            completePreviousVideoTransition(geometry: geometry, viewModel: viewModel, dragOffset: dragOffset, 
+                                 isDragging: isDragging, animationDuration: animationDuration)
+        }
+    }
+    
+    // Direction for swiping
+    enum SwipeDirection {
+        case up    // Swiping up shows next video
+        case down  // Swiping down shows previous video
+    }
+    
+    // Complete transition to the next video (swiping UP)
+    private func completeNextVideoTransition(
         geometry: GeometryProxy,
         viewModel: VideoPlayerViewModel,
         dragOffset: Binding<CGFloat>,
@@ -83,7 +167,7 @@ class VideoTransitionManager: ObservableObject {
             
             // Animate transition to completion
             withAnimation(.easeOut(duration: animationDuration)) {
-                dragOffset.wrappedValue = geometry.size.height
+                dragOffset.wrappedValue = -geometry.size.height  // Negative for upward movement
             }
         }
         
@@ -92,8 +176,12 @@ class VideoTransitionManager: ObservableObject {
             // Stop old player
             viewModel.player?.pause()
             
-            // Save the previous identifier to remove from cache
-            let previousIdentifier = viewModel.currentIdentifier
+            // Save current video to history if needed
+            Task {
+                if let currentVideo = await viewModel.createCachedVideoFromCurrentState() {
+                    viewModel.addVideoToHistory(currentVideo)
+                }
+            }
             
             // Update the view model with the new video's metadata
             viewModel.currentTitle = self.nextTitle
@@ -117,19 +205,74 @@ class VideoTransitionManager: ObservableObject {
             self.nextVideoReady = false
             self.nextPlayer = nil
             
-            // Simple logic: 1) Remove viewed video from cache, 2) Add new video to cache, 3) Preload next UI video
+            // Preload the next videos in both directions
             Task {
-                // Step 1: Remove the viewed video from cache
-                if let prevId = previousIdentifier {
-                    Logger.caching.info("Removing viewed video \(prevId) from cache")
-                    await viewModel.cacheManager.removeVideo(identifier: prevId)
-                }
-                
-                // Step 2: Start filling cache to maintain 3 videos
+                // Start filling cache to maintain videos
                 await viewModel.ensureVideosAreCached()
                 
-                // Step 3: Preload the next video for the UI
+                // Preload the next and previous videos for the UI
                 await self.preloadNextVideo(viewModel: viewModel)
+                await self.preloadPreviousVideo(viewModel: viewModel)
+            }
+        }
+    }
+    
+    // Complete transition to the previous video (swiping DOWN)
+    private func completePreviousVideoTransition(
+        geometry: GeometryProxy,
+        viewModel: VideoPlayerViewModel,
+        dragOffset: Binding<CGFloat>,
+        isDragging: Binding<Bool>,
+        animationDuration: Double
+    ) {
+        guard prevVideoReady, let prevPlayer = prevPlayer else { return }
+        
+        // Update on main thread
+        Task { @MainActor in
+            // Mark as transitioning to prevent gesture conflicts
+            isTransitioning = true
+            
+            // Animate transition to completion
+            withAnimation(.easeOut(duration: animationDuration)) {
+                dragOffset.wrappedValue = geometry.size.height  // Positive for downward movement
+            }
+        }
+        
+        // After animation completes, swap previous to current
+        DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) {
+            // Stop old player
+            viewModel.player?.pause()
+            
+            // Update the view model with the previous video's metadata
+            viewModel.currentTitle = self.prevTitle
+            viewModel.currentCollection = self.prevCollection
+            viewModel.currentDescription = self.prevDescription
+            viewModel.currentIdentifier = self.prevIdentifier
+            
+            // Unmute the previous player and play it
+            prevPlayer.isMuted = false
+            
+            // Set the previous player as current
+            viewModel.player = prevPlayer
+            
+            // Play the previous video
+            prevPlayer.play()
+            
+            // Reset animation state
+            dragOffset.wrappedValue = 0
+            isDragging.wrappedValue = false
+            self.isTransitioning = false
+            self.prevVideoReady = false
+            self.prevPlayer = nil
+            
+            // Preload in both directions
+            Task {
+                // Start filling cache to maintain videos
+                await viewModel.ensureVideosAreCached()
+                
+                // Preload the next and previous videos for the UI
+                await self.preloadNextVideo(viewModel: viewModel)
+                await self.preloadPreviousVideo(viewModel: viewModel)
             }
         }
     }
