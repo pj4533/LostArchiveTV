@@ -30,10 +30,8 @@ class VideoPlayerViewModel: ObservableObject {
     @Published var currentTitle: String?
     @Published var currentDescription: String?
     
-    // New properties for tracking app initialization and cache status
+    // New properties for tracking app initialization
     @Published var isInitializing = true
-    @Published var cacheProgress: Double = 0.0
-    @Published var cacheMessage = "Loading video library..."
     
     // Cache monitoring
     private var cacheMonitorTask: Task<Void, Never>?
@@ -88,23 +86,13 @@ class VideoPlayerViewModel: ObservableObject {
         cacheMonitorTask?.cancel()
         
         cacheMonitorTask = Task {
-            // Wait until we have at least 2 videos cached (bare minimum for swiping experience)
+            // Wait until we have at least 1 video cached to begin playback
             while !Task.isCancelled && isInitializing {
                 let cacheCount = await cacheManager.cacheCount() 
-                let maxCacheSize = await cacheManager.getMaxCacheSize()
                 
-                // Update progress for loading screen
-                self.cacheProgress = Double(cacheCount) / Double(maxCacheSize)
-                
-                // Update message based on progress
-                if cacheCount == 0 {
-                    self.cacheMessage = "Loading video library..."
-                } else if cacheCount >= 1 {
-                    // Start playing as soon as first video is ready
-                    self.cacheMessage = "Ready for playback!"
+                if cacheCount >= 1 {
+                    // Exit initialization mode once we have at least one video ready
                     try? await Task.sleep(for: .seconds(0.2))
-                    
-                    // Exit initialization mode now that we're ready
                     self.isInitializing = false
                     Logger.caching.info("Initial cache ready with \(cacheCount) videos - beginning playback")
                     break

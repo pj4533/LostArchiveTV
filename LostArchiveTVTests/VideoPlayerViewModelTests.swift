@@ -21,8 +21,6 @@ struct VideoPlayerViewModelTests {
         #expect(viewModel.isInitializing)
         #expect(viewModel.isLoading == false)
         #expect(viewModel.errorMessage == nil)
-        #expect(viewModel.cacheProgress == 0.0)
-        #expect(viewModel.cacheMessage == "Loading video library...")
     }
     
     @Test
