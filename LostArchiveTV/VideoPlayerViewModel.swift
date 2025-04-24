@@ -99,10 +99,8 @@ class VideoPlayerViewModel: ObservableObject {
                 // Update message based on progress
                 if cacheCount == 0 {
                     self.cacheMessage = "Loading video library..."
-                } else if cacheCount == 1 {
-                    self.cacheMessage = "Preparing for swiping..."
-                } else if cacheCount >= 2 {
-                    // Once we have at least 2 videos, we can start playing
+                } else if cacheCount >= 1 {
+                    // Start playing as soon as first video is ready
                     self.cacheMessage = "Ready for playback!"
                     try? await Task.sleep(for: .seconds(0.2))
                     
