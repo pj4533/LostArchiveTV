@@ -121,8 +121,12 @@ class FavoritesViewModel: ObservableObject, VideoProvider {
         let favorites = favoritesManager.favorites
         guard !favorites.isEmpty else { return nil }
         
+        // Calculate the next index but DON'T update currentIndex yet
+        // This is critical for preloading to work correctly
         let nextIndex = (currentIndex + 1) % favorites.count
-        currentIndex = nextIndex
+        Logger.caching.info("FavoritesViewModel.getNextVideo: Returning video at index \(nextIndex)")
+        
+        // Return the video without updating currentIndex
         return favorites[nextIndex]
     }
     
@@ -131,26 +135,37 @@ class FavoritesViewModel: ObservableObject, VideoProvider {
         let favorites = favoritesManager.favorites
         guard !favorites.isEmpty else { return nil }
         
+        // Calculate the previous index but DON'T update currentIndex yet
         let previousIndex = (currentIndex - 1 + favorites.count) % favorites.count
-        currentIndex = previousIndex
+        Logger.caching.info("FavoritesViewModel.getPreviousVideo: Returning video at index \(previousIndex)")
+        
+        // Return the video without updating currentIndex
         return favorites[previousIndex]
     }
     
     // Original methods that use the protocol methods internally
     func goToNextVideo() {
-        Task {
-            if let nextVideo = await getNextVideo() {
-                setCurrentVideo(nextVideo)
-            }
-        }
+        let favorites = favoritesManager.favorites
+        guard !favorites.isEmpty else { return }
+        
+        // Update the index when actually moving to the next video
+        let nextIndex = (currentIndex + 1) % favorites.count
+        currentIndex = nextIndex
+        Logger.caching.info("FavoritesViewModel.goToNextVideo: Moving to index \(self.currentIndex)")
+        
+        setCurrentVideo(favorites[nextIndex])
     }
     
     func goToPreviousVideo() {
-        Task {
-            if let prevVideo = await getPreviousVideo() {
-                setCurrentVideo(prevVideo)
-            }
-        }
+        let favorites = favoritesManager.favorites
+        guard !favorites.isEmpty else { return }
+        
+        // Update the index when actually moving to the previous video
+        let previousIndex = (currentIndex - 1 + favorites.count) % favorites.count
+        currentIndex = previousIndex
+        Logger.caching.info("FavoritesViewModel.goToPreviousVideo: Moving to index \(self.currentIndex)")
+        
+        setCurrentVideo(favorites[previousIndex])
     }
     
     func pausePlayback() {

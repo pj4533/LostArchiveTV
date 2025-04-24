@@ -101,7 +101,7 @@ class VideoTransitionManager: ObservableObject {
         }
         
         // For VideoPlayerViewModel, we can try to load a new random video
-        // For FavoritesViewModel we stay at the end of the sequence
+        // For FavoritesViewModel, check if we have reached the end
         if let videoPlayerViewModel = provider as? VideoPlayerViewModel {
             // If we don't have a next video in history, get a new random video
             let service = VideoLoadingService(
@@ -146,9 +146,49 @@ class VideoTransitionManager: ObservableObject {
                 try? await Task.sleep(for: .seconds(0.5))
                 await preloadNextVideo(provider: provider)
             }
+        } else if let favoritesViewModel = provider as? FavoritesViewModel {
+            // For favorites view, check if we still have favorites in the list
+            let favorites = await MainActor.run { favoritesViewModel.favorites }
+            
+            // If we have more than one favorite, circularly navigate to enable looping
+            if favorites.count > 1 {
+                // We can always loop around in favorites
+                if let nextVideo = await provider.getNextVideo() {
+                    // Create a new player for the asset
+                    let player = AVPlayer(playerItem: AVPlayerItem(asset: nextVideo.asset))
+                    
+                    // Prepare player but keep it paused and muted
+                    player.isMuted = true
+                    player.pause()
+                    
+                    // Seek to the start position
+                    let startTime = CMTime(seconds: nextVideo.startPosition, preferredTimescale: 600)
+                    await player.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
+                    
+                    // Update UI on main thread
+                    await MainActor.run {
+                        // Update next video metadata
+                        nextTitle = nextVideo.title
+                        nextCollection = nextVideo.collection ?? ""
+                        nextDescription = nextVideo.description
+                        nextIdentifier = nextVideo.identifier
+                        
+                        // Store reference to next player
+                        nextPlayer = player
+                        
+                        // Mark next video as ready
+                        nextVideoReady = true
+                    }
+                    
+                    Logger.caching.info("Successfully preloaded next favorite video: \(nextVideo.identifier)")
+                }
+            } else {
+                // If only one favorite exists, don't enable swiping
+                Logger.caching.info("Only one favorite video found, not marking as ready")
+            }
         } else {
-            // For favorites, we just don't mark it as ready since there are no more favorites
-            Logger.caching.info("End of favorites list reached, no more videos to preload")
+            // Unknown provider type
+            Logger.caching.warning("Unknown provider type for preloading")
         }
     }
     
@@ -159,11 +199,14 @@ class VideoTransitionManager: ObservableObject {
             prevVideoReady = false
         }
         
-        // Check if there's a previous video in history/sequence
+        // For all providers, check if there's a previous video directly available
         if let previousVideo = await provider.getPreviousVideo() {
-            // Move back to current index (getPreviousVideo moved us backward)
-            // We'll move backward again when the transition actually happens
-            _ = await provider.getNextVideo()
+            // For normal providers that change state during getPreviousVideo, move back to original position
+            if provider is VideoPlayerViewModel {
+                // Move back to current index (getPreviousVideo moved us backward)
+                // We'll move backward again when the transition actually happens
+                _ = await provider.getNextVideo()
+            }
             
             // Create a new player for the asset
             let player = AVPlayer(playerItem: AVPlayerItem(asset: previousVideo.asset))
@@ -180,7 +223,7 @@ class VideoTransitionManager: ObservableObject {
             await MainActor.run {
                 // Update previous video metadata
                 prevTitle = previousVideo.title
-                prevCollection = previousVideo.collection
+                prevCollection = previousVideo.collection ?? ""
                 prevDescription = previousVideo.description
                 prevIdentifier = previousVideo.identifier
                 
@@ -192,6 +235,22 @@ class VideoTransitionManager: ObservableObject {
             }
             
             Logger.caching.info("Successfully prepared previous video: \(previousVideo.identifier)")
+            return
+        } 
+        
+        // Special handling for FavoritesViewModel
+        if let favoritesViewModel = provider as? FavoritesViewModel {
+            // For favorites view, check if we still have favorites in the list
+            let favorites = await MainActor.run { favoritesViewModel.favorites }
+            
+            // If we have more than one favorite, circularly navigate to enable looping
+            if favorites.count > 1 {
+                // We should have been able to get a previous video above, so if we reached here, something's wrong
+                Logger.caching.warning("Failed to preload previous favorite video")
+            } else {
+                // If only one favorite exists, don't enable swiping
+                Logger.caching.info("Only one favorite video found, not marking previous as ready")
+            }
         } else {
             Logger.caching.warning("No previous video available in sequence")
         }
@@ -311,12 +370,21 @@ class VideoTransitionManager: ObservableObject {
                         }
                     }
                 } else {
-                    // We're just moving forward in history/sequence
-                    let nextVideo = await provider.getNextVideo()
-                    
-                    // Update the current cached video reference if provider is VideoPlayerViewModel
-                    if let nextVideo = nextVideo, let viewModel = provider as? VideoPlayerViewModel {
-                        viewModel.updateCurrentCachedVideo(nextVideo)
+                    // Different handling based on provider type
+                    if let viewModel = provider as? VideoPlayerViewModel {
+                        // For VideoPlayerViewModel, history navigation updates the index
+                        let nextVideo = await provider.getNextVideo()
+                        
+                        // Update the current cached video reference
+                        if let nextVideo = nextVideo {
+                            viewModel.updateCurrentCachedVideo(nextVideo)
+                        }
+                    } else if let favoritesViewModel = provider as? FavoritesViewModel {
+                        // For FavoritesViewModel, we need to use goToNextVideo to update the index
+                        // Call on main thread because this is triggered from a non-async context
+                        await MainActor.run {
+                            favoritesViewModel.goToNextVideo()
+                        }
                     }
                 }
             }
@@ -381,16 +449,25 @@ class VideoTransitionManager: ObservableObject {
             // Stop old player
             provider.player?.pause()
             
-            // We don't need to call getPreviousVideo() again here because:
-            // 1. We already called it during preloadPreviousVideo()
-            // 2. But then we called getNextVideo() to reset position
-            // 3. So now we need to move the index back once more
+            // Different handling based on provider type
             Task {
-                let prevVideo = await provider.getPreviousVideo()
-                
-                // Update the current cached video reference if provider is VideoPlayerViewModel
-                if let prevVideo = prevVideo, let viewModel = provider as? VideoPlayerViewModel {
-                    viewModel.updateCurrentCachedVideo(prevVideo)
+                if let viewModel = provider as? VideoPlayerViewModel {
+                    // For VideoPlayerViewModel we need to call getPreviousVideo()
+                    // 1. We already called it during preloadPreviousVideo()
+                    // 2. But then we called getNextVideo() to reset position
+                    // 3. So now we need to move the index back once more 
+                    let prevVideo = await provider.getPreviousVideo()
+                    
+                    // Update the current cached video reference
+                    if let prevVideo = prevVideo {
+                        viewModel.updateCurrentCachedVideo(prevVideo)
+                    }
+                } else if let favoritesViewModel = provider as? FavoritesViewModel {
+                    // For FavoritesViewModel, we need to use goToPreviousVideo to update the index
+                    // Call on main thread because this is triggered from a non-async context
+                    await MainActor.run {
+                        favoritesViewModel.goToPreviousVideo()
+                    }
                 }
             }
             
