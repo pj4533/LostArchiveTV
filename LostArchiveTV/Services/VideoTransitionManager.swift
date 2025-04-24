@@ -36,7 +36,43 @@ class VideoTransitionManager: ObservableObject {
             nextVideoReady = false
         }
         
-        // Create a temporary loading service to load next video
+        // First check if we have a next video in history
+        if let nextVideo = await viewModel.getNextVideo() {
+            // Move back to current position (getNextVideo moved us forward)
+            // We'll move forward again when the transition actually happens
+            _ = await viewModel.getPreviousVideo()
+            
+            // Create a new player for the next video from history
+            let player = AVPlayer(playerItem: AVPlayerItem(asset: nextVideo.asset))
+            
+            // Prepare player but keep it paused and muted
+            player.isMuted = true
+            player.pause()
+            
+            // Seek to the start position
+            let startTime = CMTime(seconds: nextVideo.startPosition, preferredTimescale: 600)
+            await player.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
+            
+            // Update UI on main thread
+            await MainActor.run {
+                // Update next video metadata
+                nextTitle = nextVideo.title
+                nextCollection = nextVideo.collection
+                nextDescription = nextVideo.description
+                nextIdentifier = nextVideo.identifier
+                
+                // Store reference to next player
+                nextPlayer = player
+                
+                // Mark next video as ready
+                nextVideoReady = true
+            }
+            
+            Logger.caching.info("Successfully prepared next video from history: \(nextVideo.identifier)")
+            return
+        }
+        
+        // If we don't have a next video in history, get a new random video
         let service = VideoLoadingService(
             archiveService: viewModel.archiveService,
             cacheManager: viewModel.cacheManager
@@ -71,8 +107,11 @@ class VideoTransitionManager: ObservableObject {
                 // Mark next video as ready
                 nextVideoReady = true
             }
+            
+            Logger.caching.info("Successfully preloaded new random video: \(videoInfo.identifier)")
         } catch {
             // Retry on error after a short delay
+            Logger.caching.error("Failed to preload random video: \(error.localizedDescription)")
             try? await Task.sleep(for: .seconds(0.5))
             await preloadNextVideo(viewModel: viewModel)
         }
@@ -85,13 +124,12 @@ class VideoTransitionManager: ObservableObject {
             prevVideoReady = false
         }
         
-        // Get previous video from history
-        guard let previousVideo = await viewModel.getPreviousVideo() else {
-            Logger.caching.warning("No previous video available in history")
-            return
-        }
-        
-        do {
+        // Check if there's a previous video in history
+        if let previousVideo = await viewModel.getPreviousVideo() {
+            // Move back to current index (getPreviousVideo moved us backward)
+            // We'll move backward again when the transition actually happens
+            _ = await viewModel.getNextVideo()
+            
             // Create a new player for the asset
             let player = AVPlayer(playerItem: AVPlayerItem(asset: previousVideo.asset))
             
@@ -118,9 +156,9 @@ class VideoTransitionManager: ObservableObject {
                 prevVideoReady = true
             }
             
-            Logger.caching.info("Successfully preloaded previous video: \(previousVideo.identifier)")
-        } catch {
-            Logger.caching.error("Failed to preload previous video: \(error.localizedDescription)")
+            Logger.caching.info("Successfully prepared previous video from history: \(previousVideo.identifier)")
+        } else {
+            Logger.caching.warning("No previous video available in history")
         }
     }
     
@@ -176,10 +214,46 @@ class VideoTransitionManager: ObservableObject {
             // Stop old player
             viewModel.player?.pause()
             
-            // Save current video to history if needed
+            // Handle forward navigation
             Task {
-                if let currentVideo = await viewModel.createCachedVideoFromCurrentState() {
-                    viewModel.addVideoToHistory(currentVideo)
+                // First, save current video to history if we're adding a new video
+                // This only happens when we're at the end of history
+                if viewModel.isAtEndOfHistory() {
+                    // Create a cached video from current state
+                    if let currentVideo = await viewModel.createCachedVideoFromCurrentState() {
+                        // Add to history first
+                        viewModel.addVideoToHistory(currentVideo)
+                        
+                        // Then create a new cached video for the next one
+                        let nextVideo = CachedVideo(
+                            identifier: self.nextIdentifier,
+                            collection: self.nextCollection,
+                            metadata: ArchiveMetadata(
+                                files: [],
+                                metadata: ItemMetadata(
+                                    identifier: self.nextIdentifier,
+                                    title: self.nextTitle,
+                                    description: self.nextDescription
+                                )
+                            ),
+                            mp4File: ArchiveFile(
+                                name: self.nextIdentifier,
+                                format: "h.264",
+                                size: "",
+                                length: nil
+                            ),
+                            videoURL: (nextPlayer.currentItem?.asset as? AVURLAsset)?.url ?? URL(string: "about:blank")!,
+                            asset: (nextPlayer.currentItem?.asset as? AVURLAsset) ?? AVURLAsset(url: URL(string: "about:blank")!),
+                            playerItem: nextPlayer.currentItem ?? AVPlayerItem(asset: AVURLAsset(url: URL(string: "about:blank")!)),
+                            startPosition: 0
+                        )
+                        
+                        // Add the new video to history
+                        viewModel.addVideoToHistory(nextVideo)
+                    }
+                } else {
+                    // We're just moving forward in history
+                    _ = await viewModel.getNextVideo()
                 }
             }
             
@@ -242,6 +316,12 @@ class VideoTransitionManager: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) {
             // Stop old player
             viewModel.player?.pause()
+            
+            // Simply navigate to previous video in history
+            // The index is already adjusted during the preload phase
+            Task {
+                _ = await viewModel.getPreviousVideo()
+            }
             
             // Update the view model with the previous video's metadata
             viewModel.currentTitle = self.prevTitle

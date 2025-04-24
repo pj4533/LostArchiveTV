@@ -41,7 +41,7 @@ class VideoPlayerViewModel: ObservableObject {
     // Archive.org video identifiers
     private var identifiers: [ArchiveIdentifier] = []
     
-    // Video history tracking
+    // Video history tracking - simple array with current index
     private var videoHistory: [CachedVideo] = []
     private var currentHistoryIndex: Int = -1
     
@@ -271,9 +271,10 @@ class VideoPlayerViewModel: ObservableObject {
                 }
             }
             
-            // Save this video to history
+            // Save the first loaded video to history
             if let currentVideo = await createCachedVideoFromCurrentState() {
                 addVideoToHistory(currentVideo)
+                Logger.caching.info("Added initial video to history")
             }
             
             // Only update loading state if we're showing immediately
@@ -302,8 +303,9 @@ class VideoPlayerViewModel: ObservableObject {
     
     // MARK: - History Management
     
+    // Add a video to history (at the end)
     func addVideoToHistory(_ video: CachedVideo) {
-        // If we're currently in the middle of the history, truncate forward history
+        // If we're not at the end of history, truncate forward history
         if currentHistoryIndex < self.videoHistory.count - 1 {
             self.videoHistory = Array(self.videoHistory[0...self.currentHistoryIndex])
         }
@@ -315,19 +317,37 @@ class VideoPlayerViewModel: ObservableObject {
         Logger.caching.info("Added video to history: \(video.identifier), history size: \(self.videoHistory.count), index: \(self.currentHistoryIndex)")
     }
     
+    // Get previous video from history
     func getPreviousVideo() async -> CachedVideo? {
-        // Ensure we're not at the beginning of history
-        guard self.currentHistoryIndex > 0, !self.videoHistory.isEmpty else {
-            Logger.caching.info("No previous video available in history")
+        guard currentHistoryIndex > 0, !videoHistory.isEmpty else {
+            Logger.caching.info("No previous video in history")
             return nil
         }
         
-        // Move back in history
         self.currentHistoryIndex -= 1
-        let previousVideo = self.videoHistory[self.currentHistoryIndex]
-        Logger.caching.info("Retrieved previous video from history: \(previousVideo.identifier), index: \(self.currentHistoryIndex)")
+        let video = self.videoHistory[self.currentHistoryIndex]
+        Logger.caching.info("Moving back in history to index \(self.currentHistoryIndex): \(video.identifier)")
+        return video
+    }
+    
+    // Get next video from history (or nil if we need a new one)
+    func getNextVideo() async -> CachedVideo? {
+        // If we're at the end of history, return nil (caller should load a new video)
+        guard currentHistoryIndex < videoHistory.count - 1, !videoHistory.isEmpty else {
+            Logger.caching.info("At end of history, need to load a new video")
+            return nil
+        }
         
-        return previousVideo
+        // Move forward in history
+        self.currentHistoryIndex += 1
+        let video = self.videoHistory[self.currentHistoryIndex]
+        Logger.caching.info("Moving forward in history to index \(self.currentHistoryIndex): \(video.identifier)")
+        return video
+    }
+    
+    // Check if we're at the end of history
+    func isAtEndOfHistory() -> Bool {
+        return currentHistoryIndex >= videoHistory.count - 1
     }
     
     func createCachedVideoFromCurrentState() async -> CachedVideo? {
