@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import OSLog
+import AVKit
 
 class FavoritesManager: ObservableObject {
     @Published private(set) var favorites: [CachedVideo] = []
@@ -78,7 +79,7 @@ class FavoritesManager: ObservableObject {
             }
         }
         
-        Logger.metadata.debug("Loaded \(favorites.count) favorite videos from UserDefaults")
+        Logger.metadata.debug("Loaded \(self.favorites.count) favorite videos from UserDefaults")
     }
     
     func saveFavorites() {
