@@ -317,8 +317,10 @@ class VideoTransitionManager: ObservableObject {
             // Stop old player
             viewModel.player?.pause()
             
-            // Simply navigate to previous video in history
-            // The index is already adjusted during the preload phase
+            // We don't need to call getPreviousVideo() again here because:
+            // 1. We already called it during preloadPreviousVideo()
+            // 2. But then we called getNextVideo() to reset position
+            // 3. So now we need to move the index back once more
             Task {
                 _ = await viewModel.getPreviousVideo()
             }

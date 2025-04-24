@@ -310,6 +310,12 @@ class VideoPlayerViewModel: ObservableObject {
             self.videoHistory = Array(self.videoHistory[0...self.currentHistoryIndex])
         }
         
+        // Check if we're about to add a duplicate of the last video
+        if let lastVideo = self.videoHistory.last, lastVideo.identifier == video.identifier {
+            Logger.caching.info("Skipping duplicate video in history: \(video.identifier)")
+            return
+        }
+        
         // Add new video to history
         self.videoHistory.append(video)
         self.currentHistoryIndex = self.videoHistory.count - 1
