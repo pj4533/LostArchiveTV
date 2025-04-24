@@ -11,7 +11,7 @@ import AVFoundation
 import OSLog
 
 @MainActor
-class VideoPlayerViewModel: ObservableObject {
+class VideoPlayerViewModel: ObservableObject, VideoProvider {
     // Services
     let archiveService = ArchiveService()
     let cacheManager = VideoCacheManager()

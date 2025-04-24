@@ -1,10 +1,30 @@
 import Foundation
 import Photos
 import OSLog
+import AVFoundation
+import ObjectiveC
 
 /// Service for handling video downloads from Internet Archive
 class VideoDownloadService {
     private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "download")
+    
+    /// Error types specific to video downloading
+    enum DownloadError: Error {
+        case noPlayableFilesFound
+        case invalidURL
+        case downloadFailed(String)
+        
+        var localizedDescription: String {
+            switch self {
+            case .noPlayableFilesFound:
+                return "No downloadable video file found"
+            case .invalidURL:
+                return "Could not create download URL"
+            case .downloadFailed(let message):
+                return "Download failed: \(message)"
+            }
+        }
+    }
     
     /// Download a video file for a given identifier
     /// - Parameters:
@@ -65,6 +85,100 @@ class VideoDownloadService {
                     completionHandler(.failure(NSError(domain: "VideoDownload", code: 3, userInfo: [
                         NSLocalizedDescriptionKey: "Permission to save photos is required. Please enable it in Settings."
                     ])))
+                }
+            }
+        }
+    }
+    
+    /// Download a video file to a temporary location for trimming
+    /// - Parameters:
+    ///   - identifier: Archive.org identifier
+    ///   - progressHandler: Callback for progress updates
+    ///   - completionHandler: Callback with the result (success with URL or failure)
+    func downloadVideoToTemp(
+        identifier: String,
+        progressHandler: @escaping (Float) -> Void,
+        completionHandler: @escaping (Result<URL, Error>) -> Void
+    ) {
+        Task {
+            do {
+                // Fetch the video URL - using the Archive Service
+                let archiveService = ArchiveService()
+                let metadata = try await archiveService.fetchMetadata(for: identifier)
+                
+                let playableFiles = await archiveService.findPlayableFiles(in: metadata)
+                guard let mp4File = playableFiles.first else {
+                    await MainActor.run {
+                        completionHandler(.failure(DownloadError.noPlayableFilesFound))
+                    }
+                    return
+                }
+                
+                // Get the video URL
+                guard let videoURL = await archiveService.getFileDownloadURL(for: mp4File, identifier: identifier) else {
+                    await MainActor.run {
+                        completionHandler(.failure(DownloadError.invalidURL))
+                    }
+                    return
+                }
+                
+                // Create a temporary file URL
+                let tempDir = FileManager.default.temporaryDirectory
+                let fileName = UUID().uuidString + ".mp4"
+                let localURL = tempDir.appendingPathComponent(fileName)
+                
+                // Create the download task
+                let config = URLSessionConfiguration.default
+                let session = URLSession(configuration: config)
+                let downloadTask = session.downloadTask(with: videoURL) { tempURL, response, error in
+                    if let error = error {
+                        DispatchQueue.main.async {
+                            completionHandler(.failure(DownloadError.downloadFailed(error.localizedDescription)))
+                        }
+                        return
+                    }
+                    
+                    guard let tempURL = tempURL else {
+                        DispatchQueue.main.async {
+                            completionHandler(.failure(DownloadError.downloadFailed("No file was downloaded")))
+                        }
+                        return
+                    }
+                    
+                    do {
+                        // Move file from temp location to our temp directory
+                        if FileManager.default.fileExists(atPath: localURL.path) {
+                            try FileManager.default.removeItem(at: localURL)
+                        }
+                        
+                        try FileManager.default.moveItem(at: tempURL, to: localURL)
+                        
+                        DispatchQueue.main.async {
+                            completionHandler(.success(localURL))
+                        }
+                    } catch {
+                        DispatchQueue.main.async {
+                            completionHandler(.failure(error))
+                        }
+                    }
+                }
+                
+                // Set up progress tracking
+                let observation = downloadTask.progress.observe(\.fractionCompleted) { progress, _ in
+                    DispatchQueue.main.async {
+                        progressHandler(Float(progress.fractionCompleted))
+                    }
+                }
+                
+                // Store the observation to keep it alive
+                objc_setAssociatedObject(downloadTask, "progressObservation", observation, .OBJC_ASSOCIATION_RETAIN)
+                
+                // Start the download
+                downloadTask.resume()
+                
+            } catch {
+                await MainActor.run {
+                    completionHandler(.failure(error))
                 }
             }
         }

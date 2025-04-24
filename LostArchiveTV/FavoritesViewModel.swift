@@ -11,7 +11,7 @@ import AVFoundation
 import OSLog
 
 @MainActor
-class FavoritesViewModel: ObservableObject {
+class FavoritesViewModel: ObservableObject, VideoProvider {
     // Services
     private let archiveService = ArchiveService()
     private let playbackManager = VideoPlaybackManager()
@@ -116,22 +116,41 @@ class FavoritesViewModel: ObservableObject {
         }
     }
     
-    func goToNextVideo() {
+    // VideoProvider protocol - Get next video
+    func getNextVideo() async -> CachedVideo? {
         let favorites = favoritesManager.favorites
-        guard !favorites.isEmpty else { return }
+        guard !favorites.isEmpty else { return nil }
         
         let nextIndex = (currentIndex + 1) % favorites.count
         currentIndex = nextIndex
-        setCurrentVideo(favorites[nextIndex])
+        return favorites[nextIndex]
     }
     
-    func goToPreviousVideo() {
+    // VideoProvider protocol - Get previous video
+    func getPreviousVideo() async -> CachedVideo? {
         let favorites = favoritesManager.favorites
-        guard !favorites.isEmpty else { return }
+        guard !favorites.isEmpty else { return nil }
         
         let previousIndex = (currentIndex - 1 + favorites.count) % favorites.count
         currentIndex = previousIndex
-        setCurrentVideo(favorites[previousIndex])
+        return favorites[previousIndex]
+    }
+    
+    // Original methods that use the protocol methods internally
+    func goToNextVideo() {
+        Task {
+            if let nextVideo = await getNextVideo() {
+                setCurrentVideo(nextVideo)
+            }
+        }
+    }
+    
+    func goToPreviousVideo() {
+        Task {
+            if let prevVideo = await getPreviousVideo() {
+                setCurrentVideo(prevVideo)
+            }
+        }
     }
     
     func pausePlayback() {
@@ -168,6 +187,44 @@ class FavoritesViewModel: ObservableObject {
         if let url = URL(string: urlString) {
             UIApplication.shared.open(url)
         }
+    }
+    
+    // MARK: - VideoProvider Protocol Implementation
+    
+    var currentIdentifier: String? {
+        get { currentVideo?.identifier }
+        set { /* No-op - handled via currentVideo */ }
+    }
+    
+    var currentTitle: String? {
+        get { currentVideo?.title }
+        set { /* No-op - handled via currentVideo */ }
+    }
+    
+    var currentCollection: String? {
+        get { currentVideo?.collection }
+        set { /* No-op - handled via currentVideo */ }
+    }
+    
+    var currentDescription: String? {
+        get { currentVideo?.description }
+        set { /* No-op - handled via currentVideo */ }
+    }
+    
+    func isAtEndOfHistory() -> Bool {
+        currentIndex >= favoritesManager.favorites.count - 1 || favoritesManager.favorites.isEmpty
+    }
+    
+    func createCachedVideoFromCurrentState() async -> CachedVideo? {
+        return currentVideo
+    }
+    
+    func addVideoToHistory(_ video: CachedVideo) {
+        // No-op for favorites - we don't maintain a separate history
+    }
+    
+    func ensureVideosAreCached() async {
+        // No additional preloading needed for favorites - they're already loaded
     }
     
     // MARK: - Duration Observation

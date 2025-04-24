@@ -36,7 +36,7 @@ struct FavoritesView: View {
             .navigationTitle("Favorites")
             .navigationBarTitleDisplayMode(.large)
             .fullScreenCover(isPresented: $showPlayer) {
-                FavoritesPlayerView(viewModel: viewModel, isPresented: $showPlayer)
+                SwipeablePlayerView(provider: viewModel, isPresented: $showPlayer)
             }
         }
     }
