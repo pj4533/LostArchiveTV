@@ -11,12 +11,11 @@ import AVFoundation
 import OSLog
 
 @MainActor
-class VideoPlayerViewModel: ObservableObject, VideoProvider {
+class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider {
     // Services
     let archiveService = ArchiveService()
     let cacheManager = VideoCacheManager()
     private let preloadService = PreloadService()
-    private let playbackManager = VideoPlaybackManager()
     private lazy var videoLoadingService = VideoLoadingService(
         archiveService: archiveService,
         cacheManager: cacheManager
@@ -25,15 +24,7 @@ class VideoPlayerViewModel: ObservableObject, VideoProvider {
     // Favorites manager
     let favoritesManager: FavoritesManager
     
-    // Published properties - these are the public interface of our ViewModel
-    @Published var isLoading = false
-    @Published var errorMessage: String?
-    @Published var currentIdentifier: String?
-    @Published var currentCollection: String?
-    @Published var currentTitle: String?
-    @Published var currentDescription: String?
-    
-    // New properties for tracking app initialization
+    // App initialization tracking
     @Published var isInitializing = true
     
     // Cache monitoring
@@ -49,17 +40,20 @@ class VideoPlayerViewModel: ObservableObject, VideoProvider {
     private let historyManager = VideoHistoryManager()
     
     // MARK: - Initialization and Cleanup
+    override init() {
+        // This empty init is needed to satisfy the compiler
+        // We'll use the designated init instead
+        fatalError("Use init(favoritesManager:) instead")
+    }
+    
     init(favoritesManager: FavoritesManager) {
         self.favoritesManager = favoritesManager
         
-        // Configure audio session for proper playback on all devices
-        playbackManager.setupAudioSession()
+        // Call base class init
+        super.init()
         
         // Set initial state
         isInitializing = true
-        
-        // Setup duration observation
-        setupDurationObserver()
         
         // Load identifiers and start preloading videos when the ViewModel is initialized
         Task {
@@ -109,22 +103,6 @@ class VideoPlayerViewModel: ObservableObject, VideoProvider {
             }
         }
     }
-    
-    // MARK: - Public Interface
-    
-    var player: AVPlayer? {
-        get { playbackManager.player }
-        set {
-            if let newPlayer = newValue {
-                // Use the player directly instead of creating a new one from asset
-                playbackManager.useExistingPlayer(newPlayer)
-            } else {
-                playbackManager.cleanupPlayer()
-            }
-        }
-    }
-    
-    @Published var videoDuration: Double = 0
     
     // MARK: - VideoProvider Protocol - History Management
     
@@ -205,44 +183,13 @@ class VideoPlayerViewModel: ObservableObject, VideoProvider {
         Task {
             await preloadService.cancelPreloading()
             await cacheManager.clearCache()
+            
+            // Player cleanup is handled by parent class
+            // Must use MainActor since the cleanup() method is @MainActor
+            await MainActor.run {
+                self.playbackManager.cleanupPlayer()
+            }
         }
-        
-        // Player cleanup is handled by playbackManager
-        playbackManager.cleanupPlayer()
-    }
-}
-
-// MARK: - Video Trimming Support Extension
-extension VideoPlayerViewModel {
-    var currentVideoURL: URL? {
-        playbackManager.currentVideoURL
-    }
-    
-    var currentVideoTime: CMTime? {
-        playbackManager.currentTimeAsCMTime
-    }
-    
-    var currentVideoDuration: CMTime? {
-        playbackManager.durationAsCMTime
-    }
-    
-    var isPlaying: Bool {
-        playbackManager.isPlaying
-    }
-    
-    func pausePlayback() {
-        Logger.videoPlayback.debug("Pausing playback for trimming")
-        playbackManager.pause()
-    }
-    
-    func resumePlayback() {
-        Logger.videoPlayback.debug("Resuming playback after trimming")
-        playbackManager.play()
-    }
-    
-    func restartVideo() {
-        Logger.videoPlayback.info("Restarting video from the beginning")
-        playbackManager.seekToBeginning()
     }
 }
 
@@ -343,9 +290,6 @@ extension VideoPlayerViewModel {
             // This will also extract and store the URL internally
             playbackManager.useExistingPlayer(player)
             
-            // Setup observation of playback manager's duration
-            setupDurationObserver()
-            
             // Always start playback of the video
             playbackManager.play()
             
@@ -396,18 +340,6 @@ extension VideoPlayerViewModel {
             archiveService: archiveService,
             identifiers: identifiers
         )
-    }
-    
-    // MARK: - Duration Observation
-    
-    private func setupDurationObserver() {
-        // Create an observation of the playbackManager's videoDuration property
-        Task {
-            for await _ in playbackManager.$videoDuration.values {
-                // Update our own published property when playbackManager's duration changes
-                self.videoDuration = playbackManager.videoDuration
-            }
-        }
     }
     
     // MARK: - Favorites Functionality

@@ -8,8 +8,13 @@ import Photos
 class VideoTrimViewModel: ObservableObject {
     private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "trimming")
     
-    // Player
-    let player: AVPlayer
+    // Use PlayerManager instead of direct player
+    private let playerManager = PlayerManager()
+    
+    // Player accessor for view layer
+    var player: AVPlayer {
+        return playerManager.player ?? AVPlayer()
+    }
     
     // Asset properties
     let assetURL: URL
@@ -43,9 +48,6 @@ class VideoTrimViewModel: ObservableObject {
     // Local video URL
     private var localVideoURL: URL?
     
-    // Time observer token
-    private var timeObserverToken: Any?
-    
     // Managers and services
     private let trimManager = VideoTrimManager()
     private var timelineManager: TimelineManager!
@@ -61,14 +63,6 @@ class VideoTrimViewModel: ObservableObject {
         logger.debug("VideoTrimViewModel initializing with URL: \(assetURL.absoluteString)")
         logger.debug("Asset exists: \(FileManager.default.fileExists(atPath: assetURL.path))")
         logger.debug("Asset duration: \(duration.seconds) seconds")
-        
-        // Initialize player with a unique audio configuration
-        let asset = AVAsset(url: assetURL)
-        let playerItem = AVPlayerItem(asset: asset)
-        self.player = AVPlayer(playerItem: playerItem)
-        
-        // Configure audio session
-        audioSessionManager.configureForTrimming()
         
         // Set initial values for trimming
         self.currentTime = currentPlaybackTime
@@ -87,6 +81,19 @@ class VideoTrimViewModel: ObservableObject {
         self.endTrimTime = CMTime(seconds: endTimeSeconds, preferredTimescale: 600)
         
         logger.debug("Trim time window: \(startTimeSeconds) to \(endTimeSeconds) seconds")
+        
+        // Initialize player with a unique audio configuration
+        let asset = AVAsset(url: assetURL)
+        let playerItem = AVPlayerItem(asset: asset)
+        
+        // Configure player manager
+        playerManager.createNewPlayer(from: asset, url: assetURL)
+        
+        // Configure audio session for trimming
+        playerManager.setupAudioSession(forTrimming: true)
+        
+        // Set up player observation
+        setupPlayerObservation()
         
         // Initialize timeline manager after properties are set
         self.timelineManager = TimelineManager(
@@ -114,6 +121,15 @@ class VideoTrimViewModel: ObservableObject {
         
         // Set up playback time observer
         setupTimeObserver()
+    }
+    
+    private func setupPlayerObservation() {
+        // Observe player isPlaying state
+        Task {
+            for await isPlaying in playerManager.$isPlaying.values {
+                self.isPlaying = isPlaying
+            }
+        }
     }
     
     deinit {
@@ -162,11 +178,9 @@ extension VideoTrimViewModel {
             logger.debug("Creating AVAsset from URL: \(self.assetURL.absoluteString)")
             let asset = AVAsset(url: self.assetURL)
             
-            logger.debug("Creating player item")
-            let playerItem = AVPlayerItem(asset: asset)
-            
-            logger.debug("Replacing player's current item")
-            self.player.replaceCurrentItem(with: playerItem)
+            // Create a new player with the asset
+            logger.debug("Creating player item and player")
+            playerManager.createNewPlayer(from: asset, url: self.assetURL)
             
             // Seek to the start trim time
             logger.debug("Seeking to start time: \(self.startTrimTime.seconds) seconds")
@@ -195,22 +209,15 @@ extension VideoTrimViewModel {
         
         // First make sure playback is stopped
         if isPlaying {
-            player.pause()
+            playerManager.pause()
             isPlaying = false
         }
         
-        // Safely remove observer
-        if let token = timeObserverToken {
-            logger.debug("Removing time observer before dismissal")
-            player.removeTimeObserver(token)
-            timeObserverToken = nil
-        }
-        
-        // Break any potential retain cycles
-        player.replaceCurrentItem(with: nil)
+        // Clean up player using PlayerManager
+        playerManager.cleanupPlayer()
         
         // Reset audio session
-        audioSessionManager.deactivate()
+        playerManager.deactivateAudioSession()
         
         // Clean up any downloaded temp files if not saved
         if let localURL = localVideoURL, !isSaving {
@@ -228,8 +235,10 @@ extension VideoTrimViewModel {
 // MARK: - Playback Control
 extension VideoTrimViewModel {
     private func setupTimeObserver() {
+        // We manage our own time observer for the trim interface
+        // since we need finer-grained control than PlayerManager provides
         let interval = CMTime(seconds: 0.1, preferredTimescale: 600)
-        timeObserverToken = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
+        player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
             guard let self = self else { return }
             self.currentTime = time
             self.timelineManager.updateCurrentTime(time)
@@ -270,10 +279,10 @@ extension VideoTrimViewModel {
                 // The seek completion handler will start playback
             } else {
                 // Otherwise just play from current position
-                player.play()
+                playerManager.play()
             }
         } else {
-            player.pause()
+            playerManager.pause()
         }
         
         // Show the play button again when interacting with the timeline, dragging handles, or tapping the video
@@ -282,12 +291,12 @@ extension VideoTrimViewModel {
     
     func seekToTime(_ time: CMTime) {
         // Seek with completion handler to ensure operation finishes
-        player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] completed in
+        playerManager.seek(to: time) { [weak self] completed in
             guard let self = self, completed else { return }
             
             // If player is already in playing state, ensure it's actually playing
             if self.isPlaying {
-                self.player.play()
+                self.playerManager.play()
             }
         }
     }
@@ -316,7 +325,7 @@ extension VideoTrimViewModel {
     func startLeftHandleDrag(position: CGFloat) {
         // Pause playback if currently playing
         if isPlaying {
-            player.pause()
+            playerManager.pause()
             isPlaying = false
         }
         
@@ -340,7 +349,7 @@ extension VideoTrimViewModel {
     func startRightHandleDrag(position: CGFloat) {
         // Pause playback if currently playing
         if isPlaying {
-            player.pause()
+            playerManager.pause()
             isPlaying = false
         }
         
@@ -364,7 +373,7 @@ extension VideoTrimViewModel {
     func scrubTimeline(position: CGFloat, timelineWidth: CGFloat) {
         // Pause playback if currently playing
         if isPlaying {
-            player.pause()
+            playerManager.pause()
             isPlaying = false
         }
         
@@ -419,7 +428,7 @@ extension VideoTrimViewModel {
         
         // Stop playback
         if isPlaying {
-            player.pause()
+            playerManager.pause()
             isPlaying = false
         }
         

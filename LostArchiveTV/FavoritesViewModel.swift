@@ -11,20 +11,16 @@ import AVFoundation
 import OSLog
 
 @MainActor
-class FavoritesViewModel: ObservableObject, VideoProvider {
+class FavoritesViewModel: BaseVideoViewModel, VideoProvider {
     // Services
     private let archiveService = ArchiveService()
-    private let playbackManager = VideoPlaybackManager()
     
     // Favorites manager
     private let favoritesManager: FavoritesManager
     
-    // Published properties
-    @Published var isLoading = false
-    @Published var errorMessage: String?
+    // Additional published properties
     @Published var currentVideo: CachedVideo?
     @Published var showMetadata = false
-    @Published var videoDuration: Double = 0
     
     // Video management - needs to be public for VideoTransitionManager
     private(set) var currentIndex: Int = 0
@@ -32,30 +28,47 @@ class FavoritesViewModel: ObservableObject, VideoProvider {
     // Reference to the transition manager for preloading
     var transitionManager: VideoTransitionManager? = nil
     
+    override init() {
+        // This empty init is needed to satisfy the compiler
+        // We'll use the designated init instead
+        fatalError("Use init(favoritesManager:) instead")
+    }
+    
     init(favoritesManager: FavoritesManager) {
         self.favoritesManager = favoritesManager
         
-        // Configure audio session for proper playback
-        playbackManager.setupAudioSession()
+        // Call base class init
+        super.init()
         
-        // Setup duration observation
-        setupDurationObserver()
+        // Setup property synchronization
+        setupVideoPropertySynchronization()
+    }
+    
+    /// Sets up synchronization between currentVideo and base class properties
+    private func setupVideoPropertySynchronization() {
+        // When currentVideo changes, update all the base class properties
+        Task {
+            // Use delayed update to allow properties to be properly initialized
+            try? await Task.sleep(for: .seconds(0.1))
+            
+            // Set initial values from currentVideo (if available)
+            updateBasePropertiesFromCurrentVideo()
+        }
+    }
+    
+    /// Updates base class properties from currentVideo
+    private func updateBasePropertiesFromCurrentVideo() {
+        if let video = currentVideo {
+            currentIdentifier = video.identifier
+            currentTitle = video.title
+            currentCollection = video.collection
+            currentDescription = video.description
+        }
     }
 }
 
 // MARK: - Public Interface
 extension FavoritesViewModel {
-    var player: AVPlayer? {
-        get { playbackManager.player }
-        set {
-            if let newPlayer = newValue {
-                playbackManager.useExistingPlayer(newPlayer)
-            } else {
-                playbackManager.cleanupPlayer()
-            }
-        }
-    }
-    
     var favorites: [CachedVideo] {
         favoritesManager.favorites
     }
@@ -114,6 +127,9 @@ extension FavoritesViewModel {
         // Set the current video reference
         self.currentVideo = video
         
+        // Update base class properties
+        updateBasePropertiesFromCurrentVideo()
+        
         // Create a fresh player with a new AVPlayerItem
         createAndSetupPlayer(for: video)
         
@@ -130,6 +146,9 @@ extension FavoritesViewModel {
     
     func setCurrentVideo(_ video: CachedVideo) {
         self.currentVideo = video
+        
+        // Update base class properties
+        updateBasePropertiesFromCurrentVideo()
         
         // Create a fresh player with a new AVPlayerItem
         createAndSetupPlayer(for: video)
@@ -156,31 +175,6 @@ extension FavoritesViewModel {
             Logger.caching.info("FavoritesViewModel: Player setup complete, playback started")
         }
     }
-    
-    // Player control functions
-    func pausePlayback() {
-        playbackManager.pause()
-    }
-    
-    func resumePlayback() {
-        playbackManager.play()
-    }
-    
-    func restartVideo() {
-        playbackManager.seekToBeginning()
-    }
-    
-    func togglePlayPause() {
-        if playbackManager.isPlaying {
-            playbackManager.pause()
-        } else {
-            playbackManager.play()
-        }
-    }
-    
-    var isPlaying: Bool {
-        playbackManager.isPlaying
-    }
 }
 
 // MARK: - UI Interactions
@@ -198,33 +192,6 @@ extension FavoritesViewModel {
     }
 }
     
-// MARK: - VideoProvider Protocol Implementation
-extension FavoritesViewModel {
-    var currentIdentifier: String? {
-        get { currentVideo?.identifier }
-        set {
-            if let newValue = newValue, let index = favorites.firstIndex(where: { $0.identifier == newValue }) {
-                currentVideo = favorites[index]
-            }
-        }
-    }
-    
-    var currentTitle: String? {
-        get { currentVideo?.title }
-        set { /* Title is determined by currentIdentifier or currentVideo */ }
-    }
-    
-    var currentCollection: String? {
-        get { currentVideo?.collection }
-        set { /* Collection is determined by currentIdentifier or currentVideo */ }
-    }
-    
-    var currentDescription: String? {
-        get { currentVideo?.description }
-        set { /* Description is determined by currentIdentifier or currentVideo */ }
-    }
-}
-
 // MARK: - Video Navigation
 extension FavoritesViewModel {
     // VideoProvider protocol - Get next video
@@ -343,16 +310,6 @@ extension FavoritesViewModel {
             
             // Wait for both tasks to complete
             _ = await [nextTask.value, prevTask.value]
-        }
-    }
-    
-    // MARK: - Duration Observation
-    
-    private func setupDurationObserver() {
-        Task {
-            for await _ in playbackManager.$videoDuration.values {
-                self.videoDuration = playbackManager.videoDuration
-            }
         }
     }
 }

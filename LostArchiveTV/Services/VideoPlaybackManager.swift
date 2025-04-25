@@ -10,211 +10,107 @@ import AVFoundation
 import OSLog
 
 class VideoPlaybackManager: ObservableObject {
-    @Published var player: AVPlayer?
+    // Use the centralized PlayerManager
+    private let playerManager = PlayerManager()
+    
+    // Published properties that mirror PlayerManager values
     @Published var isPlaying = false
     @Published var currentTime: Double = 0
     @Published var videoDuration: Double = 0
     @Published var isLoopingEnabled = false
     
-    private var timeObserverToken: Any?
+    init() {
+        // Set up observation of the player manager's published properties
+        setupObservations()
+        
+        // Configure audio session
+        setupAudioSession()
+    }
     
-    // Current video URL for trimming
-    private var _currentVideoURL: URL?
+    private func setupObservations() {
+        // Observe isPlaying
+        Task {
+            for await isPlaying in playerManager.$isPlaying.values {
+                await MainActor.run {
+                    self.isPlaying = isPlaying
+                }
+            }
+        }
+        
+        // Observe currentTime
+        Task {
+            for await currentTime in playerManager.$currentTime.values {
+                await MainActor.run {
+                    self.currentTime = currentTime
+                }
+            }
+        }
+        
+        // Observe videoDuration
+        Task {
+            for await videoDuration in playerManager.$videoDuration.values {
+                await MainActor.run {
+                    self.videoDuration = videoDuration
+                }
+            }
+        }
+    }
     
-    // Computed properties for video trimming
+    // MARK: - Proxied Player Properties
+    var player: AVPlayer? {
+        get { playerManager.player }
+        set {
+            if let newPlayer = newValue {
+                playerManager.useExistingPlayer(newPlayer)
+            } else {
+                playerManager.cleanupPlayer()
+            }
+        }
+    }
+    
     var currentVideoURL: URL? {
-        return _currentVideoURL
+        return playerManager.currentVideoURL
     }
     
     var currentTimeAsCMTime: CMTime? {
-        guard let player = player else { return nil }
-        return player.currentItem?.currentTime()
+        return playerManager.currentTimeAsCMTime
     }
     
     var durationAsCMTime: CMTime? {
-        guard let player = player else { return nil }
-        return player.currentItem?.duration
+        return playerManager.durationAsCMTime
     }
     
-    
-    func useExistingPlayer(_ player: AVPlayer) {
-        Logger.videoPlayback.debug("Using existing player (preserving seek position)")
-        
-        // Clean up resources from the existing player
-        cleanupPlayer()
-        
-        // Use the provided player directly
-        self.player = player
-        
-        // Extract and store the asset URL if it's an AVURLAsset
-        if let asset = player.currentItem?.asset as? AVURLAsset {
-            Logger.videoPlayback.debug("Extracted URL from asset: \(asset.url)")
-            _currentVideoURL = asset.url
-        } else {
-            Logger.videoPlayback.warning("Could not extract URL from player asset")
-        }
-        
-        // Set playback rate to 1 (normal speed)
-        self.player?.rate = 1.0
-        
-        // Add time observer
-        setupTimeObserver()
-        
-        // Add notification for playback ending if there's a current item
-        if let playerItem = player.currentItem {
-            setupPlaybackEndNotification(for: playerItem)
-        }
-        
-        // Get current playback position for logging
-        if let currentTime = player.currentItem?.currentTime().seconds,
-           let duration = player.currentItem?.duration.seconds {
-            Logger.videoPlayback.info("Using player at position \(currentTime.formatted(.number.precision(.fractionLength(2))))s of \(duration.formatted(.number.precision(.fractionLength(2))))s")
-        }
-    }
-    
-    private func setupTimeObserver() {
-        let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-        timeObserverToken = player?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-            guard let self = self else { return }
-            self.currentTime = time.seconds
-            
-            // Update player state
-            self.isPlaying = (self.player?.rate ?? 0) > 0
-            
-            // Always check and update duration to make sure it's current
-            if let currentItem = self.player?.currentItem {
-                let itemDuration = currentItem.duration
-                if itemDuration.isValid && !itemDuration.isIndefinite {
-                    self.videoDuration = itemDuration.seconds
-                }
-            }
-        }
-    }
-    
-    private func setupPlaybackEndNotification(for playerItem: AVPlayerItem) {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(playerItemDidReachEnd),
-            name: .AVPlayerItemDidPlayToEndTime,
-            object: playerItem
-        )
-    }
-    
-    @objc private func playerItemDidReachEnd(notification: Notification) {
-        Logger.videoPlayback.info("Video playback reached end - restarting from beginning")
-        // Seek to the beginning and continue playing
-        player?.seek(to: CMTime.zero)
-        player?.play()
-        isPlaying = true
-    }
+    // MARK: - Proxied Methods
     
     func setupAudioSession() {
-        do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback, mode: .moviePlayback)
-            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
-            Logger.videoPlayback.info("Audio session configured successfully")
-        } catch {
-            Logger.videoPlayback.error("Failed to configure audio session: \(error.localizedDescription)")
-        }
+        playerManager.setupAudioSession()
+    }
+    
+    func useExistingPlayer(_ player: AVPlayer) {
+        playerManager.useExistingPlayer(player)
     }
     
     func play() {
-        Logger.videoPlayback.debug("Playing video")
-        player?.play()
-        isPlaying = true
+        playerManager.play()
     }
     
     func pause() {
-        Logger.videoPlayback.debug("Pausing video")
-        player?.pause()
-        isPlaying = false
+        playerManager.pause()
     }
     
     func seek(to time: CMTime, completion: ((Bool) -> Void)? = nil) {
-        Logger.videoPlayback.debug("Seeking to time: \(time.seconds)")
-        player?.seek(to: time, toleranceBefore: CMTime(seconds: 5, preferredTimescale: 600), 
-                   toleranceAfter: CMTime(seconds: 5, preferredTimescale: 600)) { finished in
-            completion?(finished)
-        }
+        playerManager.seek(to: time, completion: completion)
     }
     
     func seekToBeginning() {
-        Logger.videoPlayback.info("Seeking to beginning of video and playing")
-        player?.seek(to: CMTime.zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] completed in
-            if completed {
-                self?.player?.play()
-                self?.isPlaying = true
-            }
-        }
+        playerManager.seekToBeginning()
     }
     
     func monitorBufferStatus(for playerItem: AVPlayerItem) async {
-        Task { @MainActor in
-            for monitorCount in 0..<10 {
-                guard self.player != nil else { break }
-                
-                let currentTime = playerItem.currentTime().seconds
-                let totalDuration = self.videoDuration
-                let percentComplete = totalDuration > 0 ? (currentTime / totalDuration) * 100 : 0
-                let loadedRanges = playerItem.loadedTimeRanges
-                
-                if !loadedRanges.isEmpty {
-                    let bufferedDuration = loadedRanges.reduce(0.0) { total, timeRange in
-                        let range = timeRange.timeRangeValue
-                        return total + range.duration.seconds
-                    }
-                    
-                    let playbackLikelyToKeepUp = playerItem.isPlaybackLikelyToKeepUp
-                    let bufferFull = playerItem.isPlaybackBufferFull
-                    let bufferEmpty = playerItem.isPlaybackBufferEmpty
-                    
-                    // Create detailed playback progress log
-                    let monitorLog = """
-                    [Monitor \(monitorCount+1)/10] Playback status at time \(currentTime.formatted(.number.precision(.fractionLength(2))))s / \(totalDuration.formatted(.number.precision(.fractionLength(2))))s (\(percentComplete.formatted(.number.precision(.fractionLength(2)))))%):
-                    - Buffered: \(bufferedDuration.formatted(.number.precision(.fractionLength(1))))s ahead
-                    - Buffer status: \(bufferEmpty ? "EMPTY" : bufferFull ? "FULL" : playbackLikelyToKeepUp ? "GOOD" : "LOW")
-                    - Buffer likely to keep up: \(playbackLikelyToKeepUp)
-                    - Buffer full: \(bufferFull)
-                    - Buffer empty: \(bufferEmpty)
-                    """
-                    
-                    Logger.videoPlayback.debug("\(monitorLog)")
-                    
-                    if bufferEmpty {
-                        Logger.videoPlayback.warning("⚠️ Playback buffer empty at \(currentTime.formatted(.number.precision(.fractionLength(2))))s (\(percentComplete.formatted(.number.precision(.fractionLength(2)))))%)")
-                    }
-                }
-                
-                try? await Task.sleep(for: .seconds(3))
-            }
-        }
+        await playerManager.monitorBufferStatus(for: playerItem)
     }
     
-    
     func cleanupPlayer() {
-        Logger.videoPlayback.debug("Cleaning up player resources")
-        
-        // Remove time observer
-        if let timeObserverToken = timeObserverToken, let player = player {
-            player.removeTimeObserver(timeObserverToken)
-            self.timeObserverToken = nil
-        }
-        
-        // Remove notification observers
-        NotificationCenter.default.removeObserver(
-            self,
-            name: .AVPlayerItemDidPlayToEndTime,
-            object: player?.currentItem
-        )
-        
-        // Stop and clear player
-        player?.pause()
-        player?.replaceCurrentItem(with: nil)
-        player = nil
-        isPlaying = false
-        currentTime = 0
-        videoDuration = 0
-        _currentVideoURL = nil
+        playerManager.cleanupPlayer()
     }
 }
