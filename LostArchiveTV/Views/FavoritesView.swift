@@ -62,26 +62,36 @@ struct FavoritesView: View {
     
     private var gridView: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 16) {
+            LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(Array(viewModel.favorites.enumerated()), id: \.element.id) { index, video in
-                    VideoThumbnailView(video: video)
-                        .aspectRatio(1, contentMode: .fit)
-                        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 120)
-                        .cornerRadius(8)
-                        .onTapGesture {
-                            // Start loading the video
-                            viewModel.playVideoAt(index: index)
-                            
-                            // Show the player after a brief delay to ensure initialization completes
-                            // This gives time for the player to be created and ready for display
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                showPlayer = true
-                            }
-                        }
+                    FavoriteCell(video: video, index: index, viewModel: viewModel, showPlayer: $showPlayer)
                 }
             }
-            .padding()
+            .padding(8)
         }
+    }
+}
+
+struct FavoriteCell: View {
+    let video: CachedVideo
+    let index: Int
+    let viewModel: FavoritesViewModel
+    @Binding var showPlayer: Bool
+    
+    var body: some View {
+        VideoThumbnailView(video: video)
+            .aspectRatio(1, contentMode: .fill)
+            .frame(minWidth: 0, maxWidth: .infinity)
+            .clipped()
+            .onTapGesture {
+                // Start loading the video
+                viewModel.playVideoAt(index: index)
+                
+                // Show the player after a brief delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    showPlayer = true
+                }
+            }
     }
 }
 
@@ -89,34 +99,7 @@ struct VideoThumbnailView: View {
     let video: CachedVideo
     
     var body: some View {
-        ZStack(alignment: .bottom) {
-            // Thumbnail image
-            thumbnailImage
-            
-            // Title overlay at bottom
-            VStack(alignment: .leading, spacing: 2) {
-                Text(video.title)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .lineLimit(2)
-                    .foregroundColor(.white)
-            }
-            .padding(8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [.black.opacity(0.8), .clear]),
-                    startPoint: .bottom,
-                    endPoint: .top
-                )
-            )
-        }
-        .background(Color.gray.opacity(0.3))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-    
-    private var thumbnailImage: some View {
-        Group {
+        ZStack {
             if let thumbnailURL = video.thumbnailURL {
                 AsyncImage(url: thumbnailURL) { phase in
                     switch phase {
@@ -126,27 +109,25 @@ struct VideoThumbnailView: View {
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)
-                            .clipped()
                     case .failure:
-                        ZStack {
-                            Color.gray.opacity(0.3)
-                            Image(systemName: "film")
-                                .font(.largeTitle)
-                                .foregroundColor(.white)
-                        }
+                        fallbackImage
                     @unknown default:
-                        Color.gray.opacity(0.3)
+                        fallbackImage
                     }
                 }
             } else {
-                ZStack {
-                    Color.gray.opacity(0.3)
-                    Image(systemName: "film")
-                        .font(.largeTitle)
-                        .foregroundColor(.white)
-                }
+                fallbackImage
             }
         }
-        .aspectRatio(1, contentMode: .fit)
+        .background(Color.gray.opacity(0.3))
+    }
+    
+    private var fallbackImage: some View {
+        ZStack {
+            Color.gray.opacity(0.3)
+            Image(systemName: "film")
+                .font(.largeTitle)
+                .foregroundColor(.white)
+        }
     }
 }

@@ -54,14 +54,7 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                                 viewModel: videoPlayerViewModel
                             )
                         } else {
-                            // Simple info display for non-VideoPlayerViewModel providers
-                            VStack {
-                                Spacer()
-                                Text(transitionManager.prevTitle)
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                    .padding()
-                            }
+                            // Text view for previous video removed
                         }
                     }
                     .frame(width: geometry.size.width, height: geometry.size.height)
@@ -92,14 +85,7 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                                 viewModel: videoPlayerViewModel
                             )
                         } else {
-                            // Simple info display for non-VideoPlayerViewModel providers
-                            VStack {
-                                Spacer()
-                                Text(transitionManager.nextTitle)
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                    .padding()
-                            }
+                            // Text view for next video removed
                         }
                     }
                     .frame(width: geometry.size.width, height: geometry.size.height)
