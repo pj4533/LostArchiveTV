@@ -19,8 +19,19 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
     @State private var isDragging = false
     @State private var showBackButton = false
     
+    // Track the current step in the trim workflow
+    @State private var trimStep: TrimWorkflowStep = .none
+    @State private var downloadedVideoURL: URL? = nil
+    
     // Optional binding for dismissal in modal presentations
     var isPresented: Binding<Bool>?
+    
+    // Enum for tracking trim workflow steps
+    enum TrimWorkflowStep {
+        case none        // No trim action in progress
+        case downloading // Downloading video for trimming
+        case trimming    // Showing trim interface
+    }
     
     // Constants for animation
     private let swipeThreshold: CGFloat = 100
@@ -253,9 +264,7 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                                             // Trim button (enabled)
                                             OverlayButton(
                                                 action: {
-                                                    // Pause playback
-                                                    favoritesViewModel.pausePlayback()
-                                                    // TODO: Implement trim flow for favorites
+                                                    startTrimFlow(favoritesViewModel: favoritesViewModel)
                                                 },
                                                 disabled: favoritesViewModel.currentVideo == nil
                                             ) {
@@ -299,6 +308,54 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .contentShape(Rectangle())
+            // Sheet for trim workflow (only when a trim step is active)
+            .sheet(isPresented: Binding<Bool>(
+                get: { trimStep != .none },
+                set: { if !$0 { trimStep = .none }}
+            ), onDismiss: {
+                // Only handle dismissal if we're not advancing to the next step
+                if trimStep == .none {
+                    self.downloadedVideoURL = nil
+                    if let favoritesViewModel = provider as? FavoritesViewModel {
+                        favoritesViewModel.resumePlayback()
+                    }
+                }
+            }) {
+                // Use specific content view to satisfy type inference
+                VStack {
+                    if trimStep == .downloading {
+                        // Download sheet
+                        TrimDownloadView(provider: provider) { downloadedURL in
+                            if let url = downloadedURL {
+                                // Success - move to trim step
+                                self.downloadedVideoURL = url
+                                self.trimStep = .trimming
+                            } else {
+                                // Failed download - dismiss everything
+                                self.downloadedVideoURL = nil
+                                self.trimStep = .none
+                            }
+                        }
+                    } else if trimStep == .trimming, 
+                              let downloadedURL = downloadedVideoURL,
+                              let favoritesViewModel = provider as? FavoritesViewModel {
+                        // Get current time and duration from the player
+                        let currentTimeSeconds = favoritesViewModel.player?.currentTime().seconds ?? 0
+                        let durationSeconds = favoritesViewModel.videoDuration
+                        
+                        // Convert to CMTime for VideoTrimViewModel
+                        let currentTime = CMTime(seconds: currentTimeSeconds, preferredTimescale: 600)
+                        let duration = CMTime(seconds: durationSeconds, preferredTimescale: 600)
+                        
+                        // Trim view
+                        VideoTrimView(viewModel: VideoTrimViewModel(
+                            assetURL: downloadedURL,
+                            currentPlaybackTime: currentTime,
+                            duration: duration
+                        ))
+                    }
+                }
+            }
             // Gesture for vertical swipe - only enable when we have a video playing
             .simultaneousGesture(
                 provider.player == nil ? nil :
@@ -426,6 +483,22 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                     Logger.caching.error("⚠️ SwipeablePlayerView onAppear: Player is nil, cannot preload")
                 }
             }
+        }
+    }
+}
+
+extension SwipeablePlayerView {
+    // Function to start the trim flow for favorites
+    func startTrimFlow(favoritesViewModel: FavoritesViewModel) {
+        // Log the action
+        Logger.caching.debug("Starting trim flow for favorites")
+        
+        // Pause playback
+        Task { @MainActor in
+            favoritesViewModel.pausePlayback()
+            
+            // Start the trim workflow with the download step
+            trimStep = .downloading
         }
     }
 }
