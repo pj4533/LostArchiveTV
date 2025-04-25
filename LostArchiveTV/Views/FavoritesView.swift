@@ -13,9 +13,9 @@ struct FavoritesView: View {
     @State private var showPlayer = false
     
     private let columns = [
-        GridItem(.flexible()),
-        GridItem(.flexible()),
-        GridItem(.flexible())
+        GridItem(.flexible(), spacing: 1),
+        GridItem(.flexible(), spacing: 1),
+        GridItem(.flexible(), spacing: 1)
     ]
     
     init(favoritesManager: FavoritesManager, viewModel: FavoritesViewModel) {
@@ -66,12 +66,13 @@ struct FavoritesView: View {
     
     private var gridView: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 8) {
+            LazyVGrid(columns: columns, spacing: 1) {
                 ForEach(Array(viewModel.favorites.enumerated()), id: \.element.id) { index, video in
                     FavoriteCell(video: video, index: index, viewModel: viewModel, showPlayer: $showPlayer)
                 }
             }
-            .padding(8)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 1)
         }
     }
 }
