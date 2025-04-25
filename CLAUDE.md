@@ -22,10 +22,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Structure
 - Organized into separate Models, Views, ViewModels, and Services directories
-- Models in `Models/` directory: ArchiveIdentifier, ArchiveMetadata, ArchiveFile, ItemMetadata, CachedVideo, ArchiveCollection
+- Models in `Models/` directory: ArchiveIdentifier, ArchiveMetadata, ArchiveFile, ItemMetadata, CachedVideo, ArchiveCollection, CollectionPreferences, CollectionConfigViewModel
 - Views in `Views/` directory: ContentView, VideoPlayerContent, LoadingView, ErrorView, VideoInfoOverlay, SwipeableVideoView, VideoTrimView, TimelineView, TrimHandle, TrimDownloadView
-- Services in `Services/` directory: ArchiveService, VideoCacheManager, VideoPlaybackManager, VideoTrimManager, VideoSaveManager, VideoExportService, PreloadService, LoggingService, VideoLoadingService, VideoDownloadService, VideoTransitionManager, TimelineManager, AudioSessionManager
-- ViewModels: VideoPlayerViewModel.swift and VideoTrimViewModel.swift (both use MainActor for UI updates)
+- Services in `Services/` directory: ArchiveService, VideoCacheManager, VideoPlaybackManager, PlayerManager, VideoTrimManager, VideoSaveManager, VideoExportService, PreloadService, LoggingService, VideoLoadingService, VideoDownloadService, VideoTransitionManager, TimelineManager, AudioSessionManager, FavoritesManager
+- ViewModels: BaseVideoViewModel (in ViewModels directory), VideoPlayerViewModel, VideoTrimViewModel and FavoritesViewModel (all use MainActor for UI updates)
 - App entry point in `LostArchiveTVApp.swift`
 - Video identifiers stored in `identifiers.sqlite` database with collections table and individual collection tables
 - You NEVER have to alter the Xcode project file to add new files - the project uses folder references that automatically include any new files
@@ -45,6 +45,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Continuously preloads new videos as others are consumed from the cache
 - See `docs/preloading_and_cacheing.md` for detailed documentation
 
+## Feature: Centralized Player Management
+- PlayerManager provides a single source of truth for player functionality
+- Handles audio session configuration via AudioSessionManager
+- Manages AVPlayer lifecycle, time observation, and playback status
+- Improves code reuse through service-based architecture
+- VideoPlaybackManager acts as a facade that delegates to PlayerManager
+- BaseVideoViewModel provides shared player functionality for view models
+
 ## Feature: Video Trimming
 - VideoTrimView provides the UI for trimming videos with a timeline and handles
 - TimelineView displays video thumbnails and trim handles for visual reference
@@ -54,6 +62,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - TrimDownloadView shows the download progress when preparing videos for trimming
 - Auto-hiding play/pause button provides better user experience during trimming
 - Videos can be trimmed to custom lengths with visual timeline for reference
+
+## Feature: Favorites
+- Allows users to save videos they want to revisit later
+- FavoritesManager handles saving and retrieving favorites data
+- FavoritesViewModel extends BaseVideoViewModel for consistent player experience
+- FavoritesView displays saved videos in a custom interface
+- Integrates with the video player components for a consistent UI
 
 ## Testing Approach
 - Uses Swift Testing framework (not XCTest) for unit tests
@@ -73,10 +88,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Use Codable for data models to support both encoding and decoding
 - Use computed properties for derived values
 - Use MainActor for UI-related view models
+- Use inheritance with BaseVideoViewModel for shared video functionality
 - Group related functionality using extensions
 - Use optional chaining for handling nullable values
 - Explicitly handle errors with try/catch
 - Keep functions small and focused on a single responsibility
+- Follow the DRY principle with centralized services like PlayerManager
 - Leverage OSLog for structured logging across different categories (network, metadata, caching, etc.)
 - Use descriptive variable names following Swift conventions (camelCase)
 - Implement robust error handling and recovery
+- Use protocol-based design for flexible component interfaces
+- Prefer facade services that delegate to specialized managers

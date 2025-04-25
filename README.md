@@ -24,20 +24,24 @@ LostArchiveTV lets you discover historical films, educational videos, and other 
 - Export trimmed video clips to Photos library
 - Thumbnail generation for visual timeline navigation
 - Optimized loading screen that displays content as soon as the first video is ready
+- Favorites system for saving interesting videos for later viewing
+- Centralized player management with improved code reuse
 
 ## How It Works
 
 - Loads identifiers from a SQLite database with collection information
 - Prioritizes preferred collections for better content selection
 - Fetches metadata and streaming URLs via the Archive.org API
-- Uses AVKit for high-performance video playback
+- Uses AVKit for high-performance video playback with centralized PlayerManager
 - Implements Swift concurrency (async/await) for smooth operation
 - Preloads upcoming videos in the background
 - Maintains a video cache for optimal performance
 - Tracks viewing history for consistent bidirectional navigation
+- Save favorites for easily accessing previously viewed content
 - Comprehensive logging via OSLog for diagnostics
 - Provides a trim interface with adjustable handles for selecting video segments
 - Uses AVFoundation for trimming and exporting video clips
+- Leverages inheritance with BaseVideoViewModel for code reuse
 
 ## Requirements
 
