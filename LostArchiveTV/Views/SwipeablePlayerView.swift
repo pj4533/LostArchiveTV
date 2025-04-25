@@ -201,7 +201,14 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                                         Spacer()
                                         
                                         VStack(spacing: 12) {
-                                            // Favorite button at the top
+                                            // Settings-like placeholder at the top (back button replaces settings)
+                                            // This preserves the vertical spacing to match the main player
+                                            Color.clear
+                                                .frame(width: 22, height: 22)
+                                            
+                                            Spacer()
+                                            
+                                            // Favorite button - same position as in main player (after spacer)
                                             OverlayButton(
                                                 action: {
                                                     favoritesViewModel.toggleFavorite()
@@ -217,8 +224,6 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                                                     .foregroundColor(favoritesViewModel.currentVideo != nil && favoritesViewModel.isFavorite(favoritesViewModel.currentVideo!) ? .red : .white)
                                                     .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
                                             }
-                                            
-                                            Spacer()
                                             
                                             // Restart video button
                                             OverlayButton(
