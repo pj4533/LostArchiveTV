@@ -155,10 +155,25 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                         } else if let favoritesViewModel = provider as? FavoritesViewModel {
                             // For favorites player - use same components as main player for consistency
                             ZStack {
-                                // Video player
-                                VideoPlayer(player: player)
-                                    .aspectRatio(16/9, contentMode: .fit)
-                                    .edgesIgnoringSafeArea(.all)
+                                // Use the same layout as the main player
+                                VStack(spacing: 0) {
+                                    // Add spacing at top to start below the gear icon
+                                    Spacer().frame(height: 70)
+                                    
+                                    // Actual player with same configuration as main player
+                                    VideoPlayer(player: player)
+                                        .aspectRatio(contentMode: .fit)
+                                        .padding(.horizontal, 10)
+                                    
+                                    // Reserve space for the timeline controls to appear here
+                                    Spacer()
+                                        .frame(height: 110)
+                                        .frame(maxWidth: .infinity)
+                                        .contentShape(Rectangle())
+                                    
+                                    // Additional spacer to ensure separation from video info overlay
+                                    Spacer().frame(height: 100)
+                                }
                                 
                                 // Create a VideoInfoOverlay-like stack with FavoritesButtonPanel
                                 ZStack {
