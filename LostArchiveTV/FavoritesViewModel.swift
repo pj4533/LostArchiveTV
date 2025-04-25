@@ -41,7 +41,10 @@ class FavoritesViewModel: ObservableObject, VideoProvider {
         // Setup duration observation
         setupDurationObserver()
     }
-    
+}
+
+// MARK: - Public Interface
+extension FavoritesViewModel {
     var player: AVPlayer? {
         get { playbackManager.player }
         set {
@@ -94,7 +97,10 @@ class FavoritesViewModel: ObservableObject, VideoProvider {
             setCurrentVideo(favorites[currentIndex])
         }
     }
-    
+}
+
+// MARK: - Video Playback
+extension FavoritesViewModel {
     func playVideoAt(index: Int) {
         guard index >= 0 && index < favoritesManager.favorites.count else { return }
         
@@ -151,6 +157,76 @@ class FavoritesViewModel: ObservableObject, VideoProvider {
         }
     }
     
+    // Player control functions
+    func pausePlayback() {
+        playbackManager.pause()
+    }
+    
+    func resumePlayback() {
+        playbackManager.play()
+    }
+    
+    func restartVideo() {
+        playbackManager.seekToBeginning()
+    }
+    
+    func togglePlayPause() {
+        if playbackManager.isPlaying {
+            playbackManager.pause()
+        } else {
+            playbackManager.play()
+        }
+    }
+    
+    var isPlaying: Bool {
+        playbackManager.isPlaying
+    }
+}
+
+// MARK: - UI Interactions
+extension FavoritesViewModel {
+    func toggleMetadata() {
+        showMetadata.toggle()
+    }
+    
+    func openSafari() {
+        guard let identifier = currentVideo?.identifier else { return }
+        let urlString = "https://archive.org/details/\(identifier)"
+        if let url = URL(string: urlString) {
+            UIApplication.shared.open(url)
+        }
+    }
+}
+    
+// MARK: - VideoProvider Protocol Implementation
+extension FavoritesViewModel {
+    var currentIdentifier: String? {
+        get { currentVideo?.identifier }
+        set {
+            if let newValue = newValue, let index = favorites.firstIndex(where: { $0.identifier == newValue }) {
+                currentVideo = favorites[index]
+            }
+        }
+    }
+    
+    var currentTitle: String? {
+        get { currentVideo?.title }
+        set { /* Title is determined by currentIdentifier or currentVideo */ }
+    }
+    
+    var currentCollection: String? {
+        get { currentVideo?.collection }
+        set { /* Collection is determined by currentIdentifier or currentVideo */ }
+    }
+    
+    var currentDescription: String? {
+        get { currentVideo?.description }
+        set { /* Description is determined by currentIdentifier or currentVideo */ }
+    }
+}
+
+// MARK: - Video Navigation
+extension FavoritesViewModel {
     // VideoProvider protocol - Get next video
     func getNextVideo() async -> CachedVideo? {
         let favorites = favoritesManager.favorites
@@ -222,68 +298,6 @@ class FavoritesViewModel: ObservableObject, VideoProvider {
         setCurrentVideo(favorites[currentIndex])
     }
     
-    func pausePlayback() {
-        playbackManager.pause()
-    }
-    
-    func resumePlayback() {
-        playbackManager.play()
-    }
-    
-    func restartVideo() {
-        playbackManager.seekToBeginning()
-    }
-    
-    func togglePlayPause() {
-        if playbackManager.isPlaying {
-            playbackManager.pause()
-        } else {
-            playbackManager.play()
-        }
-    }
-    
-    var isPlaying: Bool {
-        playbackManager.isPlaying
-    }
-    
-    func toggleMetadata() {
-        showMetadata.toggle()
-    }
-    
-    func openSafari() {
-        guard let identifier = currentVideo?.identifier else { return }
-        let urlString = "https://archive.org/details/\(identifier)"
-        if let url = URL(string: urlString) {
-            UIApplication.shared.open(url)
-        }
-    }
-    
-    // MARK: - VideoProvider Protocol Implementation
-    
-    var currentIdentifier: String? {
-        get { currentVideo?.identifier }
-        set {
-            if let newValue = newValue, let index = favorites.firstIndex(where: { $0.identifier == newValue }) {
-                currentVideo = favorites[index]
-            }
-        }
-    }
-    
-    var currentTitle: String? {
-        get { currentVideo?.title }
-        set { /* Title is determined by currentIdentifier or currentVideo */ }
-    }
-    
-    var currentCollection: String? {
-        get { currentVideo?.collection }
-        set { /* Collection is determined by currentIdentifier or currentVideo */ }
-    }
-    
-    var currentDescription: String? {
-        get { currentVideo?.description }
-        set { /* Description is determined by currentIdentifier or currentVideo */ }
-    }
-    
     func isAtEndOfHistory() -> Bool {
         currentIndex >= favoritesManager.favorites.count - 1 || favoritesManager.favorites.isEmpty
     }
@@ -295,7 +309,10 @@ class FavoritesViewModel: ObservableObject, VideoProvider {
     func addVideoToHistory(_ video: CachedVideo) {
         // No-op for favorites - we don't maintain a separate history
     }
-    
+}
+
+// MARK: - Cache Management
+extension FavoritesViewModel {
     func ensureVideosAreCached() async {
         Logger.caching.info("FavoritesViewModel.ensureVideosAreCached: Preparing videos for swipe navigation")
         

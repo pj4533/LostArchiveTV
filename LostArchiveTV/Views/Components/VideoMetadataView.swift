@@ -10,7 +10,13 @@ struct VideoMetadataView: View {
     var duration: Double? = nil
     
     private func formatTime(_ seconds: Double) -> String {
-        let totalSeconds = Int(seconds)
+        // Check for invalid values (NaN or infinity)
+        guard !seconds.isNaN && !seconds.isInfinite else {
+            return "0:00"
+        }
+        
+        // Convert to positive value and round to nearest second
+        let totalSeconds = Int(max(0, seconds.rounded()))
         let hours = totalSeconds / 3600
         let minutes = (totalSeconds % 3600) / 60
         let seconds = totalSeconds % 60

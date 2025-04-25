@@ -42,12 +42,11 @@ class VideoPlayerViewModel: ObservableObject, VideoProvider {
     // Archive.org video identifiers
     private var identifiers: [ArchiveIdentifier] = []
     
-    // Video history tracking - simple array with current index
-    private var videoHistory: [CachedVideo] = []
-    private var currentHistoryIndex: Int = -1
-    
     // Current cached video reference for favorites
     private var _currentCachedVideo: CachedVideo?
+    
+    // History tracking - uses the history manager
+    private let historyManager = VideoHistoryManager()
     
     // MARK: - Initialization and Cleanup
     init(favoritesManager: FavoritesManager) {
@@ -108,10 +107,6 @@ class VideoPlayerViewModel: ObservableObject, VideoProvider {
                 
                 try? await Task.sleep(for: .seconds(0.2))
             }
-            
-            // After initialization, we can stop the monitoring task
-            // The cache will be maintained by the SwipeableVideoView when videos are played
-            // and by calls to ensureVideosAreCached() when videos are removed
         }
     }
     
@@ -131,8 +126,94 @@ class VideoPlayerViewModel: ObservableObject, VideoProvider {
     
     @Published var videoDuration: Double = 0
     
-    // MARK: - Video trimming
+    // MARK: - VideoProvider Protocol - History Management
     
+    // Add a video to history (at the end)
+    func addVideoToHistory(_ video: CachedVideo) {
+        historyManager.addVideo(video)
+    }
+    
+    // Get previous video from history
+    func getPreviousVideo() async -> CachedVideo? {
+        return historyManager.getPreviousVideo()
+    }
+    
+    // Get next video from history (or nil if we need a new one)
+    func getNextVideo() async -> CachedVideo? {
+        return historyManager.getNextVideo()
+    }
+    
+    // Check if we're at the end of history
+    func isAtEndOfHistory() -> Bool {
+        return historyManager.isAtEnd()
+    }
+    
+    // MARK: - Video state management
+    
+    func createCachedVideoFromCurrentState() async -> CachedVideo? {
+        guard let identifier = currentIdentifier,
+              let collection = currentCollection,
+              let title = currentTitle,
+              let description = currentDescription,
+              let videoURL = playbackManager.currentVideoURL,
+              let playerItem = playbackManager.player?.currentItem,
+              let asset = playerItem.asset as? AVURLAsset else {
+            Logger.caching.error("Could not create cached video from current state: missing required properties")
+            return nil
+        }
+        
+        // Create a simplified metadata object with just title and description
+        let metadata = ArchiveMetadata(
+            files: [], 
+            metadata: ItemMetadata(
+                identifier: identifier,
+                title: title, 
+                description: description
+            )
+        )
+        
+        // Create a basic MP4 file representation
+        let mp4File = ArchiveFile(
+            name: identifier, 
+            format: "h.264", 
+            size: "", 
+            length: nil
+        )
+        
+        // Get the current position
+        let currentTime = playbackManager.player?.currentTime().seconds ?? 0
+        
+        // Create cached video
+        let cachedVideo = CachedVideo(
+            identifier: identifier,
+            collection: collection,
+            metadata: metadata,
+            mp4File: mp4File,
+            videoURL: videoURL,
+            asset: asset,
+            playerItem: playerItem,
+            startPosition: currentTime
+        )
+        
+        return cachedVideo
+    }
+    
+    deinit {
+        // Cancel any ongoing tasks
+        cacheMonitorTask?.cancel()
+        
+        Task {
+            await preloadService.cancelPreloading()
+            await cacheManager.clearCache()
+        }
+        
+        // Player cleanup is handled by playbackManager
+        playbackManager.cleanupPlayer()
+    }
+}
+
+// MARK: - Video Trimming Support Extension
+extension VideoPlayerViewModel {
     var currentVideoURL: URL? {
         playbackManager.currentVideoURL
     }
@@ -163,9 +244,10 @@ class VideoPlayerViewModel: ObservableObject, VideoProvider {
         Logger.videoPlayback.info("Restarting video from the beginning")
         playbackManager.seekToBeginning()
     }
-    
-    // MARK: - Video Loading
-    
+}
+
+// MARK: - Video Loading Extension
+extension VideoPlayerViewModel {
     private func loadIdentifiers() async {
         do {
             // Use user preferences when loading identifiers
@@ -304,112 +386,10 @@ class VideoPlayerViewModel: ObservableObject, VideoProvider {
             isInitializing = false
         }
     }
-    
-    // MARK: - History Management
-    
-    // Add a video to history (at the end)
-    func addVideoToHistory(_ video: CachedVideo) {
-        // If we're not at the end of history, truncate forward history
-        if currentHistoryIndex < self.videoHistory.count - 1 {
-            self.videoHistory = Array(self.videoHistory[0...self.currentHistoryIndex])
-        }
-        
-        // Check if we're about to add a duplicate of the last video
-        if let lastVideo = self.videoHistory.last, lastVideo.identifier == video.identifier {
-            Logger.caching.info("Skipping duplicate video in history: \(video.identifier)")
-            return
-        }
-        
-        // Add new video to history
-        self.videoHistory.append(video)
-        self.currentHistoryIndex = self.videoHistory.count - 1
-        
-        Logger.caching.info("Added video to history: \(video.identifier), history size: \(self.videoHistory.count), index: \(self.currentHistoryIndex)")
-    }
-    
-    // Get previous video from history
-    func getPreviousVideo() async -> CachedVideo? {
-        guard currentHistoryIndex > 0, !videoHistory.isEmpty else {
-            Logger.caching.info("No previous video in history")
-            return nil
-        }
-        
-        self.currentHistoryIndex -= 1
-        let video = self.videoHistory[self.currentHistoryIndex]
-        Logger.caching.info("Moving back in history to index \(self.currentHistoryIndex): \(video.identifier)")
-        return video
-    }
-    
-    // Get next video from history (or nil if we need a new one)
-    func getNextVideo() async -> CachedVideo? {
-        // If we're at the end of history, return nil (caller should load a new video)
-        guard currentHistoryIndex < videoHistory.count - 1, !videoHistory.isEmpty else {
-            Logger.caching.info("At end of history, need to load a new video")
-            return nil
-        }
-        
-        // Move forward in history
-        self.currentHistoryIndex += 1
-        let video = self.videoHistory[self.currentHistoryIndex]
-        Logger.caching.info("Moving forward in history to index \(self.currentHistoryIndex): \(video.identifier)")
-        return video
-    }
-    
-    // Check if we're at the end of history
-    func isAtEndOfHistory() -> Bool {
-        return currentHistoryIndex >= videoHistory.count - 1
-    }
-    
-    func createCachedVideoFromCurrentState() async -> CachedVideo? {
-        guard let identifier = currentIdentifier,
-              let collection = currentCollection,
-              let title = currentTitle,
-              let description = currentDescription,
-              let videoURL = playbackManager.currentVideoURL,
-              let playerItem = playbackManager.player?.currentItem,
-              let asset = playerItem.asset as? AVURLAsset else {
-            Logger.caching.error("Could not create cached video from current state: missing required properties")
-            return nil
-        }
-        
-        // Create a simplified metadata object with just title and description
-        let metadata = ArchiveMetadata(
-            files: [], 
-            metadata: ItemMetadata(
-                identifier: identifier,
-                title: title, 
-                description: description
-            )
-        )
-        
-        // Create a basic MP4 file representation
-        let mp4File = ArchiveFile(
-            name: identifier, 
-            format: "h.264", 
-            size: "", 
-            length: nil
-        )
-        
-        // Get the current position
-        let currentTime = playbackManager.player?.currentTime().seconds ?? 0
-        
-        // Create cached video
-        let cachedVideo = CachedVideo(
-            identifier: identifier,
-            collection: collection,
-            metadata: metadata,
-            mp4File: mp4File,
-            videoURL: videoURL,
-            asset: asset,
-            playerItem: playerItem,
-            startPosition: currentTime
-        )
-        
-        return cachedVideo
-    }
-    
-    // MARK: - Caching and Video Trimming
-    
+}
+
+// MARK: - Caching and Favorites Extension
+extension VideoPlayerViewModel {
     func ensureVideosAreCached() async {
         await preloadService.ensureVideosAreCached(
             cacheManager: cacheManager,
@@ -457,18 +437,5 @@ class VideoPlayerViewModel: ObservableObject, VideoProvider {
         Logger.metadata.info("Toggling favorite status for video: \(currentVideo.identifier)")
         favoritesManager.toggleFavorite(currentVideo)
         objectWillChange.send()
-    }
-    
-    deinit {
-        // Cancel any ongoing tasks
-        cacheMonitorTask?.cancel()
-        
-        Task {
-            await preloadService.cancelPreloading()
-            await cacheManager.clearCache()
-        }
-        
-        // Player cleanup is handled by playbackManager
-        playbackManager.cleanupPlayer()
     }
 }

@@ -1,185 +1,187 @@
-import Foundation
-import SwiftUI
-import AVFoundation
+//
+//  TimelineManager.swift
+//  LostArchiveTV
+//
+//  Created by Claude on 4/25/25.
+//
 
-/// Manages timeline calculations and handle dragging for video trimming
+import Foundation
+import AVFoundation
+import OSLog
+
 class TimelineManager {
-    // Timeline view configuration
-    private let minimumTrimDuration: Double
-    private var initialHandleTime: Double = 0  // For tracking drag start
-    private var dragStartPos: CGFloat = 0      // Starting position of drag
+    // Trim bounds
+    private(set) var startTrimTime: CMTime
+    private(set) var endTrimTime: CMTime
+    private(set) var currentTime: CMTime
+    private(set) var assetDuration: CMTime
     
-    // Fixed timeline window (calculated once at init)
-    private var timelineWindowStart: Double = 0
-    private var timelineWindowEnd: Double = 0
-    private let paddingSeconds: Double
-    
-    // Handle dragging state 
+    // Dragging state
     private(set) var isDraggingLeftHandle = false
     private(set) var isDraggingRightHandle = false
     
-    // Current trim points
-    var startTrimTime: CMTime
-    var endTrimTime: CMTime
-    var currentTime: CMTime
+    // Fixed visible window (calculated once at initialization)
+    private let initialVisibleWindow: (start: Double, end: Double)
     
-    // Asset properties
-    let assetDuration: CMTime
+    // Minimum distance between handles in seconds
+    private let minimumTrimDuration: Double = 1.0
     
-    // Functions to update trim points
+    // Callbacks for updating the view model
     var onUpdateStartTime: ((CMTime) -> Void)?
     var onUpdateEndTime: ((CMTime) -> Void)?
     var onSeekToTime: ((CMTime) -> Void)?
     
-    init(
-        startTrimTime: CMTime,
-        endTrimTime: CMTime,
-        currentTime: CMTime,
-        assetDuration: CMTime,
-        minimumTrimDuration: Double = 1.0,
-        paddingSeconds: Double = 15.0
-    ) {
+    init(startTrimTime: CMTime, endTrimTime: CMTime, currentTime: CMTime, assetDuration: CMTime) {
         self.startTrimTime = startTrimTime
         self.endTrimTime = endTrimTime
         self.currentTime = currentTime
         self.assetDuration = assetDuration
-        self.minimumTrimDuration = minimumTrimDuration
-        self.paddingSeconds = paddingSeconds
         
-        // Calculate fixed timeline window with padding
-        let startTimeSeconds = startTrimTime.seconds
-        let endTimeSeconds = endTrimTime.seconds
-        let totalDuration = assetDuration.seconds
-        
-        self.timelineWindowStart = max(0, startTimeSeconds - paddingSeconds)
-        self.timelineWindowEnd = min(totalDuration, endTimeSeconds + paddingSeconds)
+        // Calculate the initial visible window once during initialization
+        let selectionDuration = endTrimTime.seconds - startTrimTime.seconds
+        let paddingAmount = selectionDuration * 0.2
+        let visibleStart = max(0, startTrimTime.seconds - paddingAmount)
+        let visibleEnd = min(assetDuration.seconds, endTrimTime.seconds + paddingAmount)
+        self.initialVisibleWindow = (visibleStart, visibleEnd)
     }
     
-    /// Return the fixed visible time window for timeline display (calculated once at init)
+    // Update current time without affecting trim bounds
+    func updateCurrentTime(_ time: CMTime) {
+        self.currentTime = time
+    }
+    
+    // Return the fixed visible time window for timeline display
     func calculateVisibleTimeWindow() -> (start: Double, end: Double) {
-        return (timelineWindowStart, timelineWindowEnd)
+        // Always return the same fixed window that was calculated during initialization
+        return initialVisibleWindow
     }
     
-    /// Convert a time value to a position in the timeline (in pixels)
+    // Convert a time value to a position in the timeline
     func timeToPosition(timeInSeconds: Double, timelineWidth: CGFloat) -> CGFloat {
-        let timeWindow = calculateVisibleTimeWindow()
-        let visibleDuration = timeWindow.end - timeWindow.start
-        let pixelsPerSecond = timelineWidth / visibleDuration
+        // Get the current visible window
+        let visibleWindow = calculateVisibleTimeWindow()
+        let visibleStart = visibleWindow.start
+        let visibleEnd = visibleWindow.end
+        let visibleDuration = visibleEnd - visibleStart
         
-        return (timeInSeconds - timeWindow.start) * pixelsPerSecond
+        // Protect against division by zero
+        guard visibleDuration > 0 else { return 0 }
+        
+        // Calculate normalized position (0 to 1) within visible window
+        let normalizedPosition = (timeInSeconds - visibleStart) / visibleDuration
+        
+        // Clamp to valid range
+        let clampedPosition = max(0, min(1, normalizedPosition))
+        
+        // Convert to UI position
+        return CGFloat(clampedPosition) * timelineWidth
     }
     
-    /// Convert a position in the timeline to time value
+    // Convert a position in the timeline to a time value
     func positionToTime(position: CGFloat, timelineWidth: CGFloat) -> Double {
-        let timeWindow = calculateVisibleTimeWindow()
-        let visibleDuration = timeWindow.end - timeWindow.start
-        let secondsPerPixel = visibleDuration / timelineWidth
+        // Get the current visible window
+        let visibleWindow = calculateVisibleTimeWindow()
+        let visibleStart = visibleWindow.start
+        let visibleEnd = visibleWindow.end
+        let visibleDuration = visibleEnd - visibleStart
         
-        let timeInSeconds = timeWindow.start + (position * secondsPerPixel)
-        return max(0, min(timeInSeconds, assetDuration.seconds))
+        // Protect against division by zero
+        guard timelineWidth > 0 else { return visibleStart }
+        
+        // Calculate normalized position (0 to 1)
+        let normalizedPosition = Double(position) / Double(timelineWidth)
+        
+        // Clamp to valid range
+        let clampedPosition = max(0, min(1, normalizedPosition))
+        
+        // Convert to time value
+        return visibleStart + (clampedPosition * visibleDuration)
     }
     
-    /// Start dragging the left (start) handle
+    // MARK: - Left Handle Dragging
+    
     func startLeftHandleDrag(position: CGFloat) {
         isDraggingLeftHandle = true
-        dragStartPos = position
-        initialHandleTime = startTrimTime.seconds
-        
-        // Immediately seek to the start trim time to show the frame at the handle
-        onSeekToTime?(startTrimTime)
     }
     
-    /// Process left handle drag
     func updateLeftHandleDrag(currentPosition: CGFloat, timelineWidth: CGFloat) {
-        // Calculate the time at this position directly
-        let timeInSeconds = positionToTime(position: currentPosition, timelineWidth: timelineWidth)
+        guard isDraggingLeftHandle else { return }
         
-        // Apply constraints to ensure it's valid
+        // Convert position to time
+        let newStartTimeSeconds = positionToTime(position: currentPosition, timelineWidth: timelineWidth)
+        
+        // Constrain within valid range (0 to endTrimTime - minimumTrimDuration)
         let maxStartTime = endTrimTime.seconds - minimumTrimDuration
-        let clampedTime = max(0, min(timeInSeconds, maxStartTime))
+        let constrainedStartTime = max(0, min(newStartTimeSeconds, maxStartTime))
         
-        // Create time object
-        let newTime = CMTime(seconds: clampedTime, preferredTimescale: 600)
+        // Create CMTime from constrained seconds
+        let newStartTime = CMTime(seconds: constrainedStartTime, preferredTimescale: 600)
         
-        // Set start trim time
-        startTrimTime = newTime
+        // Update start trim time
+        startTrimTime = newStartTime
         
-        // Update the caller
-        onUpdateStartTime?(newTime)
+        // Notify view model
+        onUpdateStartTime?(newStartTime)
         
-        // Set the playhead to this position
-        onSeekToTime?(newTime)
+        // Also update current time to match the handle
+        onSeekToTime?(newStartTime)
     }
     
-    /// End left handle drag
     func endLeftHandleDrag() {
+        // Stop dragging state
         isDraggingLeftHandle = false
     }
     
-    /// Start dragging the right (end) handle
+    // MARK: - Right Handle Dragging
+    
     func startRightHandleDrag(position: CGFloat) {
         isDraggingRightHandle = true
-        dragStartPos = position
-        initialHandleTime = endTrimTime.seconds
-        
-        // Immediately seek to the end trim time to show the frame at the handle
-        onSeekToTime?(endTrimTime)
     }
     
-    /// Process right handle drag
     func updateRightHandleDrag(currentPosition: CGFloat, timelineWidth: CGFloat) {
-        // Calculate the time at this position directly
-        let timeInSeconds = positionToTime(position: currentPosition, timelineWidth: timelineWidth)
+        guard isDraggingRightHandle else { return }
         
-        // Apply constraints to ensure it's valid
+        // Convert position to time
+        let newEndTimeSeconds = positionToTime(position: currentPosition, timelineWidth: timelineWidth)
+        
+        // Constrain within valid range (startTrimTime + minimumTrimDuration to assetDuration)
         let minEndTime = startTrimTime.seconds + minimumTrimDuration
-        let clampedTime = min(assetDuration.seconds, max(timeInSeconds, minEndTime))
+        let constrainedEndTime = min(assetDuration.seconds, max(newEndTimeSeconds, minEndTime))
         
-        // Create time object
-        let newTime = CMTime(seconds: clampedTime, preferredTimescale: 600)
+        // Create CMTime from constrained seconds
+        let newEndTime = CMTime(seconds: constrainedEndTime, preferredTimescale: 600)
         
-        // Set end trim time
-        endTrimTime = newTime
+        // Update end trim time
+        endTrimTime = newEndTime
         
-        // Update the caller
-        onUpdateEndTime?(newTime)
+        // Notify view model
+        onUpdateEndTime?(newEndTime)
         
-        // Set the playhead to this position
-        onSeekToTime?(newTime)
+        // Also update current time to match the handle
+        onSeekToTime?(newEndTime)
     }
     
-    /// End right handle drag
     func endRightHandleDrag() {
+        // Stop dragging state
         isDraggingRightHandle = false
     }
     
-    /// Handle timeline scrubbing
+    // MARK: - Timeline Scrubbing
+    
     func scrubTimeline(position: CGFloat, timelineWidth: CGFloat) {
-        let timeInSeconds = positionToTime(position: position, timelineWidth: timelineWidth)
-        let newTime = CMTime(seconds: timeInSeconds, preferredTimescale: 600)
+        // Convert position to time
+        let timeSeconds = positionToTime(position: position, timelineWidth: timelineWidth)
+        
+        // Constrain to trim bounds
+        let constrainedTime = max(startTrimTime.seconds, min(endTrimTime.seconds, timeSeconds))
+        
+        // Create CMTime from constrained seconds
+        let newTime = CMTime(seconds: constrainedTime, preferredTimescale: 600)
+        
+        // Update current time
+        currentTime = newTime
+        
+        // Notify view model for seeking
         onSeekToTime?(newTime)
-    }
-    
-    /// Update the start time of the trim window
-    func updateStartTrimTime(_ newStartTime: CMTime) {
-        // This is now just a passthrough method since we've moved the logic to updateLeftHandleDrag
-        // We keep it for compatibility with code that still calls this directly
-        
-        // Notify the owner about the change
-        onUpdateStartTime?(newStartTime)
-    }
-    
-    /// Update the end time of the trim window
-    func updateEndTrimTime(_ newEndTime: CMTime) {
-        // This is now just a passthrough method since we've moved the logic to updateRightHandleDrag
-        // We keep it for compatibility with code that still calls this directly
-        
-        // Notify the owner about the change
-        onUpdateEndTime?(newEndTime)
-    }
-    
-    /// Update current playback time
-    func updateCurrentTime(_ time: CMTime) {
-        currentTime = time
     }
 }

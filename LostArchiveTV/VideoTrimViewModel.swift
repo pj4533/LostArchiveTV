@@ -125,9 +125,10 @@ class VideoTrimViewModel: ObservableObject {
         // NOTE: We're intentionally NOT cleaning up the player or observer here
         // as that's handled explicitly by prepareForDismissal()
     }
-    
-    // MARK: - Initialization and Cleanup
-    
+}
+
+// MARK: - Initialization and Cleanup
+extension VideoTrimViewModel {
     /// Use the already downloaded file to initialize trim view
     func prepareForTrimming() async {
         logger.debug("prepareForTrimming started")
@@ -222,9 +223,10 @@ class VideoTrimViewModel: ObservableObject {
         
         logger.debug("Trim view clean-up complete")
     }
-    
-    // MARK: - Playback Control
-    
+}
+
+// MARK: - Playback Control
+extension VideoTrimViewModel {
     private func setupTimeObserver() {
         let interval = CMTime(seconds: 0.1, preferredTimescale: 600)
         timeObserverToken = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
@@ -289,9 +291,10 @@ class VideoTrimViewModel: ObservableObject {
             }
         }
     }
-    
-    // MARK: - Timeline Delegation
-    
+}
+
+// MARK: - Timeline Functions
+extension VideoTrimViewModel {
     /// Return the fixed visible time window for timeline display
     func calculateVisibleTimeWindow() -> (start: Double, end: Double) {
         return timelineManager.calculateVisibleTimeWindow()
@@ -306,9 +309,10 @@ class VideoTrimViewModel: ObservableObject {
     func positionToTime(position: CGFloat, timelineWidth: CGFloat) -> Double {
         return timelineManager.positionToTime(position: position, timelineWidth: timelineWidth)
     }
-    
-    // MARK: - Handle Dragging
-    
+}
+
+// MARK: - Handle Dragging
+extension VideoTrimViewModel {
     func startLeftHandleDrag(position: CGFloat) {
         // Pause playback if currently playing
         if isPlaying {
@@ -372,9 +376,10 @@ class VideoTrimViewModel: ObservableObject {
         // When user manually scrubs timeline, reset the handle drag tracking
         lastDraggedRightHandle = false
     }
-    
-    // MARK: - Thumbnail Generation
-    
+}
+
+// MARK: - Thumbnail Generation
+extension VideoTrimViewModel {
     /// Generate thumbnails from the video asset
     private func generateThumbnails(from asset: AVAsset) {
         // Calculate appropriate number of thumbnails based on video duration
@@ -404,9 +409,10 @@ class VideoTrimViewModel: ObservableObject {
             }
         }
     }
-    
-    // MARK: - Video Export
-    
+}
+
+// MARK: - Video Export
+extension VideoTrimViewModel {
     /// Save the trimmed video
     func saveTrimmmedVideo() async -> Bool {
         isSaving = true

@@ -8,6 +8,20 @@ struct BottomInfoPanel: View {
     let currentTime: Double?
     let duration: Double
     
+    init(title: String?, collection: String?, description: String?, identifier: String?, currentTime: Double?, duration: Double) {
+        self.title = title
+        self.collection = collection
+        self.description = description
+        self.identifier = identifier
+        self.currentTime = currentTime
+        // Ensure duration is valid (not NaN or infinity)
+        if duration.isNaN || duration.isInfinite {
+            self.duration = 0
+        } else {
+            self.duration = duration
+        }
+    }
+    
     var body: some View {
         VStack {
             Spacer()
