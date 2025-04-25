@@ -12,6 +12,9 @@ import OSLog
 struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
     @ObservedObject var provider: Provider
     @StateObject private var transitionManager = VideoTransitionManager()
+    
+    // Make the transitionManager accessible to the provider for direct preloading
+    var onPreloadReady: ((VideoTransitionManager) -> Void)? = nil
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging = false
     @State private var showBackButton = false
@@ -341,12 +344,17 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                 // Show back button if this is a modal presentation
                 showBackButton = isPresented != nil
                 
+                // Notify the provider about the transition manager (for direct preloading)
+                onPreloadReady?(transitionManager)
+                
                 // Ensure we have a video loaded and videos are ready for swiping in both directions
                 if provider.player != nil {
                     Logger.caching.info("SwipeablePlayerView onAppear: Player exists, starting preload for \(String(describing: type(of: provider)))")
                     
                     if let favProvider = provider as? FavoritesViewModel {
                         Logger.caching.info("Favorites count: \(favProvider.favorites.count), currentIndex: \(favProvider.currentIndex)")
+                        // Store transition manager in the favorites view model
+                        favProvider.transitionManager = transitionManager
                     }
                     
                     Task {

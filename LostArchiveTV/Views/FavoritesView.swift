@@ -69,8 +69,14 @@ struct FavoritesView: View {
                         .frame(minHeight: 120)
                         .cornerRadius(8)
                         .onTapGesture {
+                            // Start loading the video
                             viewModel.playVideoAt(index: index)
-                            showPlayer = true
+                            
+                            // Show the player after a brief delay to ensure initialization completes
+                            // This gives time for the player to be created and ready for display
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                showPlayer = true
+                            }
                         }
                 }
             }
