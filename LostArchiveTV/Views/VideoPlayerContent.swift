@@ -22,11 +22,9 @@ struct VideoPlayerContent: View {
                 // Add spacing at top to start below the gear icon
                 Spacer().frame(height: 70)
                 
-                // Actual player is contained within available space
-                // Make it slightly smaller than full width to avoid edge clipping
+                // Actual player using maximum available width
                 VideoPlayer(player: player)
                     .aspectRatio(contentMode: .fit)
-                    .padding(.horizontal, 10)
                 
                 // Reserve space for the timeline controls to appear here
                 Spacer()

@@ -160,10 +160,9 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                                     // Add spacing at top to start below the gear icon
                                     Spacer().frame(height: 70)
                                     
-                                    // Actual player with same configuration as main player
+                                    // Actual player using maximum available width
                                     VideoPlayer(player: player)
                                         .aspectRatio(contentMode: .fit)
-                                        .padding(.horizontal, 10)
                                     
                                     // Reserve space for the timeline controls to appear here
                                     Spacer()
