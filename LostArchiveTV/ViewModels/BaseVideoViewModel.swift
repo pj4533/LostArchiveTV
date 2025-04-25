@@ -102,14 +102,6 @@ class BaseVideoViewModel: ObservableObject {
         playbackManager.seekToBeginning()
     }
     
-    func togglePlayPause() {
-        if playbackManager.isPlaying {
-            pausePlayback()
-        } else {
-            resumePlayback()
-        }
-    }
-    
     var isPlaying: Bool {
         playbackManager.isPlaying
     }

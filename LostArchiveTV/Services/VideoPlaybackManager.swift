@@ -17,7 +17,6 @@ class VideoPlaybackManager: ObservableObject {
     @Published var isPlaying = false
     @Published var currentTime: Double = 0
     @Published var videoDuration: Double = 0
-    @Published var isLoopingEnabled = false
     
     init() {
         // Set up observation of the player manager's published properties
