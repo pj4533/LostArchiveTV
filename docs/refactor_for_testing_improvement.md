@@ -9,6 +9,7 @@ The current testing approach has the following issues:
 - Real network requests are made to fetch data
 - Tests are slow due to these real-world interactions
 - It's difficult to test specific edge cases and error conditions
+- Swift actors and concurrency add complexity to the testing approach
 
 ## Goals
 
@@ -19,6 +20,29 @@ The current testing approach has the following issues:
 5. Eliminate real network requests during tests
 6. Enable simulating edge cases and error conditions
 7. Maintain high test coverage and confidence
+8. Handle Swift actor isolation correctly in abstractions
+
+## Lessons Learned from Initial Attempt
+
+### Actor Isolation Issues
+
+- **Actor Protocol Methods**: Methods in protocols need to be marked as `async` if they will be implemented by actor types to maintain isolation.
+- **Self References in Closures**: Self references in closures within actors require explicit `self` to prevent memory leaks and clarify execution context.
+- **Suspension Points**: Avoid suspension points in actor property accessors by moving complex operations to methods.
+- **Protocol Inheritance**: When an actor conforms to a protocol, all isolated methods need to be marked `async` in the protocol definition.
+
+### UI and AVFoundation Abstraction Issues
+
+- **Avoid Exposing AVFoundation Types**: Don't expose concrete AVFoundation types like `AVPlayer` or `CMTime` in protocol interfaces as this leaks implementation details.
+- **UI Adapter Pattern**: Implement an adapter layer that bridges between UI-specific requirements (like AVPlayerLayer) and pure abstracted interfaces.
+- **Value Types for Boundaries**: Use simple value types (like `Double` for time) at abstraction boundaries rather than complex types like `CMTime`.
+- **Separation of Concerns**: Ensure each protocol focuses on a single responsibility to make mocking easier in tests.
+
+### Dependency Injection Challenges
+
+- **Unified Factory**: Create a unified service factory to simplify dependency injection across the application.
+- **Default Dependencies**: Provide sensible defaults in initializers while allowing injection for testing.
+- **Shared Dependencies**: Be careful with dependencies that need to be shared across multiple components.
 
 ## Overall Architectural Approach
 
@@ -29,6 +53,7 @@ We will implement a comprehensive dependency injection and abstraction system us
 3. **Wrapper/Adapter Pattern**: Create wrappers around external services like AVFoundation
 4. **Repository Pattern**: Abstract data access behind repository interfaces
 5. **Factory Pattern**: Create testable object instances via factories
+6. **Adapter Pattern**: Bridge between UI-specific requirements and testable abstractions
 
 ## Components to Refactor
 
@@ -135,18 +160,44 @@ VideoPlayerViewModel
 For example:
 
 ```swift
+// Refined protocol that avoids exposing AVFoundation types and handles actor isolation
 protocol MediaPlayer {
-    var isPlaying: Bool { get }
-    var currentTime: Double { get }
-    var duration: Double { get }
-    var currentURL: URL? { get }
+    var isPlaying: Bool { get async }
+    var currentTime: Double { get async }
+    var duration: Double { get async }
+    var currentURL: URL? { get async }
+    var rate: Float { get async set }
+    var isMuted: Bool { get async set }
     
-    func play()
-    func pause()
-    func seek(to time: TimeInterval)
-    func replaceCurrentItem(with item: MediaItem?)
-    func observeTimeChanges(interval: TimeInterval, callback: @escaping (TimeInterval) -> Void) -> Any
-    func removeTimeObserver(_ observer: Any)
+    func play() async
+    func pause() async
+    func seek(to time: Double) async
+    func replaceCurrentItem(with url: URL?) async
+    func addPeriodicTimeObserver(forInterval interval: Double, queue: DispatchQueue?, using block: @escaping (Double) -> Void) async -> UUID
+    func removeTimeObserver(id: UUID) async
+    
+    // Adapter methods for UI integration (kept separate from core logic)
+    func getPlayerForDisplay() -> Any?
+}
+
+// Example implementation adapter for UI integration
+class MediaPlayerViewAdapter {
+    private let player: MediaPlayer
+    
+    init(player: MediaPlayer) {
+        self.player = player
+    }
+    
+    // Returns AVPlayerLayer for SwiftUI integration
+    func createPlayerLayer() -> CALayer {
+        if let avPlayer = player.getPlayerForDisplay() as? AVPlayer {
+            let playerLayer = AVPlayerLayer(player: avPlayer)
+            playerLayer.videoGravity = .resizeAspectFill
+            return playerLayer
+        }
+        // Return empty layer for mock implementation
+        return CALayer()
+    }
 }
 ```
 
@@ -241,71 +292,359 @@ protocol APIClient {
 ### Media Player Mock
 
 ```swift
-class MockMediaPlayer: MediaPlayer {
-    var isPlaying = false
-    var currentTime: Double = 0
-    var duration: Double = 120.0
-    var currentURL: URL? = URL(string: "https://example.com/test.mp4")
+// Updated mock implementation with actor isolation and test instrumentation
+actor MockMediaPlayer: MediaPlayer {
+    // State properties
+    private(set) var isPlayingValue = false
+    private(set) var currentTimeValue: Double = 0
+    private(set) var durationValue: Double = 120.0
+    private(set) var currentURLValue: URL? = URL(string: "https://example.com/test.mp4")
+    private(set) var rateValue: Float = 1.0
+    private(set) var isMutedValue: Bool = false
     
-    // Test control properties
-    var playWasCalled = false
-    var pauseWasCalled = false
-    var seekPositions: [Double] = []
+    // Test instrumentation properties
+    private(set) var playCallCount = 0
+    private(set) var pauseCallCount = 0
+    private(set) var seekPositions: [Double] = []
+    private(set) var timeObservers: [UUID: (Double) -> Void] = [:]
+    private var nextObserverID = UUID()
     
-    func play() {
-        isPlaying = true
-        playWasCalled = true
+    // Access to state with actor isolation
+    var isPlaying: Bool { isPlayingValue }
+    var currentTime: Double { currentTimeValue }
+    var duration: Double { durationValue }
+    var currentURL: URL? { currentURLValue }
+    
+    var rate: Float {
+        get { rateValue }
+        set { rateValue = newValue }
     }
     
-    func pause() {
-        isPlaying = false
-        pauseWasCalled = true
+    var isMuted: Bool {
+        get { isMutedValue }
+        set { isMutedValue = newValue }
     }
     
-    func seek(to time: TimeInterval) {
-        currentTime = time
+    // Test behavior simulation
+    func play() async {
+        isPlayingValue = true
+        playCallCount += 1
+    }
+    
+    func pause() async {
+        isPlayingValue = false
+        pauseCallCount += 1
+    }
+    
+    func seek(to time: Double) async {
+        currentTimeValue = time
         seekPositions.append(time)
     }
     
-    // Implement other methods...
+    func replaceCurrentItem(with url: URL?) async {
+        currentURLValue = url
+        currentTimeValue = 0
+    }
+    
+    func addPeriodicTimeObserver(forInterval interval: Double, queue: DispatchQueue?, using block: @escaping (Double) -> Void) async -> UUID {
+        let id = nextObserverID
+        nextObserverID = UUID()
+        timeObservers[id] = block
+        return id
+    }
+    
+    func removeTimeObserver(id: UUID) async {
+        timeObservers.removeValue(forKey: id)
+    }
+    
+    // UI adapter methods
+    func getPlayerForDisplay() -> Any? {
+        return nil // Mock implementation doesn't need a real player
+    }
+    
+    // Test helper methods
+    func simulateTimeUpdate(to newTime: Double) async {
+        currentTimeValue = newTime
+        for (_, callback) in timeObservers {
+            callback(newTime)
+        }
+    }
+    
+    func simulatePlaybackEnd() async {
+        currentTimeValue = durationValue
+        isPlayingValue = false
+        for (_, callback) in timeObservers {
+            callback(durationValue)
+        }
+    }
+    
+    func simulateError(_ error: Error) async {
+        // Notify error handlers if implemented
+    }
 }
 ```
 
 ### Network Service Mock
 
 ```swift
-class MockAPIClient: APIClient {
+// Updated mock API client with actor isolation
+actor MockAPIClient: APIClient {
+    // Test configuration
     var metadataToReturn: ArchiveMetadata?
     var videoURLToReturn: URL?
     var errorToThrow: Error?
+    var requestDelay: TimeInterval = 0 // Simulate network delay
     
-    var fetchMetadataCallCount = 0
-    var fetchVideoURLCallCount = 0
-    var lastRequestedIdentifier: String?
+    // Test instrumentation
+    private(set) var fetchMetadataCallCount = 0
+    private(set) var fetchVideoURLCallCount = 0
+    private(set) var lastRequestedIdentifier: String?
+    private(set) var lastRequestedFile: ArchiveFile?
     
     func fetchMetadata(for identifier: String) async throws -> ArchiveMetadata {
         fetchMetadataCallCount += 1
         lastRequestedIdentifier = identifier
         
+        // Simulate network delay
+        if requestDelay > 0 {
+            try await Task.sleep(nanoseconds: UInt64(requestDelay * 1_000_000_000))
+        }
+        
+        // Simulate error
         if let error = errorToThrow {
             throw error
         }
         
+        // Return configured metadata or create default
         return metadataToReturn ?? createDefaultMetadata(for: identifier)
     }
     
-    // Implement other methods...
+    func fetchVideoURL(for file: ArchiveFile) async throws -> URL {
+        fetchVideoURLCallCount += 1
+        lastRequestedFile = file
+        
+        // Simulate network delay
+        if requestDelay > 0 {
+            try await Task.sleep(nanoseconds: UInt64(requestDelay * 1_000_000_000))
+        }
+        
+        // Simulate error
+        if let error = errorToThrow {
+            throw error
+        }
+        
+        // Return configured URL or create default
+        return videoURLToReturn ?? URL(string: "https://example.com/\(file.name)")!
+    }
     
+    // Helper methods for creating test data
     private func createDefaultMetadata(for identifier: String) -> ArchiveMetadata {
-        // Create a sample metadata object for testing
+        ArchiveMetadata(
+            metadata: ItemMetadata(
+                identifier: identifier,
+                title: "Test Video \(identifier)",
+                description: "Test description for \(identifier)",
+                creator: "Test Creator",
+                date: "2023"
+            ),
+            files: [
+                ArchiveFile(name: "test_video.mp4", format: "MPEG4", size: "10000000"),
+                ArchiveFile(name: "test_video.avi", format: "AVI", size: "20000000")
+            ]
+        )
+    }
+    
+    // Test helper methods
+    func reset() {
+        metadataToReturn = nil
+        videoURLToReturn = nil
+        errorToThrow = nil
+        requestDelay = 0
+        fetchMetadataCallCount = 0
+        fetchVideoURLCallCount = 0
+        lastRequestedIdentifier = nil
+        lastRequestedFile = nil
     }
 }
 ```
 
+## Implementation Example with Proper Dependency Injection
+
+Here's a concrete example showing a proper refactoring of the VideoPlayerViewModel with dependency injection:
+
+```swift
+// Service factory for centralized dependency management
+class ServiceFactory {
+    // Singleton instance with default implementations
+    static let shared = ServiceFactory()
+    
+    // Core services with default implementations
+    lazy var apiClient: APIClient = URLSessionAPIClient()
+    lazy var mediaPlayer: MediaPlayer = AVFoundationMediaPlayer()
+    lazy var cacheManager: VideoCacheManager = FilesystemVideoCacheManager()
+    lazy var preloadService: PreloadService = DefaultPreloadService(
+        apiClient: apiClient,
+        cacheManager: cacheManager
+    )
+    
+    // Factory methods to create objects with injected dependencies
+    func createVideoPlayerViewModel() -> VideoPlayerViewModel {
+        return VideoPlayerViewModel(
+            apiClient: apiClient,
+            mediaPlayer: mediaPlayer,
+            preloadService: preloadService,
+            cacheManager: cacheManager
+        )
+    }
+    
+    // Create a test factory with mock dependencies
+    static func createTestFactory() -> ServiceFactory {
+        let factory = ServiceFactory()
+        factory.apiClient = MockAPIClient()
+        factory.mediaPlayer = MockMediaPlayer()
+        factory.cacheManager = MockVideoCacheManager()
+        factory.preloadService = MockPreloadService()
+        return factory
+    }
+}
+
+// Refactored ViewModel with dependency injection
+@MainActor
+class VideoPlayerViewModel: BaseVideoViewModel, ObservableObject {
+    // Dependencies
+    private let apiClient: APIClient
+    private let mediaPlayer: MediaPlayer
+    private let preloadService: PreloadService
+    private let cacheManager: VideoCacheManager
+    
+    // Published state
+    @Published var currentMetadata: ArchiveMetadata?
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+    
+    // Other properties...
+    
+    // Initializer with dependency injection
+    init(
+        apiClient: APIClient,
+        mediaPlayer: MediaPlayer,
+        preloadService: PreloadService,
+        cacheManager: VideoCacheManager
+    ) {
+        self.apiClient = apiClient
+        self.mediaPlayer = mediaPlayer
+        self.preloadService = preloadService
+        self.cacheManager = cacheManager
+        
+        super.init()
+        setupObservers()
+    }
+    
+    // Convenience initializer that uses the default service factory
+    convenience init() {
+        self.init(
+            apiClient: ServiceFactory.shared.apiClient,
+            mediaPlayer: ServiceFactory.shared.mediaPlayer,
+            preloadService: ServiceFactory.shared.preloadService,
+            cacheManager: ServiceFactory.shared.cacheManager
+        )
+    }
+    
+    // Methods using the injected dependencies
+    func loadVideo(identifier: String) async {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let metadata = try await apiClient.fetchMetadata(for: identifier)
+            guard let videoFile = metadata.files.first(where: { $0.format == "MPEG4" }) else {
+                throw NSError(domain: "VideoPlayerViewModel", code: 1, userInfo: [NSLocalizedDescriptionKey: "No compatible video file found"])
+            }
+            
+            let videoURL = try await apiClient.fetchVideoURL(for: videoFile)
+            await mediaPlayer.replaceCurrentItem(with: videoURL)
+            await mediaPlayer.play()
+            
+            currentMetadata = metadata
+            isLoading = false
+        } catch {
+            errorMessage = "Failed to load video: \(error.localizedDescription)"
+            isLoading = false
+        }
+    }
+    
+    // Other methods...
+}
+
+// Example of using the ViewModel in SwiftUI
+struct VideoPlayerView: View {
+    @StateObject var viewModel: VideoPlayerViewModel
+    
+    init(viewModel: VideoPlayerViewModel? = nil) {
+        // Use provided viewModel or create one with default dependencies
+        _viewModel = StateObject(wrappedValue: viewModel ?? ServiceFactory.shared.createVideoPlayerViewModel())
+    }
+    
+    var body: some View {
+        // View implementation...
+    }
+}
+
+// Example test using dependency injection
+/*
+func testVideoLoading() async {
+    // Create test factory with mock dependencies
+    let factory = ServiceFactory.createTestFactory()
+    
+    // Configure mocks for this test
+    let mockAPIClient = factory.apiClient as! MockAPIClient
+    let mockMediaPlayer = factory.mediaPlayer as! MockMediaPlayer
+    
+    // Create test metadata
+    let testMetadata = ArchiveMetadata(
+        metadata: ItemMetadata(
+            identifier: "test123",
+            title: "Test Video",
+            description: "Test Description",
+            creator: "Test Creator",
+            date: "2023"
+        ),
+        files: [
+            ArchiveFile(name: "test.mp4", format: "MPEG4", size: "10000000")
+        ]
+    )
+    
+    // Configure the mock to return test data
+    await mockAPIClient.metadataToReturn = testMetadata
+    await mockAPIClient.videoURLToReturn = URL(string: "https://example.com/test.mp4")
+    
+    // Create view model with test dependencies
+    let viewModel = VideoPlayerViewModel(
+        apiClient: factory.apiClient,
+        mediaPlayer: factory.mediaPlayer,
+        preloadService: factory.preloadService,
+        cacheManager: factory.cacheManager
+    )
+    
+    // Execute the function under test
+    await viewModel.loadVideo(identifier: "test123")
+    
+    // Verify expectations
+    assert(await mockAPIClient.fetchMetadataCallCount == 1)
+    assert(await mockAPIClient.lastRequestedIdentifier == "test123")
+    assert(await mockMediaPlayer.playCallCount == 1)
+    assert(viewModel.currentMetadata?.metadata.identifier == "test123")
+    assert(viewModel.isLoading == false)
+    assert(viewModel.errorMessage == nil)
+}
+*/
+```
+
 ## Next Steps
 
-1. Review and approve this architectural plan
+1. Review and approve this updated architectural plan
 2. Create a detailed implementation timeline
 3. Begin implementing phase 1 with core abstractions
 4. Run tests frequently to ensure functionality is maintained
 5. Gradually migrate existing tests to the new approach
+6. Pay particular attention to actor isolation and UI adapter patterns
