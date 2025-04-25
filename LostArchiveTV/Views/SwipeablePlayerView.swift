@@ -153,19 +153,53 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                             )
                             .offset(y: dragOffset)
                         } else if let favoritesViewModel = provider as? FavoritesViewModel {
-                            // For favorites player - use custom controls
+                            // For favorites player - use same components as main player for consistency
                             ZStack {
+                                // Video player
                                 VideoPlayer(player: player)
                                     .aspectRatio(16/9, contentMode: .fit)
                                     .edgesIgnoringSafeArea(.all)
                                 
-                                // Controls
-                                VStack {
-                                    // Top controls with favorite and other buttons
+                                // Create a VideoInfoOverlay-like stack with FavoritesButtonPanel
+                                ZStack {
+                                    // Bottom info panel
+                                    if let video = favoritesViewModel.currentVideo {
+                                        BottomInfoPanel(
+                                            title: video.title,
+                                            collection: video.collection,
+                                            description: video.description,
+                                            identifier: video.identifier,
+                                            currentTime: player.currentTime().seconds,
+                                            duration: favoritesViewModel.videoDuration
+                                        )
+                                    }
+                                    
+                                    // Add custom back button for modal presentation
+                                    if let isPresented = self.isPresented {
+                                        VStack {
+                                            HStack {
+                                                Button(action: {
+                                                    isPresented.wrappedValue = false
+                                                }) {
+                                                    Image(systemName: "chevron.left")
+                                                        .font(.title2)
+                                                        .foregroundColor(.white)
+                                                        .padding(12)
+                                                        .background(Circle().fill(Color.black.opacity(0.5)))
+                                                }
+                                                .padding(.top, 50)
+                                                .padding(.leading, 16)
+                                                
+                                                Spacer()
+                                            }
+                                            Spacer()
+                                        }
+                                    }
+                                    
+                                    // Right-side button panel (similar to main player)
                                     HStack {
                                         Spacer()
                                         
-                                        // Right-side button panel
                                         VStack(spacing: 12) {
                                             // Favorite button at the top
                                             OverlayButton(
@@ -201,12 +235,31 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                                                     .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
                                             }
                                             
-                                            // Trim button (placeholder)
+                                            // Trim button (enabled)
                                             OverlayButton(
-                                                action: {},
-                                                disabled: true
+                                                action: {
+                                                    // Pause playback
+                                                    favoritesViewModel.pausePlayback()
+                                                    // TODO: Implement trim flow for favorites
+                                                },
+                                                disabled: favoritesViewModel.currentVideo == nil
                                             ) {
                                                 Image(systemName: "selection.pin.in.out")
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fit)
+                                                    .frame(width: 22, height: 22)
+                                                    .foregroundColor(.white)
+                                                    .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
+                                            }
+                                            
+                                            // Download button
+                                            OverlayButton(
+                                                action: {
+                                                    // TODO: Implement download for favorites
+                                                },
+                                                disabled: favoritesViewModel.currentVideo == nil
+                                            ) {
+                                                Image(systemName: "square.and.arrow.down.fill")
                                                     .resizable()
                                                     .aspectRatio(contentMode: .fit)
                                                     .frame(width: 22, height: 22)
@@ -221,20 +274,6 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                                         }
                                         .padding(.trailing, 16)
                                         .padding(.top, 50)
-                                    }
-                                    
-                                    Spacer()
-                                    
-                                    // Bottom info panel
-                                    if let video = favoritesViewModel.currentVideo {
-                                        BottomInfoPanel(
-                                            title: video.title,
-                                            collection: video.collection,
-                                            description: video.description,
-                                            identifier: video.identifier,
-                                            currentTime: player.currentTime().seconds,
-                                            duration: favoritesViewModel.videoDuration
-                                        )
                                     }
                                 }
                             }
