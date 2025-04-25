@@ -21,6 +21,7 @@ The current testing approach has the following issues:
 6. Enable simulating edge cases and error conditions
 7. Maintain high test coverage and confidence
 8. Handle Swift actor isolation correctly in abstractions
+9. Avoid using Actor keyword - instead use async/await if possible
 
 ## Lessons Learned from Initial Attempt
 
