@@ -65,8 +65,8 @@ struct FavoritesView: View {
             LazyVGrid(columns: columns, spacing: 16) {
                 ForEach(Array(viewModel.favorites.enumerated()), id: \.element.id) { index, video in
                     VideoThumbnailView(video: video)
-                        .aspectRatio(1, contentMode: .fill)
-                        .frame(minHeight: 120)
+                        .aspectRatio(1, contentMode: .fit)
+                        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 120)
                         .cornerRadius(8)
                         .onTapGesture {
                             // Start loading the video
@@ -126,6 +126,7 @@ struct VideoThumbnailView: View {
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)
+                            .clipped()
                     case .failure:
                         ZStack {
                             Color.gray.opacity(0.3)
@@ -146,5 +147,6 @@ struct VideoThumbnailView: View {
                 }
             }
         }
+        .aspectRatio(1, contentMode: .fit)
     }
 }
