@@ -98,6 +98,11 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                     VStack {
                         HStack {
                             Button(action: {
+                                // Stop playback before dismissing
+                                if let favViewModel = provider as? FavoritesViewModel {
+                                    favViewModel.pausePlayback()
+                                    favViewModel.player = nil
+                                }
                                 isPresented.wrappedValue = false
                             }) {
                                 Image(systemName: "chevron.left")
@@ -179,6 +184,11 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                                         VStack {
                                             HStack {
                                                 Button(action: {
+                                                    // Stop playback before dismissing
+                                                    if let favViewModel = provider as? FavoritesViewModel {
+                                                        favViewModel.pausePlayback()
+                                                        favViewModel.player = nil
+                                                    }
                                                     isPresented.wrappedValue = false
                                                 }) {
                                                     Image(systemName: "chevron.left")
