@@ -252,7 +252,8 @@ extension VideoTrimViewModel {
             if lastDraggedRightHandle {
                 lastDraggedRightHandle = false // Reset flag once used
                 seekToTime(startTrimTime)
-                // The seek completion handler will start playback
+                // Also explicitly start playback here instead of relying only on the seek completion handler
+                playerManager.play()
                 return
             }
             
@@ -263,7 +264,8 @@ extension VideoTrimViewModel {
                CMTimeCompare(currentPlayerTime, endTrimTime) > 0 {
                 // If outside trim bounds, seek to start and play from there
                 seekToTime(startTrimTime)
-                // The seek completion handler will start playback
+                // Also explicitly start playback here
+                playerManager.play()
             } else {
                 // Otherwise just play from current position
                 playerManager.play()
