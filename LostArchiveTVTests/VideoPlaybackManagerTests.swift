@@ -89,7 +89,7 @@ struct VideoPlaybackManagerTests {
             object: playerItem
         )
         
-        // Assert
-        #expect(!playbackManager.isPlaying)
+        // Assert - the playback manager restarts the video and keeps playing
+        #expect(playbackManager.isPlaying)
     }
 }

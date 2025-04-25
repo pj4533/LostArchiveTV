@@ -15,7 +15,8 @@ struct VideoPlayerViewModelTests {
     @Test
     func initialization_configuresInitialState() {
         // Arrange & Act
-        let viewModel = VideoPlayerViewModel()
+        let favoritesManager = FavoritesManager()
+        let viewModel = VideoPlayerViewModel(favoritesManager: favoritesManager)
         
         // Assert
         #expect(viewModel.isInitializing)
@@ -26,7 +27,8 @@ struct VideoPlayerViewModelTests {
     @Test
     func loadRandomVideo_whenSuccess_updatesPlayerState() async throws {
         // Arrange
-        let viewModel = VideoPlayerViewModel()
+        let favoritesManager = FavoritesManager()
+        let viewModel = VideoPlayerViewModel(favoritesManager: favoritesManager)
         
         // Make sure identifiers get loaded - the initialization task in the ViewModel loads them
         try? await Task.sleep(for: .seconds(0.5))
@@ -47,7 +49,8 @@ struct VideoPlayerViewModelTests {
     @Test
     func loadingNewVideo_afterSwipe_works() async {
         // Arrange
-        let viewModel = VideoPlayerViewModel()
+        let favoritesManager = FavoritesManager()
+        let viewModel = VideoPlayerViewModel(favoritesManager: favoritesManager)
         
         // Wait for initial setup
         try? await Task.sleep(for: .seconds(0.5))
