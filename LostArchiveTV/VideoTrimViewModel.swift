@@ -16,6 +16,9 @@ class VideoTrimViewModel: ObservableObject {
         return playerManager.player ?? AVPlayer()
     }
     
+    // Timer to update the playhead position
+    private var playheadUpdateTimer: Timer?
+    
     // Asset properties
     let assetURL: URL
     let assetDuration: CMTime
@@ -119,8 +122,8 @@ class VideoTrimViewModel: ObservableObject {
         // Seek to start trim time but don't play automatically
         seekToTime(startTrimTime)
         
-        // Set up playback time observer
-        setupTimeObserver()
+        // We will set up the time observer when playback starts, not here
+        // This avoids potential race conditions during initialization
     }
     
     private func setupPlayerObservation() {
@@ -213,6 +216,9 @@ extension VideoTrimViewModel {
             isPlaying = false
         }
         
+        // Stop the playhead update timer
+        stopPlayheadUpdateTimer()
+        
         // Clean up player using PlayerManager
         playerManager.cleanupPlayer()
         
@@ -234,33 +240,14 @@ extension VideoTrimViewModel {
 
 // MARK: - Playback Control
 extension VideoTrimViewModel {
-    private func setupTimeObserver() {
-        // We manage our own time observer for the trim interface
-        // since we need finer-grained control than PlayerManager provides
-        let interval = CMTime(seconds: 0.1, preferredTimescale: 600)
-        player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-            guard let self = self else { return }
-            self.currentTime = time
-            self.timelineManager.updateCurrentTime(time)
-            
-            // If playhead is outside trim bounds, handle appropriately
-            if CMTimeCompare(time, self.startTrimTime) < 0 {
-                // If before start time, move to start
-                self.seekToTime(self.startTrimTime)
-            } else if CMTimeCompare(time, self.endTrimTime) >= 0 {
-                // If at or after end time, loop back to start
-                if self.isPlaying {
-                    logger.info("Reached end of trimmed section - looping back to start")
-                    self.seekToTime(self.startTrimTime)
-                }
-            }
-        }
-    }
     
     func togglePlayback() {
         isPlaying.toggle()
         
         if isPlaying {
+            // Start the playhead update timer when playing
+            startPlayheadUpdateTimer()
+            
             // If right handle was the last one dragged, always start from the left handle
             if lastDraggedRightHandle {
                 lastDraggedRightHandle = false // Reset flag once used
@@ -282,6 +269,8 @@ extension VideoTrimViewModel {
                 playerManager.play()
             }
         } else {
+            // Stop the timer when paused
+            stopPlayheadUpdateTimer()
             playerManager.pause()
         }
         
@@ -289,7 +278,36 @@ extension VideoTrimViewModel {
         // This is handled in the UI layer by setting shouldShowPlayButton = false when button is tapped
     }
     
+    // Use a simple timer to update the playhead position during playback
+    private func startPlayheadUpdateTimer() {
+        // Stop any existing timer first
+        stopPlayheadUpdateTimer()
+        
+        // Create a timer that fires 10 times per second
+        playheadUpdateTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            guard let self = self, self.isPlaying, let player = self.playerManager.player else { return }
+            
+            // Update our currentTime property with the player's current time
+            let time = player.currentTime()
+            self.currentTime = time
+            
+            // Check if we've reached the end of the trim range
+            if CMTimeCompare(time, self.endTrimTime) >= 0 {
+                self.logger.debug("Reached end of trim section, looping back")
+                self.seekToTime(self.startTrimTime)
+            }
+        }
+    }
+    
+    private func stopPlayheadUpdateTimer() {
+        playheadUpdateTimer?.invalidate()
+        playheadUpdateTimer = nil
+    }
+    
     func seekToTime(_ time: CMTime) {
+        // Update currentTime immediately so the playhead updates right away
+        self.currentTime = time
+        
         // Seek with completion handler to ensure operation finishes
         playerManager.seek(to: time) { [weak self] completed in
             guard let self = self, completed else { return }
@@ -338,6 +356,8 @@ extension VideoTrimViewModel {
     
     func updateLeftHandleDrag(currentPosition: CGFloat, timelineWidth: CGFloat) {
         timelineManager.updateLeftHandleDrag(currentPosition: currentPosition, timelineWidth: timelineWidth)
+        // Update current time to follow the handle position
+        self.currentTime = self.startTrimTime
     }
     
     func endLeftHandleDrag() {
@@ -362,6 +382,8 @@ extension VideoTrimViewModel {
     
     func updateRightHandleDrag(currentPosition: CGFloat, timelineWidth: CGFloat) {
         timelineManager.updateRightHandleDrag(currentPosition: currentPosition, timelineWidth: timelineWidth)
+        // Update current time to follow the handle position
+        self.currentTime = self.endTrimTime
     }
     
     func endRightHandleDrag() {
@@ -380,6 +402,19 @@ extension VideoTrimViewModel {
         // Show play button when interacting with timeline
         shouldShowPlayButton = true
         
+        // Get the time for this position
+        let newTimeSeconds = timelineManager.positionToTime(position: position, timelineWidth: timelineWidth)
+        
+        // Constrain to trim bounds
+        let constrainedTime = max(startTrimTime.seconds, min(endTrimTime.seconds, newTimeSeconds))
+        
+        // Create CMTime
+        let newTime = CMTime(seconds: constrainedTime, preferredTimescale: 600)
+        
+        // Update our current time directly
+        self.currentTime = newTime
+        
+        // Send to timeline manager
         timelineManager.scrubTimeline(position: position, timelineWidth: timelineWidth)
         
         // When user manually scrubs timeline, reset the handle drag tracking

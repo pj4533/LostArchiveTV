@@ -69,8 +69,9 @@ struct TimelineContent: View {
     private func renderPlayhead(position: CGFloat) -> some View {
         Rectangle()
             .fill(Color.white)
-            .frame(width: 2, height: thumbnailHeight)
+            .frame(width: 3, height: thumbnailHeight)
             .position(x: position, y: thumbnailHeight / 2)
+            .zIndex(20) // Ensure playhead displays above other elements
     }
     
     private func renderLeftOverlay(position: CGFloat) -> some View {
