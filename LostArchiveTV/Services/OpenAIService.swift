@@ -28,14 +28,14 @@ class OpenAIService {
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         
         // Log the URL and headers
-        Logger.network.debug("OpenAI embedding request URL: \(baseURL.absoluteString)")
+        Logger.network.debug("OpenAI embedding request URL: \(self.baseURL.absoluteString)")
         let headers = request.allHTTPHeaderFields ?? [:]
         Logger.network.debug("OpenAI Request Headers: \(headers)")
         
         // Prepare body
         let requestBody: [String: Any] = [
             "input": text,
-            "model": embeddingModel
+            "model": self.embeddingModel
         ]
         
         do {
@@ -44,7 +44,7 @@ class OpenAIService {
             
             // Log truncated request for debugging
             let truncatedText = text.count > 50 ? text.prefix(50) + "..." : text
-            Logger.network.debug("Generating embedding for text: \"\(truncatedText)\" with model: \(embeddingModel)")
+            Logger.network.debug("Generating embedding for text: \"\(truncatedText)\" with model: \(self.embeddingModel)")
             
             // Execute request with error handling
             Logger.network.debug("Starting OpenAI API request...")
@@ -67,14 +67,14 @@ class OpenAIService {
                 
                 Logger.network.error("""
                 OPENAI ERROR (\(httpResponse.statusCode)):
-                URL: \(baseURL.absoluteString)
+                URL: \(self.baseURL.absoluteString)
                 Headers: \(httpResponse.allHeaderFields)
                 Body: \(errorString)
                 
                 Original Request:
                 Method: \(request.httpMethod ?? "")
                 Headers: \(headers)
-                Body: {"input": "\(truncatedText)...", "model": "\(embeddingModel)"}
+                Body: {"input": "\(truncatedText)...", "model": "\(self.embeddingModel)"}
                 """)
                 
                 throw NetworkError.serverError(statusCode: httpResponse.statusCode, message: errorString)
@@ -110,10 +110,16 @@ class OpenAIService {
             // Handle specific decoding errors
             Logger.network.error("OpenAI JSON decoding error: \(decodingError)")
             
-            // Try to log the raw response data
-            if let data = decodingError.userInfo[NSDebugDescriptionErrorKey] as? Data,
-               let responseString = String(data: data, encoding: .utf8) {
-                Logger.network.error("Raw OpenAI response: \(responseString)")
+            // Log the error context information
+            switch decodingError {
+            case .dataCorrupted(let context), .keyNotFound(_, let context), 
+                 .typeMismatch(_, let context), .valueNotFound(_, let context):
+                Logger.network.error("Decoding error context: \(context.debugDescription)")
+                if let underlyingError = context.underlyingError {
+                    Logger.network.error("Underlying error: \(underlyingError)")
+                }
+            @unknown default:
+                Logger.network.error("Unknown decoding error type")
             }
             
             throw NetworkError.parsingError(message: "Failed to decode: \(decodingError.localizedDescription)")
