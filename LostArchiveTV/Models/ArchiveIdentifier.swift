@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct ArchiveIdentifier: Codable {
+struct ArchiveIdentifier: Codable, Equatable {
     let identifier: String
     let collection: String
 }

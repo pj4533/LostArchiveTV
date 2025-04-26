@@ -76,3 +76,5 @@ Icon
 
 # Crash logs
 *.crash
+
+APIKeys.swift
