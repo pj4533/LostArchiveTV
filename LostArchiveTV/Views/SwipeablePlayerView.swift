@@ -54,8 +54,9 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                 // Only handle dismissal if we're not advancing to the next step
                 if trimStep == .none {
                     self.downloadedVideoURL = nil
-                    if let favoritesViewModel = provider as? FavoritesViewModel {
-                        favoritesViewModel.resumePlayback()
+                    // Resume playback for any video provider
+                    if let baseViewModel = provider as? BaseVideoViewModel {
+                        baseViewModel.resumePlayback()
                     }
                 }
             }) {
@@ -76,10 +77,10 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                         }
                     } else if trimStep == .trimming, 
                               let downloadedURL = downloadedVideoURL,
-                              let favoritesViewModel = provider as? FavoritesViewModel {
+                              let baseViewModel = provider as? BaseVideoViewModel {
                         // Get current time and duration from the player
-                        let currentTimeSeconds = favoritesViewModel.player?.currentTime().seconds ?? 0
-                        let durationSeconds = favoritesViewModel.videoDuration
+                        let currentTimeSeconds = baseViewModel.player?.currentTime().seconds ?? 0
+                        let durationSeconds = baseViewModel.videoDuration
                         
                         // Convert to CMTime for VideoTrimViewModel
                         let currentTime = CMTime(seconds: currentTimeSeconds, preferredTimescale: 600)
@@ -161,12 +162,12 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
         }
     }
     
-    // Function to start the trim flow for favorites
+    // Function to start the trim flow for any video provider
     private func startTrimFlow() {
-        guard let favoritesViewModel = provider as? FavoritesViewModel else { return }
+        guard let _ = provider as? BaseVideoViewModel else { return }
         
         // Log the action
-        Logger.caching.debug("Starting trim flow for favorites")
+        Logger.caching.debug("Starting trim flow for \(type(of: provider))")
         
         // Start the trim workflow with the download step
         trimStep = .downloading
