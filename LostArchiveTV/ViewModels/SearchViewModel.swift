@@ -26,6 +26,9 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider {
     // For video transition/swipe support
     var transitionManager = VideoTransitionManager()
     
+    // Task management for proper cancellation
+    private var searchTask: Task<Void, Never>?
+    
     init(
         searchManager: SearchManager = SearchManager(),
         videoLoadingService: VideoLoadingService = VideoLoadingService(
@@ -41,36 +44,79 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider {
         super.init()
     }
     
+    /// Cleanup resources when the view disappears
+    override func cleanup() {
+        Logger.network.info("SearchViewModel cleanup - cancelling all tasks")
+        
+        // Cancel search task
+        searchTask?.cancel()
+        searchTask = nil
+        
+        // Cleanup playback
+        if isPlaying {
+            pausePlayback()
+        }
+        
+        // Call the parent class cleanup
+        super.cleanup()
+    }
+    
     func search() async {
         guard !self.searchQuery.isEmpty else {
             searchResults = []
             return
         }
         
-        isSearching = true
-        errorMessage = nil
+        // Cancel any previously running search task
+        searchTask?.cancel()
         
-        do {
-            Logger.caching.info("Performing search for query: \(self.searchQuery)")
-            let results = try await searchManager.search(query: self.searchQuery, filter: searchFilter)
-            self.searchResults = results
+        // Create a new search task
+        searchTask = Task {
+            isSearching = true
+            errorMessage = nil
             
-            if !results.isEmpty {
-                Logger.caching.info("Search returned \(results.count) results")
-                currentIndex = 0
-                currentResult = results[0]
-            } else {
-                Logger.caching.info("Search returned no results")
-                errorMessage = "No results found"
-                currentResult = nil
-                player = nil
+            do {
+                guard !Task.isCancelled else { return }
+                
+                Logger.caching.info("Performing search for query: \(self.searchQuery)")
+                let results = try await searchManager.search(query: self.searchQuery, filter: searchFilter)
+                
+                // Check if task was cancelled during network operation
+                guard !Task.isCancelled else { return }
+                
+                await MainActor.run {
+                    self.searchResults = results
+                    
+                    if !results.isEmpty {
+                        Logger.caching.info("Search returned \(results.count) results")
+                        currentIndex = 0
+                        currentResult = results[0]
+                    } else {
+                        Logger.caching.info("Search returned no results")
+                        errorMessage = "No results found"
+                        currentResult = nil
+                        player = nil
+                    }
+                    
+                    isSearching = false
+                }
+            } catch {
+                // Check if the error is due to task cancellation
+                if Task.isCancelled {
+                    Logger.network.info("Search task was cancelled")
+                    await MainActor.run {
+                        isSearching = false
+                    }
+                    return
+                }
+                
+                await MainActor.run {
+                    errorMessage = "Search failed: \(error.localizedDescription)"
+                    Logger.network.error("Search failed: \(error.localizedDescription)")
+                    isSearching = false
+                }
             }
-        } catch {
-            errorMessage = "Search failed: \(error.localizedDescription)"
-            Logger.network.error("Search failed: \(error.localizedDescription)")
         }
-        
-        isSearching = false
     }
     
     func playVideoAt(index: Int) {

@@ -30,20 +30,22 @@ struct SearchView: View {
                 SearchFilterView(filter: $viewModel.searchFilter)
             }
             .fullScreenCover(isPresented: $viewModel.showingPlayer, onDismiss: {
-                // Stop playback when the player is dismissed
-                viewModel.pausePlayback()
-                viewModel.player = nil
+                // Clean up when the player is dismissed
+                viewModel.cleanup()
             }) {
                 SwipeablePlayerView(provider: viewModel, 
                                    isPresented: $viewModel.showingPlayer)
                 .onAppear {
                     // Start preloading videos
                     Task {
-                        // Make sure videos are preloaded for swiping
                         await viewModel.ensureVideosAreCached()
                     }
                 }
             }
+        }
+        .onDisappear {
+            // Clean up when view disappears from navigation
+            viewModel.cleanup()
         }
     }
     
