@@ -56,27 +56,6 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                         
                         // Use specific content view based on the current trim step
                         VStack {
-                            // Add dismiss button at top
-                            HStack {
-                                Button(action: {
-                                    // Reset trim state
-                                    self.downloadedVideoURL = nil
-                                    self.trimStep = .none
-                                    
-                                    // Resume playback
-                                    if let baseViewModel = provider as? BaseVideoViewModel {
-                                        baseViewModel.resumePlayback()
-                                    }
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.title)
-                                        .foregroundColor(.white)
-                                        .padding()
-                                }
-                                Spacer()
-                            }
-                            .padding(.horizontal)
-                            
                             if trimStep == .downloading {
                                 // Download view
                                 TrimDownloadView(provider: provider) { downloadedURL in
