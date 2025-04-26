@@ -4,6 +4,7 @@ import OSLog
 class PineconeService {
     private let apiKey: String
     private let host: String
+    private let session: URLSession
     
     init(
         apiKey: String = APIKeys.pineconeKey,
@@ -11,6 +12,15 @@ class PineconeService {
     ) {
         self.apiKey = apiKey
         self.host = host
+        
+        // Create a non-persisted, ephemeral session configuration
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 30.0
+        config.timeoutIntervalForResource = 60.0
+        config.waitsForConnectivity = true
+        self.session = URLSession(configuration: config)
+        
+        Logger.network.debug("PineconeService initialized with ephemeral URLSession")
     }
     
     private var baseURL: URL {
@@ -57,8 +67,8 @@ class PineconeService {
         
         Logger.network.debug("Sending request to Pinecone with vector of size \(vector.count)")
         
-        // Perform the request
-        let (data, response) = try await URLSession.shared.data(for: request)
+        // Perform the request using the dedicated session
+        let (data, response) = try await session.data(for: request)
         
         // Log response details
         guard let httpResponse = response as? HTTPURLResponse else {

@@ -5,16 +5,24 @@ class OpenAIService {
     private let apiKey: String
     private let embeddingModel = "text-embedding-3-large"
     private let baseURL = URL(string: "https://api.openai.com/v1/embeddings")!
+    private let session: URLSession
     
     init(apiKey: String = APIKeys.openAIKey) {
         self.apiKey = apiKey
-        Logger.network.debug("OpenAIService initialized with API key length: \(apiKey.count) characters")
+        
+        // Create a non-persisted, ephemeral session configuration
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 60.0
+        config.timeoutIntervalForResource = 120.0
+        config.waitsForConnectivity = true
+        self.session = URLSession(configuration: config)
+        
+        Logger.network.debug("OpenAIService initialized with API key length: \(apiKey.count) characters and ephemeral URLSession")
     }
     
     func generateEmbedding(for text: String) async throws -> [Float] {
-        // Use shared URLSession
-        let session = URLSession.shared
-        Logger.network.debug("OpenAI using URLSession.shared")
+        // Use dedicated ephemeral session
+        Logger.network.debug("OpenAI using dedicated ephemeral URLSession")
         
         // Configure request with more robust settings
         var request = URLRequest(url: baseURL)
