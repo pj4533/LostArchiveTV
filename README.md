@@ -48,6 +48,36 @@ LostArchiveTV lets you discover historical films, educational videos, and other 
 - iOS 18.0+
 - Xcode 16.0+
 - Swift 5.9+
+- API Keys (see Setup section)
+
+## Setup
+
+### API Keys
+
+This project requires API keys for:
+1. OpenAI - Used for semantic search embeddings
+2. Pinecone - Used for vector search
+
+Set them up using one of these methods:
+
+#### Method 1: Environment Variables in Xcode Scheme (Recommended for developers)
+
+1. Open Xcode and go to **Product > Scheme > Manage Schemes**
+2. Duplicate the "LostArchiveTV" scheme and name it "LostArchiveTV-Dev" 
+3. Select your new scheme and click "Edit..."
+4. Go to the **Run** action and select the **Arguments** tab
+5. Under **Environment Variables**, add:
+   - `OPENAI_API_KEY` with your OpenAI API key
+   - `PINECONE_API_KEY` with your Pinecone API key
+   - `PINECONE_HOST` with your Pinecone host URL
+6. Your personal scheme with API keys will be git-ignored
+
+#### Method 2: Environment Variables in CI/CD (For cloud builds)
+
+For Xcode Cloud or other CI systems, set the environment variables:
+- `OPENAI_API_KEY`
+- `PINECONE_API_KEY`
+- `PINECONE_HOST`
 
 ## Development
 

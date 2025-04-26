@@ -13,6 +13,11 @@ struct LostArchiveTVApp: App {
     // Track app state changes
     @Environment(\.scenePhase) private var scenePhase
     
+    init() {
+        // Initialize environment service to load API keys
+        let _ = EnvironmentService.shared
+    }
+    
     var body: some Scene {
         WindowGroup {
             ContentView()

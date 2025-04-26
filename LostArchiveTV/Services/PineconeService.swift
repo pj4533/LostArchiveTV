@@ -7,11 +7,11 @@ class PineconeService {
     private let session: URLSession
     
     init(
-        apiKey: String = APIKeys.pineconeKey,
-        host: String = APIKeys.pineconeHost
+        apiKey: String? = nil,
+        host: String? = nil
     ) {
-        self.apiKey = apiKey
-        self.host = host
+        self.apiKey = apiKey ?? EnvironmentService.shared.pineconeKey
+        self.host = host ?? EnvironmentService.shared.pineconeHost
         
         // Create a non-persisted, ephemeral session configuration
         let config = URLSessionConfiguration.ephemeral
