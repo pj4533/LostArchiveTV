@@ -7,25 +7,22 @@ protocol PineconeServiceProtocol {
 
 class PineconeService: PineconeServiceProtocol {
     private let apiKey: String
-    private let environment: String
-    private let indexName: String
+    private let host: String
     private let session: URLSessionProtocol
     
     init(
         apiKey: String = APIKeys.pineconeKey,
-        environment: String = APIKeys.pineconeEnvironment,
-        indexName: String = APIKeys.pineconeIndex,
+        host: String = APIKeys.pineconeHost,
         session: URLSessionProtocol = URLSession.shared
     ) {
         self.apiKey = apiKey
-        self.environment = environment
-        self.indexName = indexName
+        self.host = host
         self.session = session
     }
     
     private var baseURL: URL {
-        // Constructs URL based on the current environment and index name
-        URL(string: "https://\(indexName).\(environment).pinecone.io/query")!
+        // Constructs URL using the host
+        URL(string: "\(host)/query")!
     }
     
     func query(vector: [Float], filter: [String: Any]? = nil, topK: Int = 20) async throws -> [SearchResult] {
