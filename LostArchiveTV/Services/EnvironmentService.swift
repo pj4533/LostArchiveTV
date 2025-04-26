@@ -45,14 +45,28 @@ class EnvironmentService {
     
     // MARK: - Private Methods
     
-    /// Loads API keys from environment variables
+    /// Loads API keys from environment variables or Info.plist
     private func loadEnvironmentVariables() {
         Logger.network.debug("Loading API keys from environment variables...")
         
-        // Get values from environment variables
-        cachedOpenAIKey = ProcessInfo.processInfo.environment[EnvironmentVariables.openAIKey]
-        cachedPineconeKey = ProcessInfo.processInfo.environment[EnvironmentVariables.pineconeKey]
-        cachedPineconeHost = ProcessInfo.processInfo.environment[EnvironmentVariables.pineconeHost]
+        // First try environment variables (useful for local development)
+        let processInfo = ProcessInfo.processInfo
+        cachedOpenAIKey = processInfo.environment[EnvironmentVariables.openAIKey]
+        cachedPineconeKey = processInfo.environment[EnvironmentVariables.pineconeKey]
+        cachedPineconeHost = processInfo.environment[EnvironmentVariables.pineconeHost]
+        
+        // If not found in environment, try Info.plist (for app store builds)
+        if cachedOpenAIKey == nil {
+            cachedOpenAIKey = Bundle.main.infoDictionary?[EnvironmentVariables.openAIKey] as? String
+        }
+        
+        if cachedPineconeKey == nil {
+            cachedPineconeKey = Bundle.main.infoDictionary?[EnvironmentVariables.pineconeKey] as? String
+        }
+        
+        if cachedPineconeHost == nil {
+            cachedPineconeHost = Bundle.main.infoDictionary?[EnvironmentVariables.pineconeHost] as? String
+        }
         
         // Log status (without exposing actual keys)
         Logger.network.debug("OpenAI API key status: \(self.cachedOpenAIKey != nil ? "Available" : "Missing")")

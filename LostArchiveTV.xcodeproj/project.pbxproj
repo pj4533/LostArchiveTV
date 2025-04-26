@@ -80,6 +80,7 @@
 				B0C35BDA2DB3E4A5009A3714 /* Sources */,
 				B0C35BDB2DB3E4A5009A3714 /* Frameworks */,
 				B0C35BDC2DB3E4A5009A3714 /* Resources */,
+				B0492DCE2DBD86520042E457 /* ShellScript */,
 			);
 			buildRules = (
 			);
@@ -173,6 +174,26 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		B0492DCE2DBD86520042E457 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n# Only run if we have environment variables to inject\n  if [ -n \"$OPENAI_API_KEY\" ] || [ -n \"$PINECONE_API_KEY\" ] || [ -n \"$PINECONE_HOST\" ]; then\n      echo \"Injecting API keys into Info.plist\"\n\n      # Get the path to the Info.plist in the built products directory\n      PLIST_PATH=\"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH}\"\n\n      # Check if the plist file exists\n      if [ ! -f \"$PLIST_PATH\" ]; then\n          echo \"Error: Info.plist not found at $PLIST_PATH\"\n          exit 1\n      fi\n\n      # Add environment variables to Info.plist\n      if [ -n \"$OPENAI_API_KEY\" ]; then\n          /usr/libexec/PlistBuddy -c \"Delete :OPENAI_API_KEY\" \"$PLIST_PATH\" 2>/dev/null || true\n          /usr/libexec/PlistBuddy -c \"Add :OPENAI_API_KEY string $OPENAI_API_KEY\" \"$PLIST_PATH\"\n          echo \"Added OPENAI_API_KEY to Info.plist\"\n      fi\n\n      if [ -n \"$PINECONE_API_KEY\" ]; then\n          /usr/libexec/PlistBuddy -c \"Delete :PINECONE_API_KEY\" \"$PLIST_PATH\" 2>/dev/null || true\n          /usr/libexec/PlistBuddy -c \"Add :PINECONE_API_KEY string $PINECONE_API_KEY\" \"$PLIST_PATH\"\n          echo \"Added PINECONE_API_KEY to Info.plist\"\n      fi\n\n      if [ -n \"$PINECONE_HOST\" ]; then\n          /usr/libexec/PlistBuddy -c \"Delete :PINECONE_HOST\" \"$PLIST_PATH\" 2>/dev/null || true\n          /usr/libexec/PlistBuddy -c \"Add :PINECONE_HOST string $PINECONE_HOST\" \"$PLIST_PATH\"\n          echo \"Added PINECONE_HOST to Info.plist\"\n      fi\n\n      echo \"Finished adding API keys to Info.plist for runtime access\"\n  else\n      echo \"No API keys found in environment variables - skipping\"\n  fi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		B0C35BDA2DB3E4A5009A3714 /* Sources */ = {
