@@ -9,9 +9,47 @@ import SwiftUI
 import AVKit
 import OSLog
 
+// Helper class to manage notification observing - using a class allows us to properly handle deallocation
+class TrimObserver: ObservableObject {
+    private var token: NSObjectProtocol?
+    @Published var trimStep: TrimWorkflowStep = .none
+    
+    enum TrimWorkflowStep {
+        case none        // No trim action in progress
+        case downloading // Downloading video for trimming
+        case trimming    // Showing trim interface
+    }
+    
+    func setupObserver(handler: @escaping () -> Void) {
+        // Remove existing observer if it exists
+        removeObserver()
+        
+        // Create a new observer
+        token = NotificationCenter.default.addObserver(
+            forName: .startVideoTrimming,
+            object: nil,
+            queue: .main
+        ) { _ in
+            handler()
+        }
+    }
+    
+    func removeObserver() {
+        if let token = token {
+            NotificationCenter.default.removeObserver(token)
+            self.token = nil
+        }
+    }
+    
+    deinit {
+        removeObserver()
+    }
+}
+
 struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
     @ObservedObject var provider: Provider
     @StateObject private var transitionManager = VideoTransitionManager()
+    @StateObject private var trimObserver = TrimObserver()
     
     // Make the transitionManager accessible to the provider for direct preloading
     var onPreloadReady: ((VideoTransitionManager) -> Void)? = nil
@@ -19,19 +57,14 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
     @State private var isDragging = false
     @State private var showBackButton = false
     
-    // Track the current step in the trim workflow
-    @State private var trimStep: TrimWorkflowStep = .none
+    // Track downloaded URL for trimming
     @State private var downloadedVideoURL: URL? = nil
     
     // Optional binding for dismissal in modal presentations
     var isPresented: Binding<Bool>?
     
-    // Enum for tracking trim workflow steps
-    enum TrimWorkflowStep {
-        case none        // No trim action in progress
-        case downloading // Downloading video for trimming
-        case trimming    // Showing trim interface
-    }
+    // Use the TrimWorkflowStep enum from TrimObserver
+    typealias TrimWorkflowStep = TrimObserver.TrimWorkflowStep
     
     var body: some View {
         GeometryReader { geometry in
@@ -49,27 +82,27 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
             // Sheet for trim workflow (only when a trim step is active)
             .overlay {
                 // Use a ZStack with conditional content for trim UI instead of a sheet
-                if trimStep != .none {
+                if trimObserver.trimStep != .none {
                     ZStack {
                         // Semi-transparent black background
                         Color.black.opacity(0.9).ignoresSafeArea()
                         
                         // Use specific content view based on the current trim step
                         VStack {
-                            if trimStep == .downloading {
+                            if trimObserver.trimStep == .downloading {
                                 // Download view
                                 TrimDownloadView(provider: provider) { downloadedURL in
                                     if let url = downloadedURL {
                                         // Success - move to trim step
                                         self.downloadedVideoURL = url
-                                        self.trimStep = .trimming
+                                        self.trimObserver.trimStep = .trimming
                                     } else {
                                         // Failed download - dismiss everything
                                         self.downloadedVideoURL = nil
-                                        self.trimStep = .none
+                                        self.trimObserver.trimStep = .none
                                     }
                                 }
-                            } else if trimStep == .trimming, 
+                            } else if trimObserver.trimStep == .trimming, 
                                     let downloadedURL = downloadedVideoURL,
                                     let baseViewModel = provider as? BaseVideoViewModel {
                                 // Get current time and duration from the player
@@ -129,7 +162,20 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                 }
                 
                 // Setup notification observer for trim action
-                setupTrimObserver()
+                trimObserver.setupObserver {
+                    startTrimFlow()
+                }
+            }
+            .onDisappear {
+                // Clean up resources when view disappears
+                Logger.caching.debug("SwipeablePlayerView disappearing - removing observers")
+                
+                // Remove observer
+                trimObserver.removeObserver()
+                
+                // Reset trim state
+                trimObserver.trimStep = .none
+                downloadedVideoURL = nil
             }
         }
     }
@@ -149,18 +195,6 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
         }
     }
     
-    // Setup notification observer for trim action
-    private func setupTrimObserver() {
-        // Use NotificationCenter to communicate between components
-        NotificationCenter.default.addObserver(
-            forName: .startVideoTrimming,
-            object: nil,
-            queue: .main
-        ) { _ in
-            startTrimFlow()
-        }
-    }
-    
     // Function to start the trim flow for any video provider
     private func startTrimFlow() {
         guard let _ = provider as? BaseVideoViewModel else { return }
@@ -169,7 +203,7 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
         Logger.caching.debug("Starting trim flow for \(type(of: provider))")
         
         // Start the trim workflow with the download step
-        trimStep = .downloading
+        trimObserver.trimStep = .downloading
     }
 }
 
