@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AVKit
+import UIKit
 
 // Component for search video content layer
 struct SearchVideoLayerContent: View {
@@ -89,6 +90,23 @@ struct SearchVideoLayerContent: View {
                         
                         Spacer()
                         
+                        // Favorite button - above the rewind button
+                        OverlayButton(
+                            action: {
+                                viewModel.toggleFavorite()
+                                // Add haptic feedback
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            },
+                            disabled: viewModel.currentIdentifier == nil
+                        ) {
+                            Image(systemName: viewModel.isFavorite ? "heart.fill" : "heart")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 22, height: 22)
+                                .foregroundColor(viewModel.isFavorite ? .red : .white)
+                                .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
+                        }
+                        
                         // Restart video button
                         OverlayButton(
                             action: {
@@ -100,6 +118,38 @@ struct SearchVideoLayerContent: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
                                 .frame(width: 16, height: 16)
+                                .foregroundColor(.white)
+                                .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
+                        }
+                        
+                        // Trim button
+                        OverlayButton(
+                            action: {
+                                viewModel.pausePlayback()
+                                // Trigger trimming to be shown in the parent view
+                                NotificationCenter.default.post(name: .startVideoTrimming, object: nil)
+                            },
+                            disabled: viewModel.currentIdentifier == nil
+                        ) {
+                            Image(systemName: "selection.pin.in.out")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 22, height: 22)
+                                .foregroundColor(.white)
+                                .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
+                        }
+                        
+                        // Download button
+                        OverlayButton(
+                            action: {
+                                // TODO: Implement download for search results
+                            },
+                            disabled: viewModel.currentIdentifier == nil
+                        ) {
+                            Image(systemName: "square.and.arrow.down.fill")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 22, height: 22)
                                 .foregroundColor(.white)
                                 .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
                         }

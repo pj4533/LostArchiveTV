@@ -10,6 +10,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider {
     private let searchManager: SearchManager
     private let videoLoadingService: VideoLoadingService
     private let archiveService = ArchiveService()
+    private let favoritesManager: FavoritesManager
     
     // Search state
     @Published var searchQuery = ""
@@ -30,10 +31,12 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider {
         videoLoadingService: VideoLoadingService = VideoLoadingService(
             archiveService: ArchiveService(),
             cacheManager: VideoCacheManager()
-        )
+        ),
+        favoritesManager: FavoritesManager = FavoritesManager()
     ) {
         self.searchManager = searchManager
         self.videoLoadingService = videoLoadingService
+        self.favoritesManager = favoritesManager
         
         super.init()
     }
@@ -317,5 +320,54 @@ extension SearchViewModel {
             playerItem: AVPlayerItem(asset: urlAsset),
             startPosition: videoInfo.startPosition
         )
+    }
+}
+
+// MARK: - Favorites Support
+extension SearchViewModel {
+    /// Checks if the current video is a favorite
+    var isFavorite: Bool {
+        guard let identifier = currentIdentifier, let collection = currentCollection else {
+            return false
+        }
+        
+        let archiveIdentifier = ArchiveIdentifier(identifier: identifier, collection: collection)
+        let dummyVideo = CachedVideo(
+            identifier: identifier,
+            collection: collection,
+            metadata: ArchiveMetadata(files: [], metadata: nil),
+            mp4File: ArchiveFile(name: "", format: "", size: "", length: nil),
+            videoURL: URL(string: "about:blank")!,
+            asset: AVURLAsset(url: URL(string: "about:blank")!),
+            playerItem: AVPlayerItem(asset: AVURLAsset(url: URL(string: "about:blank")!)),
+            startPosition: 0
+        )
+        
+        return favoritesManager.isFavorite(dummyVideo)
+    }
+    
+    /// Toggle favorite status of the current video
+    func toggleFavorite() {
+        Task {
+            if let cachedVideo = await createCachedVideoFromCurrentState() {
+                favoritesManager.toggleFavorite(cachedVideo)
+                // Force UI refresh
+                objectWillChange.send()
+            }
+        }
+    }
+    
+    /// Create a saved video from search result
+    func createSavedVideo() async -> CachedVideo? {
+        guard let identifier = currentIdentifier, let collection = currentCollection else { return nil }
+        
+        let archiveIdentifier = ArchiveIdentifier(identifier: identifier, collection: collection)
+        
+        do {
+            return try await createCachedVideo(for: archiveIdentifier)
+        } catch {
+            Logger.caching.error("Failed to create saved video: \(error.localizedDescription)")
+            return nil
+        }
     }
 }
