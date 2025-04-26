@@ -89,16 +89,6 @@ class PineconeService {
         }
         
         do {
-            // Parse the response
-            struct PineconeResponse: Decodable {
-                struct Match: Decodable {
-                    let id: String
-                    let score: Float
-                    let metadata: [String: String]?
-                }
-                let matches: [Match]
-            }
-            
             // Log a preview of the raw response data for debugging
             if let responseString = String(data: data, encoding: .utf8) {
                 let previewLength = min(responseString.count, 500)
@@ -121,8 +111,13 @@ class PineconeService {
             
             // Convert to SearchResult objects
             return pineconeResponse.matches.compactMap { match in
-                // Extract collection from metadata or use default
-                let collection = match.metadata?["collection"]?.components(separatedBy: ",").first ?? ""
+                // Handle collection which can be either string or array
+                var collection = ""
+                if let collectionArray = match.metadata?["collection"] as? [String], !collectionArray.isEmpty {
+                    collection = collectionArray[0]
+                } else if let collectionString = match.metadata?["collection"] as? String {
+                    collection = collectionString.components(separatedBy: ",").first ?? ""
+                }
                 
                 // Create ArchiveIdentifier from match
                 let identifier = ArchiveIdentifier(
@@ -130,10 +125,26 @@ class PineconeService {
                     collection: collection
                 )
                 
+                // Convert metadata from [String: Any] to [String: String] for SearchResult
+                var stringMetadata: [String: String] = [:]
+                if let metadata = match.metadata {
+                    for (key, value) in metadata {
+                        if let stringValue = value as? String {
+                            stringMetadata[key] = stringValue
+                        } else if let arrayValue = value as? [String] {
+                            stringMetadata[key] = arrayValue.joined(separator: ",")
+                        } else if let intValue = value as? Int {
+                            stringMetadata[key] = String(intValue)
+                        } else {
+                            stringMetadata[key] = String(describing: value)
+                        }
+                    }
+                }
+                
                 return SearchResult(
                     identifier: identifier,
                     score: match.score,
-                    metadata: match.metadata ?? [:]
+                    metadata: stringMetadata
                 )
             }
         } catch {
