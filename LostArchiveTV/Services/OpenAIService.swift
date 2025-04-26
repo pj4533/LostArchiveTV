@@ -1,26 +1,13 @@
 import Foundation
 import OSLog
 
-// Protocol to make URLSession mockable
-protocol URLSessionProtocol {
-    func data(for request: URLRequest) async throws -> (Data, URLResponse)
-}
-
-extension URLSession: URLSessionProtocol {}
-
-protocol OpenAIServiceProtocol {
-    func generateEmbedding(for text: String) async throws -> [Float]
-}
-
-class OpenAIService: OpenAIServiceProtocol {
+class OpenAIService {
     private let apiKey: String
     private let embeddingModel = "text-embedding-3-large"
     private let baseURL = URL(string: "https://api.openai.com/v1/embeddings")!
-    private let session: URLSessionProtocol
     
-    init(apiKey: String = APIKeys.openAIKey, session: URLSessionProtocol = URLSession.shared) {
+    init(apiKey: String = APIKeys.openAIKey) {
         self.apiKey = apiKey
-        self.session = session
     }
     
     func generateEmbedding(for text: String) async throws -> [Float] {
@@ -38,7 +25,7 @@ class OpenAIService: OpenAIServiceProtocol {
         
         Logger.network.debug("Generating embedding for text: \(text.prefix(50))")
         
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             Logger.network.error("Invalid response type from OpenAI API")

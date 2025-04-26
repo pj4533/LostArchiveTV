@@ -1,17 +1,13 @@
 import Foundation
 import OSLog
 
-protocol SearchManagerProtocol {
-    func search(query: String, filter: SearchFilter?) async throws -> [SearchResult]
-}
-
-class SearchManager: SearchManagerProtocol {
-    private let openAIService: OpenAIServiceProtocol
-    private let pineconeService: PineconeServiceProtocol
+class SearchManager {
+    private let openAIService: OpenAIService
+    private let pineconeService: PineconeService
     
     init(
-        openAIService: OpenAIServiceProtocol = OpenAIService(),
-        pineconeService: PineconeServiceProtocol = PineconeService()
+        openAIService: OpenAIService = OpenAIService(),
+        pineconeService: PineconeService = PineconeService()
     ) {
         self.openAIService = openAIService
         self.pineconeService = pineconeService

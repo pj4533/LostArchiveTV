@@ -1,23 +1,16 @@
 import Foundation
 import OSLog
 
-protocol PineconeServiceProtocol {
-    func query(vector: [Float], filter: [String: Any]?, topK: Int) async throws -> [SearchResult]
-}
-
-class PineconeService: PineconeServiceProtocol {
+class PineconeService {
     private let apiKey: String
     private let host: String
-    private let session: URLSessionProtocol
     
     init(
         apiKey: String = APIKeys.pineconeKey,
-        host: String = APIKeys.pineconeHost,
-        session: URLSessionProtocol = URLSession.shared
+        host: String = APIKeys.pineconeHost
     ) {
         self.apiKey = apiKey
         self.host = host
-        self.session = session
     }
     
     private var baseURL: URL {
@@ -45,7 +38,7 @@ class PineconeService: PineconeServiceProtocol {
         
         Logger.network.debug("Querying Pinecone with vector of size \(vector.count)")
         
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             Logger.network.error("Invalid response type from Pinecone API")
