@@ -55,6 +55,7 @@ LostArchiveTV lets you discover historical films, educational videos, and other 
 ### API Keys
 
 This project requires API keys for:
+
 1. OpenAI - Used for semantic search embeddings
 2. Pinecone - Used for vector search
 
@@ -70,11 +71,12 @@ Set them up using one of these methods:
    - `OPENAI_API_KEY` with your OpenAI API key
    - `PINECONE_API_KEY` with your Pinecone API key
    - `PINECONE_HOST` with your Pinecone host URL
-6. Your personal scheme with API keys will be git-ignored
+6. Your personal scheme with API keys will be git-ignored (Xcode stores these in the xcuserdata directory)
 
 #### Method 2: Environment Variables in CI/CD (For cloud builds)
 
 For Xcode Cloud or other CI systems, set the environment variables:
+
 - `OPENAI_API_KEY`
 - `PINECONE_API_KEY`
 - `PINECONE_HOST`
