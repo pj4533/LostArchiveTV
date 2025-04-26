@@ -47,52 +47,72 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
             .frame(width: geometry.size.width, height: geometry.size.height)
             .contentShape(Rectangle())
             // Sheet for trim workflow (only when a trim step is active)
-            .sheet(isPresented: Binding<Bool>(
-                get: { trimStep != .none },
-                set: { if !$0 { trimStep = .none }}
-            ), onDismiss: {
-                // Only handle dismissal if we're not advancing to the next step
-                if trimStep == .none {
-                    self.downloadedVideoURL = nil
-                    // Resume playback for any video provider
-                    if let baseViewModel = provider as? BaseVideoViewModel {
-                        baseViewModel.resumePlayback()
-                    }
-                }
-            }) {
-                // Use specific content view based on the current trim step
-                VStack {
-                    if trimStep == .downloading {
-                        // Download sheet
-                        TrimDownloadView(provider: provider) { downloadedURL in
-                            if let url = downloadedURL {
-                                // Success - move to trim step
-                                self.downloadedVideoURL = url
-                                self.trimStep = .trimming
-                            } else {
-                                // Failed download - dismiss everything
-                                self.downloadedVideoURL = nil
-                                self.trimStep = .none
+            .overlay {
+                // Use a ZStack with conditional content for trim UI instead of a sheet
+                if trimStep != .none {
+                    ZStack {
+                        // Semi-transparent black background
+                        Color.black.opacity(0.9).ignoresSafeArea()
+                        
+                        // Use specific content view based on the current trim step
+                        VStack {
+                            // Add dismiss button at top
+                            HStack {
+                                Button(action: {
+                                    // Reset trim state
+                                    self.downloadedVideoURL = nil
+                                    self.trimStep = .none
+                                    
+                                    // Resume playback
+                                    if let baseViewModel = provider as? BaseVideoViewModel {
+                                        baseViewModel.resumePlayback()
+                                    }
+                                }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.title)
+                                        .foregroundColor(.white)
+                                        .padding()
+                                }
+                                Spacer()
                             }
+                            .padding(.horizontal)
+                            
+                            if trimStep == .downloading {
+                                // Download view
+                                TrimDownloadView(provider: provider) { downloadedURL in
+                                    if let url = downloadedURL {
+                                        // Success - move to trim step
+                                        self.downloadedVideoURL = url
+                                        self.trimStep = .trimming
+                                    } else {
+                                        // Failed download - dismiss everything
+                                        self.downloadedVideoURL = nil
+                                        self.trimStep = .none
+                                    }
+                                }
+                            } else if trimStep == .trimming, 
+                                    let downloadedURL = downloadedVideoURL,
+                                    let baseViewModel = provider as? BaseVideoViewModel {
+                                // Get current time and duration from the player
+                                let currentTimeSeconds = baseViewModel.player?.currentTime().seconds ?? 0
+                                let durationSeconds = baseViewModel.videoDuration
+                                
+                                // Convert to CMTime for VideoTrimViewModel
+                                let currentTime = CMTime(seconds: currentTimeSeconds, preferredTimescale: 600)
+                                let duration = CMTime(seconds: durationSeconds, preferredTimescale: 600)
+                                
+                                // Trim view
+                                VideoTrimView(viewModel: VideoTrimViewModel(
+                                    assetURL: downloadedURL,
+                                    currentPlaybackTime: currentTime,
+                                    duration: duration
+                                ))
+                            }
+                            Spacer()
                         }
-                    } else if trimStep == .trimming, 
-                              let downloadedURL = downloadedVideoURL,
-                              let baseViewModel = provider as? BaseVideoViewModel {
-                        // Get current time and duration from the player
-                        let currentTimeSeconds = baseViewModel.player?.currentTime().seconds ?? 0
-                        let durationSeconds = baseViewModel.videoDuration
-                        
-                        // Convert to CMTime for VideoTrimViewModel
-                        let currentTime = CMTime(seconds: currentTimeSeconds, preferredTimescale: 600)
-                        let duration = CMTime(seconds: durationSeconds, preferredTimescale: 600)
-                        
-                        // Trim view
-                        VideoTrimView(viewModel: VideoTrimViewModel(
-                            assetURL: downloadedURL,
-                            currentPlaybackTime: currentTime,
-                            duration: duration
-                        ))
                     }
+                    .transition(.opacity)
+                    .zIndex(100) // Ensure it's above all other content
                 }
             }
             // Add gesture recognizer as a modifier
