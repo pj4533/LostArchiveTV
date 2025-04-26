@@ -12,18 +12,14 @@ class OpenAIService {
     }
     
     func generateEmbedding(for text: String) async throws -> [Float] {
-        // Create and log configuration for URLSession
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30.0 // 30 second timeout
-        config.timeoutIntervalForResource = 60.0 // 60 second timeout
-        Logger.network.debug("OpenAI request timeouts: \(config.timeoutIntervalForRequest)s/\(config.timeoutIntervalForResource)s")
+        // Use shared URLSession
+        let session = URLSession.shared
+        Logger.network.debug("OpenAI using URLSession.shared")
         
-        // Create custom URLSession with this configuration
-        let session = URLSession(configuration: config)
-        
-        // Configure request
+        // Configure request with more robust settings
         var request = URLRequest(url: baseURL)
         request.httpMethod = "POST"
+        request.timeoutInterval = 60.0 // Set timeout on the request itself
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         
