@@ -29,13 +29,18 @@ struct SearchView: View {
             .sheet(isPresented: $showingFilters) {
                 SearchFilterView(filter: $viewModel.searchFilter)
             }
-            .fullScreenCover(isPresented: $viewModel.showingPlayer) {
+            .fullScreenCover(isPresented: $viewModel.showingPlayer, onDismiss: {
+                // Stop playback when the player is dismissed
+                viewModel.pausePlayback()
+                viewModel.player = nil
+            }) {
                 SwipeablePlayerView(provider: viewModel, 
                                    isPresented: $viewModel.showingPlayer)
                 .onAppear {
-                    // Setup the transition manager when player view appears
-                    if viewModel.transitionManager == nil {
-                        viewModel.transitionManager = VideoTransitionManager()
+                    // Start preloading videos
+                    Task {
+                        // Make sure videos are preloaded for swiping
+                        await viewModel.ensureVideosAreCached()
                     }
                 }
             }

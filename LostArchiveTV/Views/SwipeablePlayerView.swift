@@ -117,6 +117,10 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                         Logger.caching.info("Favorites count: \(favProvider.favorites.count), currentIndex: \(favProvider.currentIndex)")
                         // Store transition manager in the favorites view model
                         favProvider.transitionManager = transitionManager
+                    } else if let searchViewModel = provider as? SearchViewModel {
+                        Logger.caching.info("Search results count: \(searchViewModel.searchResults.count), currentIndex: \(searchViewModel.currentIndex)")
+                        // Store transition manager in the search view model
+                        searchViewModel.transitionManager = transitionManager
                     }
                     
                     preloadVideos()

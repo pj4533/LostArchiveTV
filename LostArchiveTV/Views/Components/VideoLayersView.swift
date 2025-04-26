@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AVKit
+import OSLog
 
 struct VideoLayersView<Provider: VideoProvider & ObservableObject>: View {
     let geometry: GeometryProxy
@@ -138,6 +139,13 @@ struct VideoLayersView<Provider: VideoProvider & ObservableObject>: View {
                         FavoritesVideoLayerContent(
                             player: player,
                             viewModel: favoritesViewModel,
+                            isPresented: isPresented
+                        )
+                        .offset(y: dragOffset)
+                    } else if let searchViewModel = provider as? SearchViewModel {
+                        SearchVideoLayerContent(
+                            player: player,
+                            viewModel: searchViewModel,
                             isPresented: isPresented
                         )
                         .offset(y: dragOffset)

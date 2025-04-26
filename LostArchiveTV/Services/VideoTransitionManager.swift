@@ -172,6 +172,11 @@ class VideoTransitionManager: ObservableObject {
                         await MainActor.run {
                             favoritesViewModel.updateToNextVideo()
                         }
+                    } else if let searchViewModel = provider as? SearchViewModel {
+                        // For SearchViewModel, update the index similarly to FavoritesViewModel
+                        await MainActor.run {
+                            searchViewModel.updateToNextVideo()
+                        }
                     }
                 }
             }
@@ -259,6 +264,11 @@ class VideoTransitionManager: ObservableObject {
                     // (UI will be updated by the transition manager)
                     await MainActor.run {
                         favoritesViewModel.updateToPreviousVideo()
+                    }
+                } else if let searchViewModel = provider as? SearchViewModel {
+                    // For SearchViewModel, update the index similarly to FavoritesViewModel
+                    await MainActor.run {
+                        searchViewModel.updateToPreviousVideo()
                     }
                 }
             }

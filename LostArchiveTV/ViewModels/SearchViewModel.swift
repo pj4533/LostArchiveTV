@@ -23,7 +23,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider {
     @Published var currentResult: SearchResult?
     
     // For video transition/swipe support
-    var transitionManager: VideoTransitionManager?
+    var transitionManager = VideoTransitionManager()
     
     init(
         searchManager: SearchManager = SearchManager(),
@@ -73,6 +73,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider {
     func playVideoAt(index: Int) {
         guard index >= 0, index < searchResults.count else { return }
         
+        Logger.caching.info("SearchViewModel.playVideoAt: Playing video at index \(index)")
         isLoading = true
         currentIndex = index
         currentResult = searchResults[index]
@@ -80,7 +81,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider {
         Task {
             await loadVideo(for: searchResults[index].identifier)
             
-            // Start preloading of adjacent videos
+            // Start preloading of adjacent videos - this helps ensure smooth swipe transitions
             try? await Task.sleep(for: .seconds(0.5))
             await ensureVideosAreCached()
             
@@ -264,14 +265,22 @@ extension SearchViewModel {
     }
     
     func ensureVideosAreCached() async {
-        guard !searchResults.isEmpty, let transitionManager = transitionManager else { return }
+        guard !searchResults.isEmpty else { return }
         
-        Logger.caching.info("SearchViewModel: Preloading videos for navigation")
+        Logger.caching.info("SearchViewModel.ensureVideosAreCached: Preparing videos for swipe navigation")
         
-        async let nextTask = transitionManager.preloadNextVideo(provider: self)
-        async let prevTask = transitionManager.preloadPreviousVideo(provider: self)
+        // Use the transition manager directly since it's now a non-optional property
+        Logger.caching.info("Using transition manager for direct preloading")
         
+        // Preload in both directions using the transition manager (which sets the ready flags)
+        async let nextTask = self.transitionManager.preloadNextVideo(provider: self)
+        async let prevTask = self.transitionManager.preloadPreviousVideo(provider: self)
+        
+        // Wait for both preloads to complete
         _ = await (nextTask, prevTask)
+        
+        // Log the results
+        Logger.caching.info("Direct preloading complete - nextVideoReady: \(self.transitionManager.nextVideoReady), prevVideoReady: \(self.transitionManager.prevVideoReady)")
     }
     
     private func createCachedVideo(for identifier: ArchiveIdentifier) async throws -> CachedVideo {
