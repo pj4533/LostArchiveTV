@@ -78,3 +78,6 @@ Icon
 *.crash
 
 APIKeys.swift
+
+# Exclude secrets configuration
+Secrets.xcconfig
