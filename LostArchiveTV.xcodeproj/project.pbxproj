@@ -191,7 +191,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n# Only run if we have environment variables to inject\n  if [ -n \"$OPENAI_API_KEY\" ] || [ -n \"$PINECONE_API_KEY\" ] || [ -n \"$PINECONE_HOST\" ]; then\n      echo \"Injecting API keys into Info.plist\"\n\n      # Get the path to the Info.plist in the built products directory\n      PLIST_PATH=\"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH}\"\n\n      # Check if the plist file exists\n      if [ ! -f \"$PLIST_PATH\" ]; then\n          echo \"Error: Info.plist not found at $PLIST_PATH\"\n          exit 1\n      fi\n\n      # Add environment variables to Info.plist\n      if [ -n \"$OPENAI_API_KEY\" ]; then\n          /usr/libexec/PlistBuddy -c \"Delete :OPENAI_API_KEY\" \"$PLIST_PATH\" 2>/dev/null || true\n          /usr/libexec/PlistBuddy -c \"Add :OPENAI_API_KEY string $OPENAI_API_KEY\" \"$PLIST_PATH\"\n          echo \"Added OPENAI_API_KEY to Info.plist\"\n      fi\n\n      if [ -n \"$PINECONE_API_KEY\" ]; then\n          /usr/libexec/PlistBuddy -c \"Delete :PINECONE_API_KEY\" \"$PLIST_PATH\" 2>/dev/null || true\n          /usr/libexec/PlistBuddy -c \"Add :PINECONE_API_KEY string $PINECONE_API_KEY\" \"$PLIST_PATH\"\n          echo \"Added PINECONE_API_KEY to Info.plist\"\n      fi\n\n      if [ -n \"$PINECONE_HOST\" ]; then\n          /usr/libexec/PlistBuddy -c \"Delete :PINECONE_HOST\" \"$PLIST_PATH\" 2>/dev/null || true\n          /usr/libexec/PlistBuddy -c \"Add :PINECONE_HOST string $PINECONE_HOST\" \"$PLIST_PATH\"\n          echo \"Added PINECONE_HOST to Info.plist\"\n      fi\n\n      echo \"Finished adding API keys to Info.plist for runtime access\"\n  else\n      echo \"No API keys found in environment variables - skipping\"\n  fi\n";
+			shellScript = "#!/bin/bash\n  # Script to inject environment variables into EnvironmentVariables.xcconfig\n\n  # Only run if we have environment variables to inject\n  if [ -n \"$OPENAI_API_KEY\" ] || [ -n \"$PINECONE_API_KEY\" ] || [ -n \"$PINECONE_HOST\" ]; then\n      echo \"Injecting API keys into EnvironmentVariables.xcconfig\"\n\n      # Path to the xcconfig file\n      XCCONFIG_PATH=\"${SRCROOT}/LostArchiveTV/EnvironmentVariables.xcconfig\"\n\n      # Check if the xcconfig file exists\n      if [ ! -f \"$XCCONFIG_PATH\" ]; then\n          echo \"Error: EnvironmentVariables.xcconfig not found at $XCCONFIG_PATH\"\n          exit 1\n      fi\n\n      # Create a backup\n      cp \"$XCCONFIG_PATH\" \"${XCCONFIG_PATH}.bak\"\n\n      # Create a new temporary file\n      TEMP_FILE=\"${XCCONFIG_PATH}.temp\"\n      cp \"$XCCONFIG_PATH\" \"$TEMP_FILE\"\n\n      # Update environment variables in the xcconfig file\n      if [ -n \"$OPENAI_API_KEY\" ]; then\n          sed -i '' \"s|OPENAI_API_KEY = \\\".*\\\"|OPENAI_API_KEY = \\\"$OPENAI_API_KEY\\\"|g\" \"$TEMP_FILE\"\n          echo \"Updated OPENAI_API_KEY in xcconfig\"\n      fi\n\n      if [ -n \"$PINECONE_API_KEY\" ]; then\n          sed -i '' \"s|PINECONE_API_KEY = \\\".*\\\"|PINECONE_API_KEY = \\\"$PINECONE_API_KEY\\\"|g\" \"$TEMP_FILE\"\n          echo \"Updated PINECONE_API_KEY in xcconfig\"\n      fi\n\n      if [ -n \"$PINECONE_HOST\" ]; then\n          sed -i '' \"s|PINECONE_HOST = \\\".*\\\"|PINECONE_HOST = \\\"$PINECONE_HOST\\\"|g\" \"$TEMP_FILE\"\n          echo \"Updated PINECONE_HOST in xcconfig\"\n      fi\n\n      # Move the temp file to the original location\n      mv \"$TEMP_FILE\" \"$XCCONFIG_PATH\"\n\n      echo \"Finished updating API keys in EnvironmentVariables.xcconfig for runtime access\"\n  else\n      echo \"No API keys found in environment variables - skipping\"\n  fi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -279,6 +279,9 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				OPENAI_API_KEY = "$(OPENAI_API_KEY)";
+				PINECONE_API_KEY = "$(PINECONE_API_KEY)";
+				PINECONE_HOST = "$(PINECONE_HOST)";
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -336,6 +339,9 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				OPENAI_API_KEY = "$(OPENAI_API_KEY)";
+				PINECONE_API_KEY = "$(PINECONE_API_KEY)";
+				PINECONE_HOST = "$(PINECONE_HOST)";
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
@@ -376,6 +382,8 @@
 		};
 		B0C35C012DB3E4A6009A3714 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = B0C35BE02DB3E4A5009A3714 /* LostArchiveTV */;
+			baseConfigurationReferenceRelativePath = EnvironmentVariables.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
