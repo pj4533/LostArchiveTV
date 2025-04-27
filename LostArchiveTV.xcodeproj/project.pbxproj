@@ -21,9 +21,22 @@
 		B0C35BEB2DB3E4A6009A3714 /* LostArchiveTVTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LostArchiveTVTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		B0420AA52DBEC4BF005EFA87 /* Exceptions for "LostArchiveTV" folder in "LostArchiveTV" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = B0C35BDD2DB3E4A5009A3714 /* LostArchiveTV */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		B0C35BE02DB3E4A5009A3714 /* LostArchiveTV */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				B0420AA52DBEC4BF005EFA87 /* Exceptions for "LostArchiveTV" folder in "LostArchiveTV" target */,
+			);
 			path = LostArchiveTV;
 			sourceTree = "<group>";
 		};
@@ -258,9 +271,6 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				OPENAI_API_KEY = "$(OPENAI_API_KEY)";
-				PINECONE_API_KEY = "$(PINECONE_API_KEY)";
-				PINECONE_HOST = "$(PINECONE_HOST)";
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -318,9 +328,6 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				OPENAI_API_KEY = "$(OPENAI_API_KEY)";
-				PINECONE_API_KEY = "$(PINECONE_API_KEY)";
-				PINECONE_HOST = "$(PINECONE_HOST)";
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
@@ -337,6 +344,7 @@
 				DEVELOPMENT_TEAM = U3FNBSFU75;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LostArchiveTV/Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "This app requires permission to save videos to your photo library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "This app requires access to your photo library to save downloaded videos.";
@@ -371,6 +379,7 @@
 				DEVELOPMENT_TEAM = U3FNBSFU75;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LostArchiveTV/Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "This app requires permission to save videos to your photo library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "This app requires access to your photo library to save downloaded videos.";
