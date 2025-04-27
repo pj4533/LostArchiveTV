@@ -2,11 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>OPENAI_API_KEY</key>
+	<key>OpenAIApiKey</key>
 	<string>$(OPENAI_API_KEY)</string>
-	<key>PINECONE_API_KEY</key>
+	<key>PineconeApiKey</key>
 	<string>$(PINECONE_API_KEY)</string>
-	<key>PINECONE_HOST</key>
+	<key>PineconeHost</key>
 	<string>$(PINECONE_HOST)</string>
 </dict>
 </plist>

@@ -57,15 +57,15 @@ class EnvironmentService {
         
         // If not found in environment, try Info.plist (for app store builds)
         if cachedOpenAIKey == nil {
-            cachedOpenAIKey = Bundle.main.infoDictionary?[EnvironmentVariables.openAIKey] as? String
+            cachedOpenAIKey = Bundle.main.infoDictionary?["OpenAIApiKey"] as? String
         }
         
         if cachedPineconeKey == nil {
-            cachedPineconeKey = Bundle.main.infoDictionary?[EnvironmentVariables.pineconeKey] as? String
+            cachedPineconeKey = Bundle.main.infoDictionary?["PineconeApiKey"] as? String
         }
         
         if cachedPineconeHost == nil {
-            cachedPineconeHost = Bundle.main.infoDictionary?[EnvironmentVariables.pineconeHost] as? String
+            cachedPineconeHost = Bundle.main.infoDictionary?["PineconeHost"] as? String
         }
         
         // Log status (without exposing actual keys)
