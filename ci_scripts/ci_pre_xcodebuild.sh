@@ -3,8 +3,8 @@
 echo "🚀 Running ci_pre_xcodebuild.sh to inject secrets..."
 
 # Paths (adjust if your template file is elsewhere)
-TEMPLATE_FILE="./LostArchiveTV/SecretsTemplate.swift"
-OUTPUT_FILE="./LostArchiveTV/Secrets.swift"
+TEMPLATE_FILE="./LostArchiveTV/LostArchiveTV/SecretsTemplate.swift"
+OUTPUT_FILE="./LostArchiveTV/LostArchiveTV/Secrets.swift"
 
 # Exit build if any secret is missing
 if [ -z "${OPENAI_API_KEY}" ] || [ -z "${PINECONE_API_KEY}" ] || [ -z "${PINECONE_HOST}" ]; then
