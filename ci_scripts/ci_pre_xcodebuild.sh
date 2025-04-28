@@ -1,15 +1,23 @@
-#!/bin/sh
+#!/bin/bash
 
-echo "Creating LostArchiveTV/Secrets.xcconfig file..."
+echo "🚀 Running ci_pre_xcodebuild.sh to inject secrets..."
 
-# Define correct path inside your project folder
-SECRETS_FILE="$CI_PRIMARY_REPOSITORY_PATH/LostArchiveTV/Secrets.xcconfig"
+# Paths (adjust if your template file is elsewhere)
+TEMPLATE_FILE="./LostArchiveTV/SecretsTemplate.swift"
+OUTPUT_FILE="./LostArchiveTV/Secrets.swift"
 
-# Write the xcconfig file
-cat <<EOF > "$SECRETS_FILE"
-OPENAI_API_KEY = $OPENAI_API_KEY
-PINECONE_API_KEY = $PINECONE_API_KEY
-PINECONE_HOST = $PINECONE_HOST
-EOF
+# Exit build if any secret is missing
+if [ -z "${OPENAI_API_KEY}" ] || [ -z "${PINECONE_API_KEY}" ] || [ -z "${PINECONE_HOST}" ]; then
+  echo "❌ Error: One or more required secrets are not set."
+  exit 1
+fi
 
-echo "Secrets.xcconfig created successfully at $SECRETS_FILE"
+# Copy template and replace placeholders
+cp "$TEMPLATE_FILE" "$OUTPUT_FILE"
+
+# Replace variables in the copied file
+sed -i '' "s|\${OPENAI_API_KEY}|${OPENAI_API_KEY}|g" "$OUTPUT_FILE"
+sed -i '' "s|\${PINECONE_API_KEY}|${PINECONE_API_KEY}|g" "$OUTPUT_FILE"
+sed -i '' "s|\${PINECONE_HOST}|${PINECONE_HOST}|g" "$OUTPUT_FILE"
+
+echo "✅ Secrets.swift generated successfully."
