@@ -3,7 +3,6 @@
 echo "🚀 [START] Running ci_pre_xcodebuild.sh..."
 
 # --- Step 1: Move to the repo root ---
-# If running inside ci_scripts/, move up one directory
 CURRENT_DIR=$(pwd)
 if [[ "$CURRENT_DIR" == *"/ci_scripts" ]]; then
     echo "📂 Detected ci_scripts folder. Moving up to repo root..."
@@ -18,7 +17,6 @@ ls -al
 
 # --- Step 2: Define project folder and file paths ---
 
-# Name of your actual project folder (the one with .swift files)
 PROJECT_DIR="LostArchiveTV"
 
 TEMPLATE_FILE="./${PROJECT_DIR}/SecretsTemplate.swift"
@@ -78,7 +76,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Escape sed-sensitive characters in secrets (optional but good practice)
+# Escape sed-sensitive characters in secrets
 ESCAPED_OPENAI_API_KEY=$(printf '%s\n' "$OPENAI_API_KEY" | sed 's/[&/\]/\\&/g')
 ESCAPED_PINECONE_API_KEY=$(printf '%s\n' "$PINECONE_API_KEY" | sed 's/[&/\]/\\&/g')
 ESCAPED_PINECONE_HOST=$(printf '%s\n' "$PINECONE_HOST" | sed 's/[&/\]/\\&/g')
@@ -98,6 +96,17 @@ if [ -f "$OUTPUT_FILE" ]; then
 else
     echo "❌ ERROR: Failed to create Secrets.swift!"
     exit 1
+fi
+
+# --- Step 7: Clean up ---
+
+echo "🧹 Deleting SecretsTemplate.swift after generating Secrets.swift..."
+rm -f "$TEMPLATE_FILE"
+
+if [ $? -eq 0 ]; then
+    echo "✅ Successfully deleted SecretsTemplate.swift."
+else
+    echo "⚠️ Warning: Failed to delete SecretsTemplate.swift."
 fi
 
 echo "🎉 [END] ci_pre_xcodebuild.sh completed successfully."
