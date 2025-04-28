@@ -2,71 +2,99 @@
 
 echo "🚀 [START] Running ci_pre_xcodebuild.sh..."
 
-# Where we think we are
-echo "📂 Current working directory: $(pwd)"
-echo "📄 Listing files in root:"
+# --- Step 1: Move to the repo root ---
+# If running inside ci_scripts/, move up one directory
+CURRENT_DIR=$(pwd)
+if [[ "$CURRENT_DIR" == *"/ci_scripts" ]]; then
+    echo "📂 Detected ci_scripts folder. Moving up to repo root..."
+    cd ..
+else
+    echo "📂 Already at repo root: $CURRENT_DIR"
+fi
+
+echo "📂 Current working directory after adjustment: $(pwd)"
+echo "📄 Top-level files:"
 ls -al
 
-# Project directory name (edit if needed)
+# --- Step 2: Define project folder and file paths ---
+
+# Name of your actual project folder (the one with .swift files)
 PROJECT_DIR="LostArchiveTV"
 
-# Paths
 TEMPLATE_FILE="./${PROJECT_DIR}/SecretsTemplate.swift"
 OUTPUT_FILE="./${PROJECT_DIR}/Secrets.swift"
 
 echo "🔍 Expected template file path: ${TEMPLATE_FILE}"
 echo "🔍 Expected output file path: ${OUTPUT_FILE}"
 
-# Check if template file exists
+# --- Step 3: Verify SecretsTemplate.swift exists ---
+
 if [ ! -f "$TEMPLATE_FILE" ]; then
     echo "❌ ERROR: SecretsTemplate.swift not found at ${TEMPLATE_FILE}"
-    echo "📄 Files in ${PROJECT_DIR}:"
-    ls -al "./${PROJECT_DIR}"
+    echo "📄 Contents of ${PROJECT_DIR}:"
+    ls -al "./${PROJECT_DIR}" || echo "⚠️ Could not list contents of ${PROJECT_DIR}"
     exit 1
 fi
 
-# Check environment variables
-echo "🔎 Checking environment variables:"
+# --- Step 4: Verify environment variables exist ---
+
+echo "🔎 Checking environment variables..."
+
+MISSING_ENV_VARS=false
+
 if [ -z "${OPENAI_API_KEY}" ]; then
     echo "❌ ERROR: OPENAI_API_KEY is not set."
+    MISSING_ENV_VARS=true
 else
     echo "✅ OPENAI_API_KEY is set. (Length: ${#OPENAI_API_KEY})"
 fi
 
 if [ -z "${PINECONE_API_KEY}" ]; then
     echo "❌ ERROR: PINECONE_API_KEY is not set."
+    MISSING_ENV_VARS=true
 else
     echo "✅ PINECONE_API_KEY is set. (Length: ${#PINECONE_API_KEY})"
 fi
 
 if [ -z "${PINECONE_HOST}" ]; then
     echo "❌ ERROR: PINECONE_HOST is not set."
+    MISSING_ENV_VARS=true
 else
     echo "✅ PINECONE_HOST is set. (Length: ${#PINECONE_HOST})"
 fi
 
-# Fail early if any required variable is missing
-if [ -z "${OPENAI_API_KEY}" ] || [ -z "${PINECONE_API_KEY}" ] || [ -z "${PINECONE_HOST}" ]; then
-    echo "❌ ERROR: One or more required environment variables are missing. Cannot continue."
+if [ "$MISSING_ENV_VARS" = true ]; then
+    echo "❌ ERROR: One or more environment variables are missing. Stopping build."
     exit 1
 fi
 
-# Copy the template file to create Secrets.swift
-echo "🛠️ Copying template file..."
+# --- Step 5: Generate Secrets.swift ---
+
+echo "🛠️ Copying SecretsTemplate.swift to Secrets.swift..."
 cp "$TEMPLATE_FILE" "$OUTPUT_FILE"
-echo "✅ Copied to ${OUTPUT_FILE}"
 
-# Run replacements
-echo "🔧 Replacing placeholders with environment variable values..."
-sed -i '' "s|\${OPENAI_API_KEY}|${OPENAI_API_KEY}|g" "$OUTPUT_FILE"
-sed -i '' "s|\${PINECONE_API_KEY}|${PINECONE_API_KEY}|g" "$OUTPUT_FILE"
-sed -i '' "s|\${PINECONE_HOST}|${PINECONE_HOST}|g" "$OUTPUT_FILE"
+if [ $? -ne 0 ]; then
+    echo "❌ ERROR: Failed to copy SecretsTemplate.swift."
+    exit 1
+fi
 
-# Verify output file exists
+# Escape sed-sensitive characters in secrets (optional but good practice)
+ESCAPED_OPENAI_API_KEY=$(printf '%s\n' "$OPENAI_API_KEY" | sed 's/[&/\]/\\&/g')
+ESCAPED_PINECONE_API_KEY=$(printf '%s\n' "$PINECONE_API_KEY" | sed 's/[&/\]/\\&/g')
+ESCAPED_PINECONE_HOST=$(printf '%s\n' "$PINECONE_HOST" | sed 's/[&/\]/\\&/g')
+
+echo "🔧 Replacing placeholders in Secrets.swift..."
+
+sed -i '' "s|\${OPENAI_API_KEY}|${ESCAPED_OPENAI_API_KEY}|g" "$OUTPUT_FILE"
+sed -i '' "s|\${PINECONE_API_KEY}|${ESCAPED_PINECONE_API_KEY}|g" "$OUTPUT_FILE"
+sed -i '' "s|\${PINECONE_HOST}|${ESCAPED_PINECONE_HOST}|g" "$OUTPUT_FILE"
+
+# --- Step 6: Confirm output ---
+
 if [ -f "$OUTPUT_FILE" ]; then
     echo "✅ Secrets.swift generated successfully!"
-    echo "📄 Contents preview:"
-    cat "$OUTPUT_FILE"
+    echo "📄 First few lines of Secrets.swift:"
+    head -n 10 "$OUTPUT_FILE"
 else
     echo "❌ ERROR: Failed to create Secrets.swift!"
     exit 1
