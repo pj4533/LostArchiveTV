@@ -8,7 +8,7 @@ echo "📄 Listing files in root:"
 ls -al
 
 # Project directory name (edit if needed)
-PROJECT_DIR="MyProject"
+PROJECT_DIR="LostArchiveTV"
 
 # Paths
 TEMPLATE_FILE="./${PROJECT_DIR}/SecretsTemplate.swift"
