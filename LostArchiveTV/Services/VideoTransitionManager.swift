@@ -145,7 +145,8 @@ class VideoTransitionManager: ObservableObject {
                             videoURL: (nextPlayer.currentItem?.asset as? AVURLAsset)?.url ?? URL(string: "about:blank")!,
                             asset: (nextPlayer.currentItem?.asset as? AVURLAsset) ?? AVURLAsset(url: URL(string: "about:blank")!),
                             playerItem: nextPlayer.currentItem ?? AVPlayerItem(asset: AVURLAsset(url: URL(string: "about:blank")!)),
-                            startPosition: 0
+                            startPosition: 0,
+                            addedToFavoritesAt: nil
                         )
                         
                         // Add the new video to history

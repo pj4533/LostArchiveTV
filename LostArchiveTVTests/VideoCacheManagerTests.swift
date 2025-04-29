@@ -31,7 +31,8 @@ struct VideoCacheManagerTests {
             videoURL: url,
             asset: asset,
             playerItem: playerItem,
-            startPosition: 10.0
+            startPosition: 10.0,
+            addedToFavoritesAt: nil
         )
     }
     

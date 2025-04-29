@@ -17,6 +17,7 @@ struct CachedVideo: Identifiable, Equatable {
     let asset: AVURLAsset
     let playerItem: AVPlayerItem
     let startPosition: Double
+    let addedToFavoritesAt: Date?
     
     var id: String { identifier }
     

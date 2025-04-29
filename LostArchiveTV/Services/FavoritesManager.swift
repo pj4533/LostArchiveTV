@@ -23,6 +23,7 @@ class FavoritesManager: ObservableObject {
         let description: String
         let videoURLString: String
         let startPosition: Double
+        let timestamp: Date?
     }
     
     init() {
@@ -72,7 +73,8 @@ class FavoritesManager: ObservableObject {
                     videoURL: videoURL,
                     asset: asset,
                     playerItem: playerItem,
-                    startPosition: storedFavorite.startPosition
+                    startPosition: storedFavorite.startPosition,
+                    addedToFavoritesAt: storedFavorite.timestamp
                 )
                 
                 favorites.append(cachedVideo)
@@ -90,7 +92,8 @@ class FavoritesManager: ObservableObject {
                 title: video.title,
                 description: video.description,
                 videoURLString: video.videoURL.absoluteString,
-                startPosition: video.startPosition
+                startPosition: video.startPosition,
+                timestamp: video.addedToFavoritesAt
             )
         }
         
@@ -103,7 +106,19 @@ class FavoritesManager: ObservableObject {
     
     func addFavorite(_ video: CachedVideo) {
         if !isFavorite(video) {
-            favorites.append(video)
+            // Create a new video with the current timestamp
+            let videoWithTimestamp = CachedVideo(
+                identifier: video.identifier,
+                collection: video.collection,
+                metadata: video.metadata,
+                mp4File: video.mp4File,
+                videoURL: video.videoURL,
+                asset: video.asset,
+                playerItem: video.playerItem,
+                startPosition: video.startPosition,
+                addedToFavoritesAt: Date()
+            )
+            favorites.append(videoWithTimestamp)
             saveFavorites()
             Logger.metadata.debug("Added video to favorites: \(video.identifier)")
         }

@@ -112,7 +112,8 @@ actor PreloadService {
             videoURL: videoURL,
             asset: asset,
             playerItem: playerItem,
-            startPosition: randomStart
+            startPosition: randomStart,
+            addedToFavoritesAt: nil
         )
         
         // Store in the cache

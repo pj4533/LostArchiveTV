@@ -170,7 +170,8 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider {
             videoURL: videoURL,
             asset: asset,
             playerItem: playerItem,
-            startPosition: currentTime
+            startPosition: currentTime,
+            addedToFavoritesAt: nil
         )
         
         return cachedVideo

@@ -364,7 +364,8 @@ extension SearchViewModel {
             videoURL: urlAsset.url,
             asset: urlAsset,
             playerItem: AVPlayerItem(asset: urlAsset),
-            startPosition: videoInfo.startPosition
+            startPosition: videoInfo.startPosition,
+            addedToFavoritesAt: nil
         )
     }
 }
@@ -386,7 +387,8 @@ extension SearchViewModel {
             videoURL: URL(string: "about:blank")!,
             asset: AVURLAsset(url: URL(string: "about:blank")!),
             playerItem: AVPlayerItem(asset: AVURLAsset(url: URL(string: "about:blank")!)),
-            startPosition: 0
+            startPosition: 0,
+            addedToFavoritesAt: nil
         )
         
         return favoritesManager.isFavorite(dummyVideo)
