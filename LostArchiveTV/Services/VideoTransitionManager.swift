@@ -171,6 +171,12 @@ class VideoTransitionManager: ObservableObject {
                         // (UI will be updated by the transition manager)
                         await MainActor.run {
                             favoritesViewModel.updateToNextVideo()
+                            
+                            // Update currentVideo to match the new index
+                            if favoritesViewModel.currentIndex < favoritesViewModel.favorites.count {
+                                let nextVideo = favoritesViewModel.favorites[favoritesViewModel.currentIndex]
+                                favoritesViewModel.setCurrentVideo(nextVideo)
+                            }
                         }
                     } else if let searchViewModel = provider as? SearchViewModel {
                         // For SearchViewModel, update the index similarly to FavoritesViewModel
@@ -264,6 +270,12 @@ class VideoTransitionManager: ObservableObject {
                     // (UI will be updated by the transition manager)
                     await MainActor.run {
                         favoritesViewModel.updateToPreviousVideo()
+                        
+                        // Update currentVideo to match the new index
+                        if favoritesViewModel.currentIndex < favoritesViewModel.favorites.count {
+                            let prevVideo = favoritesViewModel.favorites[favoritesViewModel.currentIndex]
+                            favoritesViewModel.setCurrentVideo(prevVideo)
+                        }
                     }
                 } else if let searchViewModel = provider as? SearchViewModel {
                     // For SearchViewModel, update the index similarly to FavoritesViewModel
