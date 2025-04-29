@@ -121,6 +121,30 @@ struct FavoritesVideoLayerContent: View {
                                 .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
                         }
                         
+                        // Similar videos button
+                        OverlayButton(
+                            action: {
+                                // Pause playback before navigating
+                                viewModel.pausePlayback()
+                                // Navigate to similar videos if a video exists
+                                if let identifier = viewModel.currentVideo?.identifier {
+                                    NotificationCenter.default.post(
+                                        name: .showSimilarVideos,
+                                        object: nil,
+                                        userInfo: ["identifier": identifier]
+                                    )
+                                }
+                            },
+                            disabled: viewModel.currentVideo == nil
+                        ) {
+                            Image(systemName: "rectangle.stack")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 22, height: 22)
+                                .foregroundColor(.white)
+                                .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
+                        }
+                        
                         // Trim button (enabled)
                         OverlayButton(
                             action: {
@@ -158,7 +182,8 @@ struct FavoritesVideoLayerContent: View {
     }
 }
 
-// Notification name for starting video trimming
+// Notification names for video interactions
 extension Notification.Name {
     static let startVideoTrimming = Notification.Name("startVideoTrimming")
+    static let showSimilarVideos = Notification.Name("showSimilarVideos")
 }

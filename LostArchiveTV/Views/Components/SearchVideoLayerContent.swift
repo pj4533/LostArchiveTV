@@ -122,6 +122,30 @@ struct SearchVideoLayerContent: View {
                                 .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
                         }
                         
+                        // Similar videos button
+                        OverlayButton(
+                            action: {
+                                // Pause playback before navigating
+                                viewModel.pausePlayback()
+                                // Navigate to similar videos if an identifier exists
+                                if let identifier = viewModel.currentIdentifier {
+                                    NotificationCenter.default.post(
+                                        name: .showSimilarVideos,
+                                        object: nil,
+                                        userInfo: ["identifier": identifier]
+                                    )
+                                }
+                            },
+                            disabled: viewModel.currentIdentifier == nil
+                        ) {
+                            Image(systemName: "rectangle.stack")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 22, height: 22)
+                                .foregroundColor(.white)
+                                .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
+                        }
+                        
                         // Trim button
                         OverlayButton(
                             action: {

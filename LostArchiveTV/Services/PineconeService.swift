@@ -2,9 +2,10 @@ import Foundation
 import OSLog
 
 class PineconeService {
-    private let apiKey: String
-    private let host: String
-    private let session: URLSession
+    // Making these internal so they can be accessed from extensions
+    let apiKey: String
+    let host: String
+    let session: URLSession
     
     init(
         apiKey: String? = nil,

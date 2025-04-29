@@ -61,33 +61,59 @@ struct ContentView: View {
         ))
     }
     
+    // State to track similar videos navigation
+    @State var showingSimilarVideos = false
+    @State var similarVideoIdentifier = ""
+
     var body: some View {
-        TabView(selection: $selectedTab) {
-            // Home Tab
-            homeTab
-                .tabItem {
-                    Label("Home", systemImage: "house.fill")
-                }
-                .tag(0)
-            
-            // Search Tab
-            SearchFeedView(viewModel: searchFeedViewModel)
-                .tabItem {
-                    Label("Search", systemImage: "magnifyingglass")
-                }
-                .tag(1)
-            
-            // Favorites Tab
-            FavoritesFeedView(viewModel: favoritesFeedViewModel)
-                .tabItem {
-                    Label("Favorites", systemImage: "heart.fill")
-                }
-                .tag(2)
+        NavigationStack {
+            TabView(selection: $selectedTab) {
+                // Home Tab
+                homeTab
+                    .tabItem {
+                        Label("Home", systemImage: "house.fill")
+                    }
+                    .tag(0)
+                
+                // Search Tab
+                SearchFeedView(viewModel: searchFeedViewModel)
+                    .tabItem {
+                        Label("Search", systemImage: "magnifyingglass")
+                    }
+                    .tag(1)
+                
+                // Favorites Tab
+                FavoritesFeedView(viewModel: favoritesFeedViewModel)
+                    .tabItem {
+                        Label("Favorites", systemImage: "heart.fill")
+                    }
+                    .tag(2)
+            }
+            .accentColor(.white)
+            .preferredColorScheme(.dark)
+            .onChange(of: selectedTab) { oldValue, newValue in
+                handleTabChange(oldTab: oldValue, newTab: newValue)
+            }
+            .navigationDestination(isPresented: $showingSimilarVideos) {
+                SimilarView(referenceIdentifier: similarVideoIdentifier)
+            }
         }
-        .accentColor(.white)
-        .preferredColorScheme(.dark)
-        .onChange(of: selectedTab) { oldValue, newValue in
-            handleTabChange(oldTab: oldValue, newTab: newValue)
+        .onReceive(NotificationCenter.default.publisher(for: .showSimilarVideos)) { notification in
+            if let identifier = notification.userInfo?["identifier"] as? String {
+                // Set the identifier and trigger navigation
+                similarVideoIdentifier = identifier
+                showingSimilarVideos = true
+                
+                // Close any open modal players if needed
+                if searchFeedViewModel.showingPlayer {
+                    searchFeedViewModel.showingPlayer = false
+                    searchFeedViewModel.searchViewModel.pausePlayback()
+                }
+                if favoritesFeedViewModel.showPlayer {
+                    favoritesFeedViewModel.showPlayer = false
+                    favoritesFeedViewModel.favoritesViewModel.pausePlayback()
+                }
+            }
         }
     }
     

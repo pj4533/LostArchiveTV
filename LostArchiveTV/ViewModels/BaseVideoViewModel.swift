@@ -121,6 +121,10 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable {
         playbackManager.durationAsCMTime
     }
     
+    // MARK: - Player Access
+    // Implementation of player property from VideoProvider protocol
+    // We're just delegating to the playbackManager
+    
     // MARK: - Cleanup
     
     func cleanup() {
