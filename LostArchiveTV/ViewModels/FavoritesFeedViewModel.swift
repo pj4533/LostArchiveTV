@@ -54,6 +54,17 @@ class FavoritesFeedViewModel: BaseFeedViewModel<FavoritesFeedItem> {
             // Play the video using the existing favorites view model
             favoritesViewModel.playVideoAt(index: index)
             
+            // Ensure the transition manager is ready for preloading
+            // This is particularly important if the manager wasn't set by the SwipeablePlayerView yet
+            if favoritesViewModel.transitionManager == nil {
+                favoritesViewModel.transitionManager = VideoTransitionManager()
+            }
+            
+            // Start preloading immediately
+            Task {
+                await favoritesViewModel.ensureVideosAreCached()
+            }
+            
             // Show the player after a brief delay
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 self.showPlayer = true

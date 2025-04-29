@@ -139,23 +139,12 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                 // Show back button if this is a modal presentation
                 showBackButton = isPresented != nil
                 
-                // Notify the provider about the transition manager (for direct preloading)
-                onPreloadReady?(transitionManager)
+                // Assign transition manager to provider
+                configureProvider(provider)
                 
                 // Ensure we have a video loaded and videos are ready for swiping in both directions
                 if provider.player != nil {
                     Logger.caching.info("SwipeablePlayerView onAppear: Player exists, starting preload for \(String(describing: type(of: provider)))")
-                    
-                    if let favProvider = provider as? FavoritesViewModel {
-                        Logger.caching.info("Favorites count: \(favProvider.favorites.count), currentIndex: \(favProvider.currentIndex)")
-                        // Store transition manager in the favorites view model
-                        favProvider.transitionManager = transitionManager
-                    } else if let searchViewModel = provider as? SearchViewModel {
-                        Logger.caching.info("Search results count: \(searchViewModel.searchResults.count), currentIndex: \(searchViewModel.currentIndex)")
-                        // Store transition manager in the search view model
-                        searchViewModel.transitionManager = transitionManager
-                    }
-                    
                     preloadVideos()
                 } else {
                     Logger.caching.error("⚠️ SwipeablePlayerView onAppear: Player is nil, cannot preload")
@@ -178,6 +167,20 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                 downloadedVideoURL = nil
             }
         }
+    }
+    
+    // Configure the provider with the transition manager
+    private func configureProvider(_ provider: Provider) {
+        if let favProvider = provider as? FavoritesViewModel {
+            Logger.caching.info("Configuring FavoritesViewModel with transition manager")
+            favProvider.transitionManager = transitionManager
+        } else if let searchViewModel = provider as? SearchViewModel {
+            Logger.caching.info("Configuring SearchViewModel with transition manager")
+            searchViewModel.transitionManager = transitionManager
+        }
+        
+        // Use the callback if provided (for custom provider types)
+        onPreloadReady?(transitionManager)
     }
     
     // Helper function to preload videos for swiping

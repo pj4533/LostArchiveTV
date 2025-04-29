@@ -138,8 +138,20 @@ class SearchFeedViewModel: BaseFeedViewModel<SearchFeedItem> {
     override func selectItem(_ item: SearchFeedItem) {
         // Find the index of the selected item in the search results
         if let index = searchViewModel.searchResults.firstIndex(where: { $0.identifier.identifier == item.id }) {
+            // Ensure the transition manager is ready for preloading
+            if searchViewModel.transitionManager == nil {
+                searchViewModel.transitionManager = VideoTransitionManager()
+            }
+            
             // Play the video using the existing search view model
             searchViewModel.playVideoAt(index: index)
+            
+            // Start preloading immediately for smooth swiping
+            Task {
+                await searchViewModel.ensureVideosAreCached()
+            }
+            
+            // Show the player
             self.showingPlayer = true
         }
     }
