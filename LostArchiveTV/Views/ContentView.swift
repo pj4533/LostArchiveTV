@@ -14,6 +14,10 @@ struct ContentView: View {
     @StateObject private var favoritesViewModel: FavoritesViewModel
     @StateObject private var searchViewModel: SearchViewModel
     
+    // New feed view models
+    @StateObject private var favoritesFeedViewModel: FavoritesFeedViewModel
+    @StateObject private var searchFeedViewModel: SearchFeedViewModel
+    
     // Track the currently selected tab
     @State private var selectedTab = 0
     
@@ -22,22 +26,38 @@ struct ContentView: View {
         let favManager = FavoritesManager()
         self._favoritesManager = StateObject(wrappedValue: favManager)
         
-        // Create video loading service to be shared
+        // Create services to be shared
         let videoLoadingService = VideoLoadingService(
             archiveService: ArchiveService(),
             cacheManager: VideoCacheManager()
         )
         
+        let searchManager = SearchManager()
+        
+        // Create view models
+        let favViewModel = FavoritesViewModel(favoritesManager: favManager)
+        self._favoritesViewModel = StateObject(wrappedValue: favViewModel)
+        
+        let searchVM = SearchViewModel(
+            searchManager: searchManager,
+            videoLoadingService: videoLoadingService,
+            favoritesManager: favManager
+        )
+        self._searchViewModel = StateObject(wrappedValue: searchVM)
+        
         self._videoPlayerViewModel = StateObject(wrappedValue: VideoPlayerViewModel(
             favoritesManager: favManager
         ))
         
-        self._favoritesViewModel = StateObject(wrappedValue: FavoritesViewModel(
-            favoritesManager: favManager
+        // Create feed view models
+        self._favoritesFeedViewModel = StateObject(wrappedValue: FavoritesFeedViewModel(
+            favoritesManager: favManager,
+            favoritesViewModel: favViewModel
         ))
         
-        self._searchViewModel = StateObject(wrappedValue: SearchViewModel(
-            videoLoadingService: videoLoadingService
+        self._searchFeedViewModel = StateObject(wrappedValue: SearchFeedViewModel(
+            searchManager: searchManager,
+            searchViewModel: searchVM
         ))
     }
     
@@ -51,14 +71,14 @@ struct ContentView: View {
                 .tag(0)
             
             // Search Tab
-            SearchView(viewModel: searchViewModel)
+            SearchFeedView(viewModel: searchFeedViewModel)
                 .tabItem {
                     Label("Search", systemImage: "magnifyingglass")
                 }
                 .tag(1)
             
             // Favorites Tab
-            FavoritesView(favoritesManager: favoritesManager, viewModel: favoritesViewModel)
+            FavoritesFeedView(viewModel: favoritesFeedViewModel)
                 .tabItem {
                     Label("Favorites", systemImage: "heart.fill")
                 }
@@ -100,13 +120,13 @@ struct ContentView: View {
             }
         case (1, _):
             // Leaving search tab - pause search player if it's playing
-            if searchViewModel.isPlaying {
-                searchViewModel.pausePlayback()
+            if searchFeedViewModel.searchViewModel.isPlaying {
+                searchFeedViewModel.searchViewModel.pausePlayback()
             }
         case (2, _):
             // Leaving favorites tab - pause favorites player if playing
-            if favoritesViewModel.isPlaying {
-                favoritesViewModel.pausePlayback()
+            if favoritesFeedViewModel.favoritesViewModel.isPlaying {
+                favoritesFeedViewModel.favoritesViewModel.pausePlayback()
             }
         default:
             break

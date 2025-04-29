@@ -130,4 +130,24 @@ class FavoritesManager: ObservableObject {
             addFavorite(video)
         }
     }
+    
+    // New pagination support methods
+    func getFavorites(page: Int = 0, pageSize: Int = 20) -> [CachedVideo] {
+        let startIndex = page * pageSize
+        let endIndex = min(startIndex + pageSize, favorites.count)
+        
+        if startIndex >= favorites.count {
+            return []
+        }
+        
+        return Array(favorites[startIndex..<endIndex])
+    }
+    
+    var totalFavorites: Int {
+        return favorites.count
+    }
+    
+    func hasMoreFavorites(currentCount: Int) -> Bool {
+        return currentCount < favorites.count
+    }
 }

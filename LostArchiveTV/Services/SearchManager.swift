@@ -13,13 +13,13 @@ class SearchManager {
         self.pineconeService = pineconeService
     }
     
-    func search(query: String, filter: SearchFilter? = nil) async throws -> [SearchResult] {
+    func search(query: String, filter: SearchFilter? = nil, page: Int = 0, pageSize: Int = 20) async throws -> [SearchResult] {
         guard !query.isEmpty else {
             Logger.caching.info("Empty search query, returning empty results")
             return []
         }
         
-        Logger.caching.info("Starting search for query: \(query)")
+        Logger.caching.info("Starting search for query: \(query), page: \(page), pageSize: \(pageSize)")
         
         // Generate embedding for the query
         let embedding = try await openAIService.generateEmbedding(for: query)
@@ -27,15 +27,30 @@ class SearchManager {
         // Convert filter to Pinecone format
         let pineconeFilter = filter?.toPineconeFilter()
         
-        // Query Pinecone
+        // Calculate how many results to fetch based on page and pageSize
+        let totalToFetch = (page + 1) * pageSize
+        
+        // Query Pinecone for the total number of results we need
         let searchResults = try await pineconeService.query(
             vector: embedding,
             filter: pineconeFilter,
-            topK: 20
+            topK: totalToFetch
         )
         
-        Logger.caching.info("Search complete, found \(searchResults.count) results")
+        // Calculate the slice to return based on the current page
+        let startIndex = page * pageSize
+        let endIndex = min(startIndex + pageSize, searchResults.count)
         
-        return searchResults
+        // If we're beyond available results, return empty array
+        if startIndex >= searchResults.count {
+            Logger.caching.info("Page \(page) is beyond available results, returning empty array")
+            return []
+        }
+        
+        let pageResults = Array(searchResults[startIndex..<endIndex])
+        
+        Logger.caching.info("Search complete, returning page \(page) with \(pageResults.count) results")
+        
+        return pageResults
     }
 }
