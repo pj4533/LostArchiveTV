@@ -139,20 +139,12 @@ struct SearchVideoLayerContent: View {
                                 .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
                         }
                         
-                        // Download button
-                        OverlayButton(
-                            action: {
-                                // TODO: Implement download for search results
-                            },
+                        // Download button with progress tracking
+                        VideoDownloadButton(
+                            downloadViewModel: viewModel.downloadViewModel,
+                            provider: viewModel,
                             disabled: viewModel.currentIdentifier == nil
-                        ) {
-                            Image(systemName: "square.and.arrow.down.fill")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 22, height: 22)
-                                .foregroundColor(.white)
-                                .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
-                        }
+                        )
                         
                         // Archive.org link button
                         if let identifier = viewModel.currentIdentifier {

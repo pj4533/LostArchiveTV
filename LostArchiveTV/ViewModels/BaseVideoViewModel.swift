@@ -41,9 +41,10 @@ protocol VideoProvider: AnyObject {
 
 /// Base class for video view models that implements common functionality
 @MainActor
-class BaseVideoViewModel: ObservableObject {
+class BaseVideoViewModel: ObservableObject, VideoDownloadable {
     // MARK: - Common Services
     let playbackManager = VideoPlaybackManager()
+    let downloadViewModel = VideoDownloadViewModel()
     
     // MARK: - Published Properties
     @Published var isLoading = false

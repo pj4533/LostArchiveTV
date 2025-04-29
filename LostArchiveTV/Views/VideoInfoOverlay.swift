@@ -8,18 +8,11 @@ struct VideoInfoOverlay: View {
     let description: String?
     let identifier: String?
     
-    @State private var isDownloading = false
-    @State private var downloadProgress: Float = 0
-    @State private var showSaveSuccessAlert = false
-    @State private var saveError: String? = nil
     @State private var downloadedVideoURL: URL? = nil
     @State private var showCollectionConfig = false
     
     // Logger for debugging
     private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "ui")
-    
-    // Services
-    private let downloadService = VideoDownloadService()
     
     // Reference to the view model - passed from parent
     @ObservedObject var viewModel: VideoPlayerViewModel
@@ -49,11 +42,8 @@ struct VideoInfoOverlay: View {
             ButtonPanel(
                 viewModel: viewModel,
                 showCollectionConfig: $showCollectionConfig,
-                isDownloading: $isDownloading,
-                downloadProgress: $downloadProgress,
                 identifier: identifier,
-                startTrimFlow: startTrimFlow,
-                downloadVideo: downloadVideo
+                startTrimFlow: startTrimFlow
             )
         }
         // Single sheet with conditional content based on current step
@@ -96,21 +86,6 @@ struct VideoInfoOverlay: View {
                 }
             }
         }
-        .alert("Video Saved", isPresented: $showSaveSuccessAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("Video has been saved to your photo library.")
-        }
-        .alert("Error Saving Video", isPresented: Binding<Bool>(
-            get: { saveError != nil },
-            set: { if !$0 { saveError = nil } }
-        )) {
-            Button("OK", role: .cancel) { saveError = nil }
-        } message: {
-            if let error = saveError {
-                Text(error)
-            }
-        }
     }
     
     // MARK: - Actions
@@ -128,32 +103,6 @@ struct VideoInfoOverlay: View {
         trimStep = .downloading
     }
     
-    private func downloadVideo() {
-        guard let identifier = identifier else {
-            saveError = "Video information not available"
-            return
-        }
-        
-        isDownloading = true
-        downloadProgress = 0
-        
-        downloadService.downloadVideo(
-            identifier: identifier,
-            progressHandler: { progress in
-                self.downloadProgress = progress
-            },
-            completionHandler: { result in
-                self.isDownloading = false
-                
-                switch result {
-                case .success:
-                    self.showSaveSuccessAlert = true
-                case .failure(let error):
-                    self.saveError = "Failed to save video: \(error.localizedDescription)"
-                }
-            }
-        )
-    }
 }
 
 #Preview {

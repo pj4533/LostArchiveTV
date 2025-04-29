@@ -4,11 +4,8 @@ import OSLog
 struct ButtonPanel: View {
     @ObservedObject var viewModel: VideoPlayerViewModel
     @Binding var showCollectionConfig: Bool
-    @Binding var isDownloading: Bool
-    @Binding var downloadProgress: Float
     let identifier: String?
     let startTrimFlow: () -> Void
-    let downloadVideo: () -> Void
     
     var body: some View {
         HStack {
@@ -80,11 +77,10 @@ struct ButtonPanel: View {
                 }
                 
                 // Download button with progress indicator
-                ProgressOverlayButton(
-                    action: { if !isDownloading { downloadVideo() } },
-                    progress: downloadProgress,
-                    isInProgress: isDownloading,
-                    normalIcon: "square.and.arrow.down.fill"
+                VideoDownloadButton(
+                    downloadViewModel: viewModel.downloadViewModel,
+                    provider: viewModel,
+                    disabled: viewModel.currentCachedVideo == nil
                 )
                 
                 // Archive.org link button
