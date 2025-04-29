@@ -86,7 +86,7 @@ struct SimilarView: View {
     private var emptyStateView: some View {
         VStack(spacing: 20) {
             Spacer()
-            Image(systemName: "rectangle.stack")
+            Image(systemName: "sparkles.rectangle.stack")
                 .font(.system(size: 64))
                 .foregroundColor(.gray)
             

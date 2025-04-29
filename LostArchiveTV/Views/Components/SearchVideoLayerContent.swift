@@ -138,7 +138,7 @@ struct SearchVideoLayerContent: View {
                             },
                             disabled: viewModel.currentIdentifier == nil
                         ) {
-                            Image(systemName: "rectangle.stack")
+                            Image(systemName: "sparkles.rectangle.stack")
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
                                 .frame(width: 22, height: 22)
