@@ -133,14 +133,16 @@ class FavoritesManager: ObservableObject {
     
     // New pagination support methods
     func getFavorites(page: Int = 0, pageSize: Int = 20) -> [CachedVideo] {
+        // Get favorites in reverse order (newest first)
+        let reversedFavorites = Array(favorites.reversed())
         let startIndex = page * pageSize
-        let endIndex = min(startIndex + pageSize, favorites.count)
+        let endIndex = min(startIndex + pageSize, reversedFavorites.count)
         
-        if startIndex >= favorites.count {
+        if startIndex >= reversedFavorites.count {
             return []
         }
         
-        return Array(favorites[startIndex..<endIndex])
+        return Array(reversedFavorites[startIndex..<endIndex])
     }
     
     var totalFavorites: Int {
