@@ -5,12 +5,6 @@ class SearchManager {
     private let openAIService: OpenAIService
     private let pineconeService: PineconeService
     
-    // Allows direct setting of search results (for Similar Videos feature)
-    func setResults(_ results: [SearchResult]) async {
-        // This is a no-op method to satisfy the SimilarFeedView
-        // In a real implementation, this might store the results
-        Logger.caching.info("Setting \(results.count) direct search results")
-    }
     
     init(
         openAIService: OpenAIService = OpenAIService(),
