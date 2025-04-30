@@ -41,7 +41,7 @@ protocol VideoProvider: AnyObject {
 
 /// Base class for video view models that implements common functionality
 @MainActor
-class BaseVideoViewModel: ObservableObject, VideoDownloadable {
+class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvider {
     // MARK: - Common Services
     let playbackManager = VideoPlaybackManager()
     let downloadViewModel = VideoDownloadViewModel()
@@ -129,5 +129,15 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable {
     
     func cleanup() {
         playbackManager.cleanupPlayer()
+    }
+    
+    // MARK: - VideoControlProvider Protocol Conformance
+    
+    var isFavorite: Bool {
+        false // Default implementation, to be overridden by subclasses
+    }
+    
+    func toggleFavorite() {
+        // Default implementation does nothing, to be overridden by subclasses
     }
 }

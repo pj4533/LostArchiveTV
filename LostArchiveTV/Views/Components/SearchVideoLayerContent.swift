@@ -79,105 +79,16 @@ struct SearchVideoLayerContent: View {
                 }
                 
                 // Right-side button panel
-                HStack {
-                    Spacer()
-                    
-                    VStack(spacing: 12) {
-                        // Settings-like placeholder at the top (back button replaces settings)
-                        // This preserves the vertical spacing to match the main player
-                        Color.clear
-                            .frame(width: 22, height: 22)
-                        
-                        Spacer()
-                        
-                        // Favorite button - above the rewind button
-                        OverlayButton(
-                            action: {
-                                viewModel.toggleFavorite()
-                                // Add haptic feedback
-                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                            },
-                            disabled: viewModel.currentIdentifier == nil
-                        ) {
-                            Image(systemName: viewModel.isFavorite ? "heart.fill" : "heart")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 22, height: 22)
-                                .foregroundColor(viewModel.isFavorite ? .red : .white)
-                                .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
-                        }
-                        
-                        // Restart video button
-                        OverlayButton(
-                            action: {
-                                viewModel.restartVideo()
-                            },
-                            disabled: false
-                        ) {
-                            Image(systemName: "backward.end")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 16, height: 16)
-                                .foregroundColor(.white)
-                                .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
-                        }
-                        
-                        // Similar videos button
-                        OverlayButton(
-                            action: {
-                                // Pause playback before navigating
-                                viewModel.pausePlayback()
-                                // Navigate to similar videos if an identifier exists
-                                if let identifier = viewModel.currentIdentifier {
-                                    NotificationCenter.default.post(
-                                        name: .showSimilarVideos,
-                                        object: nil,
-                                        userInfo: ["identifier": identifier]
-                                    )
-                                }
-                            },
-                            disabled: viewModel.currentIdentifier == nil
-                        ) {
-                            Image(systemName: "sparkles.rectangle.stack")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 22, height: 22)
-                                .foregroundColor(.white)
-                                .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
-                        }
-                        
-                        // Trim button
-                        OverlayButton(
-                            action: {
-                                viewModel.pausePlayback()
-                                // Trigger trimming to be shown in the parent view
-                                NotificationCenter.default.post(name: .startVideoTrimming, object: nil)
-                            },
-                            disabled: viewModel.currentIdentifier == nil
-                        ) {
-                            Image(systemName: "selection.pin.in.out")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 22, height: 22)
-                                .foregroundColor(.white)
-                                .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
-                        }
-                        
-                        // Download button with progress tracking
-                        VideoDownloadButton(
-                            downloadViewModel: viewModel.downloadViewModel,
-                            provider: viewModel,
-                            disabled: viewModel.currentIdentifier == nil
-                        )
-                        
-                        // Archive.org link button
-                        if let identifier = viewModel.currentIdentifier {
-                            ArchiveButton(identifier: identifier)
-                        }
+                PlayerButtonPanel(
+                    provider: viewModel,
+                    showSettingsButton: false,
+                    trimAction: {
+                        // Trigger trimming to be shown in the parent view
+                        NotificationCenter.default.post(name: .startVideoTrimming, object: nil)
                     }
-                    .padding(.trailing, 16)
-                    .padding(.top, 50)
-                }
+                )
+                .padding(.trailing, 8)
+                .padding(.top, 50)
             }
         }
     }

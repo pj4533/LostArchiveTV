@@ -65,19 +65,15 @@ class FavoritesViewModel: BaseVideoViewModel, VideoProvider {
             currentDescription = video.description
         }
     }
-}
-
-// MARK: - Public Interface
-extension FavoritesViewModel {
-    var favorites: [CachedVideo] {
-        favoritesManager.favorites
+    
+    // MARK: - VideoControlProvider Protocol Overrides
+    
+    override var isFavorite: Bool {
+        guard let currentVideo = currentVideo else { return false }
+        return favoritesManager.isFavorite(currentVideo)
     }
     
-    func isFavorite(_ video: CachedVideo) -> Bool {
-        favoritesManager.isFavorite(video)
-    }
-    
-    func toggleFavorite() {
+    override func toggleFavorite() {
         guard let currentVideo = currentVideo else { return }
         
         favoritesManager.toggleFavorite(currentVideo)
@@ -109,6 +105,17 @@ extension FavoritesViewModel {
         if currentIndex < favorites.count {
             setCurrentVideo(favorites[currentIndex])
         }
+    }
+}
+
+// MARK: - Public Interface
+extension FavoritesViewModel {
+    var favorites: [CachedVideo] {
+        favoritesManager.favorites
+    }
+    
+    func isFavorite(_ video: CachedVideo) -> Bool {
+        favoritesManager.isFavorite(video)
     }
 }
 

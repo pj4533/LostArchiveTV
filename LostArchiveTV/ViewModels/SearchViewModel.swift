@@ -29,6 +29,41 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider {
     // Task management for proper cancellation
     private var searchTask: Task<Void, Never>?
     
+    // MARK: - VideoControlProvider Protocol Overrides
+    
+    /// Checks if the current video is a favorite
+    override var isFavorite: Bool {
+        guard let identifier = currentIdentifier, let collection = currentCollection else {
+            return false
+        }
+        
+        let archiveIdentifier = ArchiveIdentifier(identifier: identifier, collection: collection)
+        let dummyVideo = CachedVideo(
+            identifier: identifier,
+            collection: collection,
+            metadata: ArchiveMetadata(files: [], metadata: nil),
+            mp4File: ArchiveFile(name: "", format: "", size: "", length: nil),
+            videoURL: URL(string: "about:blank")!,
+            asset: AVURLAsset(url: URL(string: "about:blank")!),
+            playerItem: AVPlayerItem(asset: AVURLAsset(url: URL(string: "about:blank")!)),
+            startPosition: 0,
+            addedToFavoritesAt: nil
+        )
+        
+        return favoritesManager.isFavorite(dummyVideo)
+    }
+    
+    /// Toggle favorite status of the current video
+    override func toggleFavorite() {
+        Task {
+            if let cachedVideo = await createCachedVideoFromCurrentState() {
+                favoritesManager.toggleFavorite(cachedVideo)
+                // Force UI refresh
+                objectWillChange.send()
+            }
+        }
+    }
+    
     init(
         searchManager: SearchManager = SearchManager(),
         videoLoadingService: VideoLoadingService = VideoLoadingService(
@@ -372,39 +407,6 @@ extension SearchViewModel {
 
 // MARK: - Favorites Support
 extension SearchViewModel {
-    /// Checks if the current video is a favorite
-    var isFavorite: Bool {
-        guard let identifier = currentIdentifier, let collection = currentCollection else {
-            return false
-        }
-        
-        let archiveIdentifier = ArchiveIdentifier(identifier: identifier, collection: collection)
-        let dummyVideo = CachedVideo(
-            identifier: identifier,
-            collection: collection,
-            metadata: ArchiveMetadata(files: [], metadata: nil),
-            mp4File: ArchiveFile(name: "", format: "", size: "", length: nil),
-            videoURL: URL(string: "about:blank")!,
-            asset: AVURLAsset(url: URL(string: "about:blank")!),
-            playerItem: AVPlayerItem(asset: AVURLAsset(url: URL(string: "about:blank")!)),
-            startPosition: 0,
-            addedToFavoritesAt: nil
-        )
-        
-        return favoritesManager.isFavorite(dummyVideo)
-    }
-    
-    /// Toggle favorite status of the current video
-    func toggleFavorite() {
-        Task {
-            if let cachedVideo = await createCachedVideoFromCurrentState() {
-                favoritesManager.toggleFavorite(cachedVideo)
-                // Force UI refresh
-                objectWillChange.send()
-            }
-        }
-    }
-    
     /// Create a saved video from search result
     func createSavedVideo() async -> CachedVideo? {
         guard let identifier = currentIdentifier, let collection = currentCollection else { return nil }
@@ -419,3 +421,4 @@ extension SearchViewModel {
         }
     }
 }
+

@@ -39,6 +39,25 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider {
     // History tracking - uses the history manager
     private let historyManager = VideoHistoryManager()
     
+    // MARK: - VideoControlProvider Protocol Overrides
+    
+    override var isFavorite: Bool {
+        if let currentVideo = _currentCachedVideo, currentVideo.identifier == currentIdentifier {
+            return favoritesManager.isFavorite(currentVideo)
+        } else if let identifier = currentIdentifier {
+            return favoritesManager.isFavoriteIdentifier(identifier)
+        }
+        return false
+    }
+    
+    override func toggleFavorite() {
+        guard let currentVideo = _currentCachedVideo else { return }
+        
+        Logger.metadata.info("Toggling favorite status for video: \(currentVideo.identifier)")
+        favoritesManager.toggleFavorite(currentVideo)
+        objectWillChange.send()
+    }
+    
     // MARK: - Initialization and Cleanup
     override init() {
         // This empty init is needed to satisfy the compiler
@@ -352,23 +371,6 @@ extension VideoPlayerViewModel {
     // Method to update the current cached video reference
     func updateCurrentCachedVideo(_ video: CachedVideo?) {
         _currentCachedVideo = video
-        objectWillChange.send()
-    }
-    
-    var isFavorite: Bool {
-        if let currentVideo = _currentCachedVideo, currentVideo.identifier == currentIdentifier {
-            return favoritesManager.isFavorite(currentVideo)
-        } else if let identifier = currentIdentifier {
-            return favoritesManager.isFavoriteIdentifier(identifier)
-        }
-        return false
-    }
-    
-    func toggleFavorite() {
-        guard let currentVideo = _currentCachedVideo else { return }
-        
-        Logger.metadata.info("Toggling favorite status for video: \(currentVideo.identifier)")
-        favoritesManager.toggleFavorite(currentVideo)
         objectWillChange.send()
     }
 }
