@@ -95,7 +95,8 @@ struct ContentView: View {
                 handleTabChange(oldTab: oldValue, newTab: newValue)
             }
             .navigationDestination(isPresented: $showingSimilarVideos) {
-                SimilarView(referenceIdentifier: similarVideoIdentifier)
+                // Pass the shared SearchViewModel instead of creating a new one
+                SimilarView(referenceIdentifier: similarVideoIdentifier, searchViewModel: searchViewModel)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .showSimilarVideos)) { notification in

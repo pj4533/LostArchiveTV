@@ -2,16 +2,15 @@ import SwiftUI
 import OSLog
 
 struct SimilarView: View {
+    // Reference the main SearchFeedViewModel from ContentView
     @StateObject private var viewModel: SearchFeedViewModel
     
-    init(referenceIdentifier: String) {
-        // Create the search view model first
-        let searchVM = SearchViewModel()
-        
-        // Create the feed view model
+    // Use the shared SearchViewModel from app launch instead of creating a new one
+    init(referenceIdentifier: String, searchViewModel: SearchViewModel) {
+        // Create the feed view model with the SHARED SearchViewModel
         self._viewModel = StateObject(wrappedValue: SearchFeedViewModel(
             searchManager: SearchManager(),
-            searchViewModel: searchVM
+            searchViewModel: searchViewModel
         ))
         
         // Store the reference identifier for loading on appear
@@ -44,12 +43,6 @@ struct SimilarView: View {
                     provider: viewModel.searchViewModel,
                     isPresented: $viewModel.showingPlayer
                 )
-                .onAppear {
-                    // Start preloading videos
-                    Task {
-                        await viewModel.searchViewModel.ensureVideosAreCached()
-                    }
-                }
             }
         }
     }
