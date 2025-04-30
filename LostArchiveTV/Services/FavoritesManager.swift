@@ -39,6 +39,8 @@ class FavoritesManager: ObservableObject {
             return
         }
         
+        var loadedFavorites: [CachedVideo] = []
+        
         // Convert stored favorites to CachedVideo objects
         for storedFavorite in storedFavorites {
             if let videoURL = URL(string: storedFavorite.videoURLString) {
@@ -77,11 +79,14 @@ class FavoritesManager: ObservableObject {
                     addedToFavoritesAt: storedFavorite.timestamp
                 )
                 
-                favorites.append(cachedVideo)
+                loadedFavorites.append(cachedVideo)
             }
         }
         
-        Logger.metadata.debug("Loaded \(self.favorites.count) favorite videos from UserDefaults")
+        // Reverse the favorites array here so newest videos are at the beginning
+        favorites = loadedFavorites.reversed()
+        
+        Logger.metadata.debug("Loaded \(self.favorites.count) favorite videos from UserDefaults (newest first)")
     }
     
     func saveFavorites() {
@@ -148,16 +153,15 @@ class FavoritesManager: ObservableObject {
     
     // New pagination support methods
     func getFavorites(page: Int = 0, pageSize: Int = 20) -> [CachedVideo] {
-        // Get favorites in reverse order (newest first)
-        let reversedFavorites = Array(favorites.reversed())
+        // Favorites are already in newest-first order since we reversed them in loadFavorites
         let startIndex = page * pageSize
-        let endIndex = min(startIndex + pageSize, reversedFavorites.count)
+        let endIndex = min(startIndex + pageSize, favorites.count)
         
-        if startIndex >= reversedFavorites.count {
+        if startIndex >= favorites.count {
             return []
         }
         
-        return Array(reversedFavorites[startIndex..<endIndex])
+        return Array(favorites[startIndex..<endIndex])
     }
     
     var totalFavorites: Int {
