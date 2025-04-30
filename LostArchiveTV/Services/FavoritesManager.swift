@@ -123,7 +123,8 @@ class FavoritesManager: ObservableObject {
                 startPosition: video.startPosition,
                 addedToFavoritesAt: Date()
             )
-            favorites.append(videoWithTimestamp)
+            // Insert at the beginning to maintain newest-first order
+            favorites.insert(videoWithTimestamp, at: 0)
             saveFavorites()
             Logger.metadata.debug("Added video to favorites: \(video.identifier)")
         }
