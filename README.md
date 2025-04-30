@@ -24,8 +24,12 @@ LostArchiveTV lets you discover historical films, educational videos, and other 
 - Export trimmed video clips to Photos library
 - Thumbnail generation for visual timeline navigation
 - Optimized loading screen that displays content as soon as the first video is ready
-- Favorites system for saving interesting videos for later viewing
+- Favorites system for saving and revisiting interesting videos
 - Centralized player management with improved code reuse
+- Semantic search using natural language queries
+- Similar videos recommendations for discovering related content
+- Year-based filtering for search results
+- Component-based UI architecture for consistent experience across features
 
 ## How It Works
 
@@ -37,11 +41,16 @@ LostArchiveTV lets you discover historical films, educational videos, and other 
 - Preloads upcoming videos in the background
 - Maintains a video cache for optimal performance
 - Tracks viewing history for consistent bidirectional navigation
-- Save favorites for easily accessing previously viewed content
+- Saves favorites with full metadata for easily accessing previously viewed content
+- Stores favorites in newest-first order with comprehensive metadata
+- Uses OpenAI for generating embeddings and Pinecone for vector search
+- Offers semantic search for finding videos using natural language
+- Provides similar video recommendations based on content similarity
 - Comprehensive logging via OSLog for diagnostics
 - Provides a trim interface with adjustable handles for selecting video segments
 - Uses AVFoundation for trimming and exporting video clips
 - Leverages inheritance with BaseVideoViewModel for code reuse
+- Uses protocol-based approach for consistent player controls
 
 ## Requirements
 
