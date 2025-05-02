@@ -1,5 +1,5 @@
 //
-//  LoggingService.swift
+//  LoggerExtension.swift
 //  LostArchiveTV
 //
 //  Created by PJ Gray on 4/19/25.
