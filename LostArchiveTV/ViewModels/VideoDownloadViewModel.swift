@@ -1,16 +1,11 @@
 import Foundation
 import OSLog
 import Photos
+import SwiftUI
 
-/// Protocol for ViewModels that support video downloading
-protocol VideoDownloadable {
-    // Required properties
-    var currentIdentifier: String? { get }
-    
-    // Optional callbacks
-    func onDownloadStart()
-    func onDownloadComplete(success: Bool, error: Error?)
-}
+// Import the VideoDownloadable protocol from its new location
+@_exported import struct Foundation.URL
+@_exported import class AVFoundation.AVPlayer
 
 /// Extension to provide default implementations for optional callbacks
 extension VideoDownloadable {

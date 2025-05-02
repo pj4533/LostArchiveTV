@@ -1,7 +1,6 @@
-import SwiftUI
+import Foundation
 import AVFoundation
 
-// Protocol that defines common functionality needed by player buttons
 protocol VideoControlProvider: ObservableObject, VideoDownloadable {
     // Required video properties
     var player: AVPlayer? { get }
