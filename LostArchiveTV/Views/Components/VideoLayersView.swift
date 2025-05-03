@@ -88,11 +88,13 @@ struct VideoLayersView<Provider: VideoProvider & ObservableObject>: View {
                         Button(action: {
                             // Stop playback before dismissing
                             if let favViewModel = provider as? FavoritesViewModel {
-                                favViewModel.pausePlayback()
-                                // Set isPresented to false first, then set player to nil after a short delay
-                                isPresented.wrappedValue = false
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                    favViewModel.player = nil
+                                Task {
+                                    await favViewModel.pausePlayback()
+                                    // Set isPresented to false first, then set player to nil after a short delay
+                                    isPresented.wrappedValue = false
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                        favViewModel.player = nil
+                                    }
                                 }
                             } else {
                                 isPresented.wrappedValue = false

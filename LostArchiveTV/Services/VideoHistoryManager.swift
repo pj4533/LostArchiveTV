@@ -33,7 +33,7 @@ class VideoHistoryManager {
         Logger.caching.info("Added video to history: \(video.identifier), history size: \(self.videoHistory.count), index: \(self.currentHistoryIndex)")
     }
     
-    // Get previous video from history
+    // Get previous video from history (moves the index)
     func getPreviousVideo() -> CachedVideo? {
         guard currentHistoryIndex > 0, !videoHistory.isEmpty else {
             Logger.caching.info("No previous video in history")
@@ -42,22 +42,49 @@ class VideoHistoryManager {
         
         self.currentHistoryIndex -= 1
         let video = self.videoHistory[self.currentHistoryIndex]
-        Logger.caching.info("Moving back in history to index \(self.currentHistoryIndex): \(video.identifier)")
+        Logger.caching.info("💫 HISTORY: Moving back in history to index \(self.currentHistoryIndex): \(video.identifier)")
         return video
     }
     
-    // Get next video from history (or nil if we need a new one)
+    // Get next video from history (or nil if we need a new one) (moves the index)
     func getNextVideo() -> CachedVideo? {
         // If we're at the end of history, return nil (caller should load a new video)
         guard currentHistoryIndex < videoHistory.count - 1, !videoHistory.isEmpty else {
-            Logger.caching.info("At end of history, need to load a new video")
+            Logger.caching.info("💫 HISTORY: At end of history, need to load a new video")
             return nil
         }
         
         // Move forward in history
         self.currentHistoryIndex += 1
         let video = self.videoHistory[self.currentHistoryIndex]
-        Logger.caching.info("Moving forward in history to index \(self.currentHistoryIndex): \(video.identifier)")
+        Logger.caching.info("💫 HISTORY: Moving forward in history to index \(self.currentHistoryIndex): \(video.identifier)")
+        return video
+    }
+    
+    // Peek at the previous video without changing the current index
+    func peekPreviousVideo() -> CachedVideo? {
+        guard currentHistoryIndex > 0, !videoHistory.isEmpty else {
+            Logger.caching.info("👁️ HISTORY PEEK: No previous video in history")
+            return nil
+        }
+        
+        let peekIndex = currentHistoryIndex - 1
+        let video = self.videoHistory[peekIndex]
+        Logger.caching.info("👁️ HISTORY PEEK: Peeking at previous index \(peekIndex): \(video.identifier)")
+        return video
+    }
+    
+    // Peek at the next video without changing the current index
+    func peekNextVideo() -> CachedVideo? {
+        // If we're at the end of history, return nil (caller should load a new video)
+        guard currentHistoryIndex < videoHistory.count - 1, !videoHistory.isEmpty else {
+            Logger.caching.info("👁️ HISTORY PEEK: At end of history (peek), need to load a new video")
+            return nil
+        }
+        
+        let peekIndex = currentHistoryIndex + 1
+        let video = self.videoHistory[peekIndex]
+        Logger.caching.info("👁️ HISTORY PEEK: Peeking at next index \(peekIndex): \(video.identifier)")
         return video
     }
     

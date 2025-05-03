@@ -10,16 +10,8 @@ import AVKit
 import AVFoundation
 import OSLog
 
-// MARK: - Caching and Favorites Extension
+// MARK: - Favorites Extension
 extension VideoPlayerViewModel {
-    func ensureVideosAreCached() async {
-        await preloadService.ensureVideosAreCached(
-            cacheManager: cacheManager,
-            archiveService: archiveService,
-            identifiers: identifiers
-        )
-    }
-    
     // MARK: - Favorites Functionality
     
     var currentCachedVideo: CachedVideo? {

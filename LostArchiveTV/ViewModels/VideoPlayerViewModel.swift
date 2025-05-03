@@ -11,7 +11,7 @@ import AVFoundation
 import OSLog
 
 @MainActor
-class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider {
+class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
     // Services
     let archiveService = ArchiveService()
     let cacheManager = VideoCacheManager()
@@ -38,6 +38,9 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider {
     
     // History tracking - uses the history manager
     private let historyManager = VideoHistoryManager()
+    
+    // Transition manager for swiping and preloading - required by VideoProvider
+    var transitionManager: VideoTransitionManager? = VideoTransitionManager()
     
     // MARK: - VideoControlProvider Protocol Overrides
     
@@ -82,14 +85,24 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider {
             // Only start preloading after identifiers are loaded
             if !identifiers.isEmpty {
                 // Start monitoring cache progress
+                Logger.caching.info("Starting cache monitoring")
                 monitorCacheProgress()
                 
                 // Begin preloading videos
+                Logger.caching.info("Starting video preloading")
                 await ensureVideosAreCached()
                 
                 // After preloading is started, load the first video but don't show it yet
                 // (it will be shown once initialization is complete)
+                Logger.caching.info("Loading initial random video")
                 await loadRandomVideo(showImmediately: false)
+                
+                // IMPORTANT: Check if we have a player but initialization is still active
+                // This handles the case where loadRandomVideo succeeds but cache monitoring hasn't caught up
+                if self.player != nil && isInitializing {
+                    Logger.caching.info("Video loaded and player exists, but initialization state not updated - forcing update")
+                    isInitializing = false
+                }
             } else {
                 Logger.caching.error("Cannot preload: identifiers not loaded properly")
                 isInitializing = false
@@ -106,20 +119,52 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider {
         cacheMonitorTask?.cancel()
         
         cacheMonitorTask = Task {
+            Logger.caching.info("🔄 INIT: Cache monitor task started")
+            // Track how many monitoring cycles we've performed
+            var monitorCycles = 0
+            var playerCheckPerformed = false
+            
             // Wait until we have at least 1 video cached to begin playback
             while !Task.isCancelled && isInitializing {
+                monitorCycles += 1
                 let cacheCount = await cacheManager.cacheCount() 
+                
+                // Get player/video status for detailed logging
+                let hasPlayer = self.player != nil
+                let playerStatus = hasPlayer ? "ACTIVE" : "none"
+                let currentVideoID = self.currentIdentifier ?? "none"
+                
+                Logger.caching.info("📊 INIT: Monitor cycle \(monitorCycles) | Cache size: \(cacheCount) | Initializing: \(self.isInitializing) | Player: \(playerStatus) | Current video: \(currentVideoID)")
                 
                 if cacheCount >= 1 {
                     // Exit initialization mode once we have at least one video ready
                     try? await Task.sleep(for: .seconds(0.2))
                     self.isInitializing = false
-                    Logger.caching.info("Initial cache ready with \(cacheCount) videos - beginning playback")
+                    Logger.caching.info("✅ INIT: Initial cache ready with \(cacheCount) videos - exiting initialization")
+                    break
+                }
+                
+                // CRITICAL FIX: If no videos in cache but we already have an active player
+                // or if we've been waiting for too long (10 seconds), exit initialization
+                if monitorCycles >= 10 || (!playerCheckPerformed && self.player != nil) {
+                    playerCheckPerformed = true
+                    if self.player != nil {
+                        Logger.caching.info("🚨 INIT: Player exists but cache is empty (video ID: \(currentVideoID)). Exiting initialization state.")
+                        self.isInitializing = false
+                        break
+                    }
+                }
+                
+                // If we've been stuck for a long time (50 cycles = ~10 seconds), force exit initialization
+                if monitorCycles >= 50 {
+                    Logger.caching.error("⚠️ INIT: Forced exit from initialization after \(monitorCycles) monitoring cycles")
+                    self.isInitializing = false
                     break
                 }
                 
                 try? await Task.sleep(for: .seconds(0.2))
             }
+            Logger.caching.info("🏁 INIT: Cache monitor task completed - initialization finished")
         }
     }
     
@@ -130,14 +175,24 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider {
         historyManager.addVideo(video)
     }
     
-    // Get previous video from history
+    // Get previous video from history - changes the current index
     func getPreviousVideo() async -> CachedVideo? {
         return historyManager.getPreviousVideo()
     }
     
-    // Get next video from history (or nil if we need a new one)
+    // Get next video from history - changes the current index
     func getNextVideo() async -> CachedVideo? {
         return historyManager.getNextVideo()
+    }
+    
+    // Peek at previous video without changing the index - for preloading
+    func peekPreviousVideo() async -> CachedVideo? {
+        return historyManager.peekPreviousVideo()
+    }
+    
+    // Peek at next video without changing the index - for preloading
+    func peekNextVideo() async -> CachedVideo? {
+        return historyManager.peekNextVideo()
     }
     
     // Check if we're at the end of history
@@ -151,6 +206,34 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider {
         // Main player doesn't need to load more items as it plays random videos
         return false
     }
+    
+    // Update to next video - for VideoPlayerViewModel, historyManager already handles this
+    func updateToNextVideo() {
+        // For the main player, we don't need to do anything as the history manager maintains the state
+        Logger.caching.info("VideoPlayerViewModel.updateToNextVideo called - using history manager")
+        // Will use getNextVideo when needed
+    }
+    
+    // Update to previous video - for VideoPlayerViewModel, historyManager already handles this
+    func updateToPreviousVideo() {
+        // For the main player, we don't need to do anything as the history manager maintains the state
+        Logger.caching.info("VideoPlayerViewModel.updateToPreviousVideo called - using history manager")
+        // Will use getPreviousVideo when needed
+    }
+    
+    // MARK: - CacheableProvider Protocol
+    
+    /// Returns the list of identifiers for general caching
+    /// For the main player, this is all available identifiers
+    func getIdentifiersForGeneralCaching() -> [ArchiveIdentifier] {
+        return identifiers
+    }
+    
+    // MARK: - CacheableProvider Protocol
+    
+    // NOTE: We don't need to override ensureVideosAreCached() anymore
+    // The base implementation now uses TransitionPreloadManager.ensureAllCaching()
+    // which handles both general caching and transition caching in one call
     
     // MARK: - Video state management
     

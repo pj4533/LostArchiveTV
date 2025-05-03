@@ -36,8 +36,10 @@ struct SimilarView: View {
             }
             .fullScreenCover(isPresented: $viewModel.showingPlayer, onDismiss: {
                 // Stop playback when the player is dismissed
-                viewModel.searchViewModel.pausePlayback()
-                viewModel.searchViewModel.player = nil
+                Task {
+                    await viewModel.searchViewModel.pausePlayback()
+                    viewModel.searchViewModel.player = nil
+                }
             }) {
                 SwipeablePlayerView(
                     provider: viewModel.searchViewModel,

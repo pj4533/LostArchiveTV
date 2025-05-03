@@ -49,7 +49,7 @@ extension VideoPlayerViewModel {
     
     func loadRandomVideo(showImmediately: Bool = true) async {
         let overallStartTime = CFAbsoluteTimeGetCurrent()
-        Logger.videoPlayback.info("Starting to load random video for swipe interface")
+        Logger.videoPlayback.info("🎬 LOADING: Starting to load random video (showImmediately: \(showImmediately))")
         
         // Only update UI loading state if we're showing immediately
         if showImmediately {
@@ -59,12 +59,12 @@ extension VideoPlayerViewModel {
         
         // Ensure we have identifiers loaded
         if identifiers.isEmpty {
-            Logger.metadata.warning("Attempting to load video but identifiers array is empty, loading identifiers first")
+            Logger.metadata.warning("⚠️ LOADING: No identifiers available, loading identifiers first")
             await loadIdentifiers()
             
             // Check again after loading
             if identifiers.isEmpty {
-                Logger.metadata.error("No identifiers available after explicit load attempt")
+                Logger.metadata.error("❌ LOADING: Failed to load identifiers, cannot continue")
                 errorMessage = "No identifiers available. Make sure the identifiers.sqlite database is in the app bundle."
                 isLoading = false
                 isInitializing = false
@@ -72,17 +72,24 @@ extension VideoPlayerViewModel {
             }
         }
         
+        // Log number of identifiers
+        Logger.metadata.info("📊 LOADING: \(self.identifiers.count) identifiers available")
+        
         // Clean up existing player
         playbackManager.cleanupPlayer()
         
         // Pre-emptively start caching next videos for smooth swipes
         Task {
+            Logger.caching.info("🔄 LOADING: Starting background cache filling")
             await ensureVideosAreCached()
         }
         
         do {
             // Load a random video using our service
+            Logger.videoPlayback.info("🔄 LOADING: Requesting random video from service")
             let videoInfo = try await videoLoadingService.loadRandomVideo()
+            
+            Logger.videoPlayback.info("✅ LOADING: Successfully loaded video: \(videoInfo.identifier)")
             
             // Set the current video info
             currentIdentifier = videoInfo.identifier
@@ -95,13 +102,13 @@ extension VideoPlayerViewModel {
             let startTime = CMTime(seconds: videoInfo.startPosition, preferredTimescale: 600)
             
             // Log consistent video timing information when using from cache
-            Logger.videoPlayback.info("VIDEO TIMING (PLAYING): Duration=\(self.playbackManager.videoDuration.formatted(.number.precision(.fractionLength(1))))s, Offset=\(videoInfo.startPosition.formatted(.number.precision(.fractionLength(1))))s (\(videoInfo.identifier))")
+            Logger.videoPlayback.info("⏱️ LOADING: Video timing - Duration=\(self.playbackManager.videoDuration.formatted(.number.precision(.fractionLength(1))))s, Offset=\(videoInfo.startPosition.formatted(.number.precision(.fractionLength(1))))s (\(videoInfo.identifier))")
             
             // Seek to the correct position before we set it as the current player
             let seekStartTime = CFAbsoluteTimeGetCurrent()
             await player.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
             let seekTime = CFAbsoluteTimeGetCurrent() - seekStartTime
-            Logger.videoPlayback.info("Video seek completed in \(seekTime.formatted(.number.precision(.fractionLength(4)))) seconds")
+            Logger.videoPlayback.info("⏱️ LOADING: Video seek completed in \(seekTime.formatted(.number.precision(.fractionLength(4)))) seconds")
             
             // Now set the player with the correct position already set
             // This will also extract and store the URL internally
@@ -109,6 +116,7 @@ extension VideoPlayerViewModel {
             
             // Always start playback of the video
             playbackManager.play()
+            Logger.videoPlayback.info("▶️ LOADING: Video playback started")
             
             // Monitor buffer status
             if let playerItem = playbackManager.player?.currentItem {
@@ -121,19 +129,24 @@ extension VideoPlayerViewModel {
             if let currentVideo = await createCachedVideoFromCurrentState() {
                 addVideoToHistory(currentVideo)
                 updateCurrentCachedVideo(currentVideo)
-                Logger.caching.info("Added initial video to history")
+                Logger.caching.info("📝 LOADING: Added initial video to history")
             }
             
             // Only update loading state if we're showing immediately
             if showImmediately {
                 isLoading = false
+                Logger.videoPlayback.info("🏁 LOADING: Reset loading state to false")
             }
+            
+            // Get cache state after video is loaded
+            let cacheCount = await cacheManager.cacheCount()
+            Logger.caching.info("📊 LOADING: Current cache size after loading: \(cacheCount)")
             
             // Start preloading the next video if needed
             await ensureVideosAreCached()
             
             let overallTime = CFAbsoluteTimeGetCurrent() - overallStartTime
-            Logger.videoPlayback.info("Total video load time: \(overallTime.formatted(.number.precision(.fractionLength(4)))) seconds")
+            Logger.videoPlayback.info("⏱️ LOADING: Total video load time: \(overallTime.formatted(.number.precision(.fractionLength(4)))) seconds")
             
         } catch {
             Logger.videoPlayback.error("Failed to load video: \(error.localizedDescription)")

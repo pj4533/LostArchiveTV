@@ -1,12 +1,22 @@
 import Foundation
 import AVFoundation
+import OSLog
 
 protocol VideoProvider: AnyObject {
-    // Get the next video in the sequence
+    // Video transition manager for swipe handling and preloading
+    var transitionManager: VideoTransitionManager? { get }
+    
+    // Get the next video in the sequence (changes the current index)
     func getNextVideo() async -> CachedVideo?
     
-    // Get the previous video in the sequence
+    // Get the previous video in the sequence (changes the current index)
     func getPreviousVideo() async -> CachedVideo?
+    
+    // Peek at the next video without changing the index (for preloading)
+    func peekNextVideo() async -> CachedVideo?
+    
+    // Peek at the previous video without changing the index (for preloading)
+    func peekPreviousVideo() async -> CachedVideo?
     
     // Check if we're at the end of the sequence
     func isAtEndOfHistory() -> Bool
@@ -29,4 +39,18 @@ protocol VideoProvider: AnyObject {
     
     // Ensure videos are preloaded/cached
     func ensureVideosAreCached() async
+}
+
+// Default implementations for VideoProvider methods
+extension VideoProvider {
+    // Default implementations for navigation
+    func updateToNextVideo() {
+        // Default implementation is empty - providers should override as needed
+        Logger.caching.info("Default updateToNextVideo called - provider should override this")
+    }
+    
+    func updateToPreviousVideo() {
+        // Default implementation is empty - providers should override as needed
+        Logger.caching.info("Default updateToPreviousVideo called - provider should override this")
+    }
 }

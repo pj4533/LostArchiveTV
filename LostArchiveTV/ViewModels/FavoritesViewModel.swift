@@ -11,9 +11,11 @@ import AVFoundation
 import OSLog
 
 @MainActor
-class FavoritesViewModel: BaseVideoViewModel, VideoProvider {
-    // Services
-    private let archiveService = ArchiveService()
+class FavoritesViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
+    // Services - required by CacheableProvider protocol
+    let archiveService = ArchiveService()
+    let cacheManager = VideoCacheManager()
+    let preloadService = PreloadService()
     
     // Favorites manager
     internal let favoritesManager: FavoritesManager
@@ -109,5 +111,47 @@ class FavoritesViewModel: BaseVideoViewModel, VideoProvider {
         if currentIndex < favorites.count {
             setCurrentVideo(favorites[currentIndex])
         }
+    }
+    
+    // MARK: - CacheableProvider Protocol
+    
+    // NOTE: We don't need to override ensureVideosAreCached() anymore
+    // The base implementation now uses TransitionPreloadManager.ensureAllCaching()
+    // which handles both general caching and transition caching in one call
+    
+    /// Helper method to convert favorites to identifiers for caching
+    func getFavoritesAsIdentifiers() -> [ArchiveIdentifier] {
+        // Convert favorites to ArchiveIdentifiers
+        return favoritesManager.favorites.map { favorite in
+            ArchiveIdentifier(
+                identifier: favorite.identifier,
+                collection: favorite.collection
+            )
+        }
+    }
+    
+    /// Returns identifiers to use for caching, implementing CacheableProvider protocol
+    func getIdentifiersForGeneralCaching() -> [ArchiveIdentifier] {
+        // Convert favorites to ArchiveIdentifiers
+        let favorites = favoritesManager.favorites
+        
+        // Return empty array if no favorites
+        guard !favorites.isEmpty else { return [] }
+        
+        // Focus on the current index and the next few favorites
+        let startIndex = currentIndex
+        let endIndex = min(startIndex + 3, favorites.count)
+        
+        var identifiers: [ArchiveIdentifier] = []
+        for i in startIndex..<endIndex {
+            if i < favorites.count {
+                identifiers.append(ArchiveIdentifier(
+                    identifier: favorites[i].identifier,
+                    collection: favorites[i].collection
+                ))
+            }
+        }
+        
+        return identifiers
     }
 }

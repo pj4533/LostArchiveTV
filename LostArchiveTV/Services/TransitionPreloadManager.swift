@@ -8,6 +8,7 @@
 import SwiftUI
 import AVKit
 import OSLog
+import Foundation
 
 class TransitionPreloadManager {
     // Next (down) video properties
@@ -28,18 +29,16 @@ class TransitionPreloadManager {
     
     // Preload the next video while current one is playing
     func preloadNextVideo(provider: VideoProvider) async {
-        Logger.caching.info("preloadNextVideo: Starting for \(String(describing: type(of: provider)))")
+        Logger.caching.info("🔍 PRELOAD NEXT: Starting for \(String(describing: type(of: provider)))")
         
         // Reset next video ready flag
         await MainActor.run {
             nextVideoReady = false
         }
         
-        // First check if we have a next video in history/sequence
-        if let nextVideo = await provider.getNextVideo() {
-            // Move back to current position (getNextVideo moved us forward)
-            // We'll move forward again when the transition actually happens
-            _ = await provider.getPreviousVideo()
+        // IMPORTANT: Use peekNextVideo instead of getNextVideo to avoid modifying the history index
+        if let nextVideo = await provider.peekNextVideo() {
+            Logger.caching.info("🔍 PRELOAD NEXT: Found next video in history: \(nextVideo.identifier)")
             
             // Create a new player with a fresh player item
             let freshPlayerItem = AVPlayerItem(asset: nextVideo.asset)
@@ -68,7 +67,7 @@ class TransitionPreloadManager {
                 nextVideoReady = true
             }
             
-            Logger.caching.info("Successfully prepared next video: \(nextVideo.identifier)")
+            Logger.caching.info("✅ PRELOAD NEXT: Successfully prepared next video: \(nextVideo.identifier)")
             return
         }
         
@@ -174,21 +173,16 @@ class TransitionPreloadManager {
     
     // Preload the previous video from history/sequence
     func preloadPreviousVideo(provider: VideoProvider) async {
-        Logger.caching.info("preloadPreviousVideo: Starting for \(String(describing: type(of: provider)))")
+        Logger.caching.info("🔍 PRELOAD PREV: Starting for \(String(describing: type(of: provider)))")
         
         // Reset previous video ready flag
         await MainActor.run {
             prevVideoReady = false
         }
         
-        // For all providers, check if there's a previous video directly available
-        if let previousVideo = await provider.getPreviousVideo() {
-            // For normal providers that change state during getPreviousVideo, move back to original position
-            if provider is VideoPlayerViewModel {
-                // Move back to current index (getPreviousVideo moved us backward)
-                // We'll move backward again when the transition actually happens
-                _ = await provider.getNextVideo()
-            }
+        // IMPORTANT: Use peekPreviousVideo instead of getPreviousVideo to avoid modifying the history index
+        if let previousVideo = await provider.peekPreviousVideo() {
+            Logger.caching.info("🔍 PRELOAD PREV: Found previous video in history: \(previousVideo.identifier)")
             
             // Create a new player for the asset
             let freshPlayerItem = AVPlayerItem(asset: previousVideo.asset)
@@ -217,7 +211,7 @@ class TransitionPreloadManager {
                 prevVideoReady = true
             }
             
-            Logger.caching.info("Successfully prepared previous video: \(previousVideo.identifier)")
+            Logger.caching.info("✅ PRELOAD PREV: Successfully prepared previous video: \(previousVideo.identifier)")
             return
         } 
         
@@ -237,5 +231,63 @@ class TransitionPreloadManager {
         } else {
             Logger.caching.warning("No previous video available in sequence")
         }
+    }
+    
+    /// Ensures that both general video caching and transition-specific caching are performed
+    /// - Parameter provider: The video provider that supplies videos
+    func ensureAllVideosCached(provider: VideoProvider) async {
+        Logger.caching.info("🔄 CACHING: Starting unified caching for \(String(describing: type(of: provider)))")
+        
+        // 1. Fill general cache if provider supports it
+        if let cacheableProvider = provider as? CacheableProvider {
+            Logger.caching.info("✅ CACHING: Provider supports general caching")
+            let identifiers = cacheableProvider.getIdentifiersForGeneralCaching()
+            
+            if !identifiers.isEmpty {
+                Logger.caching.info("📊 CACHING: Provider returned \(identifiers.count) identifiers for general caching")
+                
+                // Check current cache state before caching
+                let initialCacheCount = await cacheableProvider.cacheManager.cacheCount()
+                Logger.caching.info("📊 CACHING: Current cache size before caching: \(initialCacheCount)")
+                
+                if provider is VideoPlayerViewModel {
+                    // For the main player, use PreloadService which has the most robust implementation
+                    Logger.caching.info("🔄 CACHING: Using PreloadService for main player with \(identifiers.count) identifiers")
+                    await cacheableProvider.preloadService.ensureVideosAreCached(
+                        cacheManager: cacheableProvider.cacheManager,
+                        archiveService: cacheableProvider.archiveService,
+                        identifiers: identifiers
+                    )
+                    
+                    // Check cache state after preload service has run
+                    let cacheSizeAfterPreload = await cacheableProvider.cacheManager.cacheCount()
+                    Logger.caching.info("📊 CACHING: Cache size after PreloadService: \(cacheSizeAfterPreload)")
+                } else {
+                    // For other providers (Favorites, Search), use VideoCacheManager directly
+                    // This provides more immediate caching for the current view
+                    Logger.caching.info("🔄 CACHING: Using VideoCacheManager directly for \(String(describing: type(of: provider)))")
+                    await cacheableProvider.cacheManager.ensureVideosAreCached(
+                        identifiers: identifiers, 
+                        using: cacheableProvider.archiveService
+                    )
+                    
+                    // Check cache after direct caching
+                    let cacheSizeAfterDirect = await cacheableProvider.cacheManager.cacheCount()
+                    Logger.caching.info("📊 CACHING: Cache size after direct caching: \(cacheSizeAfterDirect)")
+                }
+            } else {
+                Logger.caching.warning("⚠️ CACHING: Provider returned no identifiers for general caching")
+            }
+        } else {
+            Logger.caching.info("⚠️ CACHING: Provider does not support general caching")
+        }
+        
+        // 2. Always prepare next/previous videos for transitions
+        Logger.caching.info("🔄 CACHING: Preloading next and previous videos for transitions")
+        async let nextTask = preloadNextVideo(provider: provider)
+        async let prevTask = preloadPreviousVideo(provider: provider)
+        _ = await (nextTask, prevTask)
+        
+        Logger.caching.info("✅ CACHING: Unified caching complete - nextVideoReady: \(self.nextVideoReady), prevVideoReady: \(self.prevVideoReady)")
     }
 }

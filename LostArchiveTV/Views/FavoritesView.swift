@@ -37,8 +37,10 @@ struct FavoritesView: View {
             .navigationBarTitleDisplayMode(.large)
             .fullScreenCover(isPresented: $showPlayer, onDismiss: {
                 // Stop playback when the player is dismissed
-                viewModel.pausePlayback()
-                viewModel.player = nil
+                Task {
+                    await viewModel.pausePlayback()
+                    viewModel.player = nil
+                }
             }) {
                 SwipeablePlayerView(provider: viewModel, isPresented: $showPlayer)
             }

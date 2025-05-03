@@ -23,8 +23,10 @@ struct SearchFeedView: View {
             }
             .fullScreenCover(isPresented: $viewModel.showingPlayer, onDismiss: {
                 // Stop playback when the player is dismissed
-                viewModel.searchViewModel.pausePlayback()
-                viewModel.searchViewModel.player = nil
+                Task {
+                    await viewModel.searchViewModel.pausePlayback()
+                    viewModel.searchViewModel.player = nil
+                }
             }) {
                 SwipeablePlayerView(
                     provider: viewModel.searchViewModel,
@@ -32,7 +34,7 @@ struct SearchFeedView: View {
                 )
                 .onAppear {
                     // Start preloading videos
-                    Task {
+                    Task(priority: .userInitiated) {
                         await viewModel.searchViewModel.ensureVideosAreCached()
                     }
                 }

@@ -53,10 +53,67 @@ actor VideoLoadingService {
         }
     }
     
+    /// Loads a complete CachedVideo object for a specific identifier
+    /// - Parameter identifier: The archive identifier to load
+    /// - Returns: A fully populated CachedVideo object ready for caching
+    func loadCompleteCachedVideo(for identifier: ArchiveIdentifier) async throws -> CachedVideo {
+        Logger.metadata.info("Loading complete cached video for: \(identifier.identifier) from collection: \(identifier.collection)")
+        
+        // Fetch metadata
+        let metadata = try await archiveService.fetchMetadata(for: identifier.identifier)
+        
+        // Find MP4 file
+        let mp4Files = await archiveService.findPlayableFiles(in: metadata)
+        
+        guard let mp4File = mp4Files.first else {
+            Logger.metadata.error("No MP4 file found for \(identifier.identifier)")
+            throw NSError(domain: "VideoLoadingError", code: 1, userInfo: [NSLocalizedDescriptionKey: "No MP4 file found"])
+        }
+        
+        guard let videoURL = await archiveService.getFileDownloadURL(for: mp4File, identifier: identifier.identifier) else {
+            throw NSError(domain: "VideoLoadingError", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not create URL"])
+        }
+        
+        // Create optimized asset
+        let asset = AVURLAsset(url: videoURL)
+        
+        // Create player item with caching configuration
+        let playerItem = AVPlayerItem(asset: asset)
+        playerItem.preferredForwardBufferDuration = 60
+        
+        // Calculate a random start position
+        let estimatedDuration = await archiveService.estimateDuration(fromFile: mp4File)
+        let safetyMargin = min(estimatedDuration * 0.2, 60.0)
+        let maxStartTime = max(0, estimatedDuration - safetyMargin)
+        let safeMaxStartTime = max(0, min(maxStartTime, estimatedDuration - 40))
+        let randomStart = safeMaxStartTime > 10 ? Double.random(in: 0..<safeMaxStartTime) : 0
+        
+        // Try to load the asset's duration to ensure it's valid and preload some data
+        try? await asset.load(.duration)
+        
+        // Create and return the cached video
+        let cachedVideo = CachedVideo(
+            identifier: identifier.identifier,
+            collection: identifier.collection,
+            metadata: metadata,
+            mp4File: mp4File,
+            videoURL: videoURL,
+            asset: asset,
+            playerItem: playerItem,
+            startPosition: randomStart,
+            addedToFavoritesAt: nil
+        )
+        
+        Logger.caching.info("Successfully created CachedVideo for \(identifier.identifier)")
+        return cachedVideo
+    }
+
     func loadRandomVideo() async throws -> (identifier: String, collection: String, title: String, description: String, asset: AVAsset, startPosition: Double) {
+        Logger.videoPlayback.info("▶️ PLAYBACK: loadRandomVideo called - checking cache first")
+        
         // Check if we have cached videos available
         if let cachedVideo = await cacheManager.removeFirstCachedVideo() {
-            Logger.videoPlayback.info("Using cached video: \(cachedVideo.identifier) from collection: \(cachedVideo.collection)")
+            Logger.videoPlayback.info("🎯 PLAYBACK: Using CACHED video: \(cachedVideo.identifier) from collection: \(cachedVideo.collection)")
             
             // Return the cached video info
             return (
@@ -70,7 +127,10 @@ actor VideoLoadingService {
         }
         
         // No cached videos available, load a random one
-        return try await loadFreshRandomVideo()
+        Logger.videoPlayback.info("🔄 PLAYBACK: No cached videos available, loading FRESH video")
+        let result = try await loadFreshRandomVideo()
+        Logger.videoPlayback.info("✅ PLAYBACK: Successfully loaded fresh video: \(result.identifier)")
+        return result
     }
     
     private func loadFreshRandomVideo() async throws -> (identifier: String, collection: String, title: String, description: String, asset: AVAsset, startPosition: Double) {

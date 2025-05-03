@@ -60,12 +60,12 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
         }
     }
     
-    func pausePlayback() {
+    func pausePlayback() async {
         Logger.videoPlayback.debug("Pausing playback")
         playbackManager.pause()
     }
     
-    func resumePlayback() {
+    func resumePlayback() async {
         Logger.videoPlayback.debug("Resuming playback")
         playbackManager.play()
     }
@@ -100,7 +100,14 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
     // MARK: - Cleanup
     
     func cleanup() {
+        // Stop playback immediately
+        playbackManager.pause()
         playbackManager.cleanupPlayer()
+        
+        // Other async cleanup can be done in a Task
+        Task {
+            // Any additional async cleanup could go here
+        }
     }
     
     // MARK: - VideoControlProvider Protocol Conformance
@@ -111,5 +118,31 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
     
     func toggleFavorite() {
         // Default implementation does nothing, to be overridden by subclasses
+    }
+    
+    // MARK: - Video Caching
+    
+    /// Ensures videos are properly cached for smooth playback
+    /// This base implementation uses the transition manager's ensureAllCaching method
+    /// which will handle both general caching and transition-specific caching
+    func ensureVideosAreCached() async {
+        if let videoProvider = self as? VideoProvider {
+            if let transitionManager = videoProvider.transitionManager {
+                // Use the comprehensive ensureAllVideosCached method from TransitionPreloadManager
+                // This handles both general caching and transition preloading in one call
+                Logger.caching.info("BaseVideoViewModel.ensureVideosAreCached: Using transition manager's unified caching")
+                await transitionManager.ensureAllVideosCached(provider: videoProvider)
+            } else {
+                // Fallback to just preloading next and previous videos
+                Logger.caching.warning("BaseVideoViewModel.ensureVideosAreCached: No transition manager available, using basic preloading")
+                
+                // Still try to preload videos if possible
+                async let nextTask = videoProvider.getNextVideo()
+                async let prevTask = videoProvider.getPreviousVideo()
+                _ = await (nextTask, prevTask)
+            }
+        } else {
+            Logger.caching.error("BaseVideoViewModel.ensureVideosAreCached: Failed - not a VideoProvider")
+        }
     }
 }

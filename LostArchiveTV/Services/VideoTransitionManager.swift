@@ -47,6 +47,13 @@ class VideoTransitionManager: ObservableObject {
         await preloadManager.preloadPreviousVideo(provider: provider)
     }
     
+    /// Ensures that both general video caching and transition-specific caching are performed
+    /// - Parameter provider: The video provider that supplies videos
+    func ensureAllVideosCached(provider: VideoProvider) async {
+        // Delegate to the underlying preload manager for unified caching
+        await preloadManager.ensureAllVideosCached(provider: provider)
+    }
+    
     // MARK: - Transition Methods
     
     func completeTransition(
@@ -57,6 +64,22 @@ class VideoTransitionManager: ObservableObject {
         animationDuration: Double,
         direction: SwipeDirection = .up
     ) {
+        // Add logging of the transition operation
+        let directionText = direction == .up ? "UP (next)" : "DOWN (previous)"
+        Logger.caching.info("🔄 TRANSITION: Starting \(directionText) transition with provider: \(type(of: provider))")
+        
+        if let providerVideo = provider.currentIdentifier {
+            Logger.caching.info("🎬 TRANSITION: Current video: \(providerVideo)")
+        }
+        
+        // Get cache state during transition
+        Task {
+            if let cacheProvider = provider as? CacheableProvider {
+                let cacheCount = await cacheProvider.cacheManager.cacheCount()
+                Logger.caching.info("📊 TRANSITION: Cache size at transition start: \(cacheCount)")
+            }
+        }
+        
         switch direction {
         case .up:
             // Swiping UP to see NEXT video
@@ -315,12 +338,28 @@ class VideoTransitionManager: ObservableObject {
             
             // Preload in both directions
             Task {
+                Logger.caching.info("📢 TRANSITION COMPLETE: Starting cache refill after UP transition")
+                
+                // Check cache state
+                if let cacheProvider = provider as? CacheableProvider {
+                    let cacheCount = await cacheProvider.cacheManager.cacheCount()
+                    Logger.caching.info("📊 TRANSITION COMPLETE: Cache size before refill: \(cacheCount)")
+                }
+                
                 // Start filling cache to maintain videos
                 await provider.ensureVideosAreCached()
                 
+                // Log cache state after refill
+                if let cacheProvider = provider as? CacheableProvider {
+                    let cacheCount = await cacheProvider.cacheManager.cacheCount()
+                    Logger.caching.info("📊 TRANSITION COMPLETE: Cache size after refill: \(cacheCount)")
+                }
+                
                 // Preload the next and previous videos for the UI
+                Logger.caching.info("🔄 TRANSITION COMPLETE: Preloading next/previous videos for UI")
                 await self.preloadNextVideo(provider: provider)
                 await self.preloadPreviousVideo(provider: provider)
+                Logger.caching.info("✅ TRANSITION COMPLETE: Done preloading videos for UI")
             }
         }
     }

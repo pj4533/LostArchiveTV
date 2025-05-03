@@ -20,7 +20,9 @@ struct ButtonPanel: View {
         )
         .sheet(isPresented: $showCollectionConfig) {
             // Resume playback when the sheet is dismissed
-            viewModel.resumePlayback()
+            Task {
+                await viewModel.resumePlayback()
+            }
         } content: {
             CollectionConfigView(
                 viewModel: CollectionConfigViewModel(databaseService: DatabaseService()),

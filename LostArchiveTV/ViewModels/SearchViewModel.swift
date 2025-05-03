@@ -5,11 +5,13 @@ import OSLog
 import SwiftUI
 
 @MainActor
-class SearchViewModel: BaseVideoViewModel, VideoProvider {
-    // Services
+class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
+    // Services - for CacheableProvider protocol
     private let searchManager: SearchManager
     internal let videoLoadingService: VideoLoadingService
-    internal let archiveService = ArchiveService()
+    let archiveService = ArchiveService()
+    let cacheManager = VideoCacheManager()
+    let preloadService = PreloadService()
     internal let favoritesManager: FavoritesManager
     
     // Search state
@@ -28,7 +30,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider {
     @Published var currentResult: SearchResult?
     
     // For video transition/swipe support
-    var transitionManager = VideoTransitionManager()
+    var transitionManager: VideoTransitionManager? = VideoTransitionManager()
     
     // Task management for proper cancellation
     private var searchTask: Task<Void, Never>?
@@ -83,6 +85,30 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider {
         super.init()
     }
     
+    // MARK: - CacheableProvider Protocol
+    
+    // NOTE: We don't need to override ensureVideosAreCached() anymore
+    // The base implementation now uses TransitionPreloadManager.ensureAllCaching()
+    // which handles both general caching and transition caching in one call
+    
+    /// Returns identifiers to be used for caching
+    /// - Returns: Archive identifiers from current search results
+    func getIdentifiersForGeneralCaching() -> [ArchiveIdentifier] {
+        guard !searchResults.isEmpty else { return [] }
+        
+        var identifiers: [ArchiveIdentifier] = []
+        
+        // Add current result and next few results
+        let startIndex = currentIndex
+        let endIndex = min(startIndex + 3, searchResults.count)
+        
+        for i in startIndex..<endIndex {
+            identifiers.append(searchResults[i].identifier)
+        }
+        
+        return identifiers
+    }
+    
     /// Cleanup resources when the view disappears
     override func cleanup() {
         Logger.network.info("SearchViewModel cleanup - cancelling all tasks")
@@ -91,10 +117,8 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider {
         searchTask?.cancel()
         searchTask = nil
         
-        // Cleanup playback
-        if isPlaying {
-            pausePlayback()
-        }
+        // Cleanup playback is now handled in the parent class
+        // since pausePlayback requires async
         
         // Call the parent class cleanup
         super.cleanup()
@@ -165,6 +189,11 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider {
         isLoading = true
         currentIndex = index
         currentResult = searchResults[index]
+        
+        // Ensure the transition manager is initialized
+        if transitionManager == nil {
+            transitionManager = VideoTransitionManager()
+        }
         
         Task {
             await loadVideo(for: searchResults[index].identifier)
@@ -276,4 +305,12 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider {
             randomStart
         )
     }
+    
+    // NOTE: The getIdentifiersForGeneralCaching method has been moved to a single location at line 94
+    // MARK: - CacheableProvider Protocol Implementation
+    // See getIdentifiersForGeneralCaching() implementation above
+    
+    // NOTE: We no longer need to override ensureVideosAreCached
+    // The base implementation now uses TransitionPreloadManager.ensureAllVideosCached()
+    // which handles both general caching and transition caching in one call
 }

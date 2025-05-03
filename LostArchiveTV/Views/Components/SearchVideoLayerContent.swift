@@ -56,11 +56,13 @@ struct SearchVideoLayerContent: View {
                         HStack {
                             Button(action: {
                                 // Stop playback before dismissing
-                                viewModel.pausePlayback()
-                                // Set isPresented to false first, then set player to nil after a short delay
-                                isPresented.wrappedValue = false
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                    viewModel.player = nil
+                                Task {
+                                    await viewModel.pausePlayback()
+                                    // Set isPresented to false first, then set player to nil after a short delay
+                                    isPresented.wrappedValue = false
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                        viewModel.player = nil
+                                    }
                                 }
                             }) {
                                 Image(systemName: "chevron.left")

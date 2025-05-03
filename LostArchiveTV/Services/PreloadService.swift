@@ -23,23 +23,88 @@ actor PreloadService {
         let cacheCount = await cacheManager.cacheCount()
         let maxCache = await cacheManager.getMaxCacheSize()
         
-        Logger.caching.info("Ensuring videos are cached, current size: \(cacheCount)/\(maxCache)")
+        Logger.caching.info("PreloadService.ensureVideosAreCached: current size: \(cacheCount)/\(maxCache)")
         
-        // Simple logic: if cache isn't full, add more videos until it is
-        if cacheCount < maxCache {
-            // Cancel any existing preload task
-            preloadTask?.cancel()
+        // Step 1: First, cancel any existing preload task to avoid conflicts
+        preloadTask?.cancel()
+        preloadTask = nil
+        
+        // Step 2: If the cache is empty, we need to load at least one video directly
+        // This is critical for initialization to complete
+        if cacheCount == 0 {
+            Logger.caching.info("PreloadService: Cache empty, trying to load first video immediately")
             
-            // Start a new task to fill cache to exactly maxCache videos (3)
+            // Try up to 3 times to load a video (in case of network issues)
+            var videoLoaded = false
+            var attempts = 0
+            
+            while !videoLoaded && attempts < 3 {
+                do {
+                    attempts += 1
+                    Logger.caching.info("PreloadService: Loading attempt \(attempts)")
+                    
+                    // Safety check - get a fresh identifier
+                    guard let identifier = await archiveService.getRandomIdentifier(from: identifiers) else {
+                        Logger.caching.error("PreloadService: No identifiers available on attempt \(attempts)")
+                        try? await Task.sleep(for: .seconds(0.5))
+                        continue
+                    }
+                    
+                    // Use the VideoLoadingService instead of our internal method for more reliability
+                    let service = VideoLoadingService(archiveService: archiveService, cacheManager: cacheManager)
+                    let video = try await service.loadCompleteCachedVideo(for: identifier)
+                    
+                    // Directly add to cache to ensure it's added immediately
+                    await cacheManager.addCachedVideo(video)
+                    
+                    // Verify the video was added
+                    let newCount = await cacheManager.cacheCount()
+                    if newCount > 0 {
+                        Logger.caching.info("PreloadService: Successfully added video to cache, count now: \(newCount)")
+                        videoLoaded = true
+                    } else {
+                        Logger.caching.error("PreloadService: Video not added to cache, retrying...")
+                    }
+                } catch {
+                    Logger.caching.error("PreloadService: Failed to load video on attempt \(attempts): \(error.localizedDescription)")
+                    try? await Task.sleep(for: .seconds(0.5))
+                }
+            }
+            
+            // If we still couldn't load a video after multiple attempts, log this critical failure
+            if !videoLoaded {
+                Logger.caching.error("⚠️ CRITICAL: Could not load any videos after multiple attempts")
+            }
+        }
+        
+        // Step 3: Start background task to fill the remainder of the cache
+        // Only start this task if we need more videos
+        if await cacheManager.cacheCount() < maxCache {
+            Logger.caching.info("PreloadService: Starting background task to fill cache to \(maxCache) videos")
+            
+            // Use a new task for background filling
             preloadTask = Task {
+                Logger.caching.info("PreloadService background task started")
+                
+                // Loop until we've filled the cache or are canceled
+                var consecutiveFailures = 0
                 while !Task.isCancelled {
                     // Check current count
                     let count = await cacheManager.cacheCount()
+                    Logger.caching.info("PreloadService background task: Current cache count: \(count)/\(maxCache)")
                     
                     // If cache is full, we're done
                     if count >= maxCache {
-                        Logger.caching.info("Cache is full (\(count)/\(maxCache)), preloading complete")
+                        Logger.caching.info("Cache is full (\(count)/\(maxCache)), background preloading complete")
                         break
+                    }
+                    
+                    // If we've had too many consecutive failures, take a longer break
+                    if consecutiveFailures >= 5 {
+                        Logger.caching.warning("Too many consecutive failures, taking a longer break")
+                        try? await Task.sleep(for: .seconds(2.0))
+                        consecutiveFailures = 0
+                        continue
                     }
                     
                     // Add one more video
@@ -47,8 +112,10 @@ actor PreloadService {
                         try await self.preloadRandomVideo(cacheManager: cacheManager, archiveService: archiveService, identifiers: identifiers)
                         let newCount = await cacheManager.cacheCount()
                         Logger.caching.info("Added video to cache, now at \(newCount)/\(maxCache)")
+                        consecutiveFailures = 0 // Reset failure counter on success
                     } catch {
                         Logger.caching.error("Failed to preload video: \(error.localizedDescription)")
+                        consecutiveFailures += 1
                         try? await Task.sleep(for: .seconds(0.5))
                     }
                 }

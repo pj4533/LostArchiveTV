@@ -108,11 +108,15 @@ struct ContentView: View {
                 // Close any open modal players if needed
                 if searchFeedViewModel.showingPlayer {
                     searchFeedViewModel.showingPlayer = false
-                    searchFeedViewModel.searchViewModel.pausePlayback()
+                    Task {
+                        await searchFeedViewModel.searchViewModel.pausePlayback()
+                    }
                 }
                 if favoritesFeedViewModel.showPlayer {
                     favoritesFeedViewModel.showPlayer = false
-                    favoritesFeedViewModel.favoritesViewModel.pausePlayback()
+                    Task {
+                        await favoritesFeedViewModel.favoritesViewModel.pausePlayback()
+                    }
                 }
             }
         }
@@ -139,29 +143,32 @@ struct ContentView: View {
         // Don't do anything if we're staying on the same tab
         guard oldTab != newTab else { return }
         
-        switch (oldTab, newTab) {
-        case (0, _):
-            // Leaving home tab - pause main player if it's playing
-            if videoPlayerViewModel.isPlaying {
-                videoPlayerViewModel.pausePlayback()
+        // Using Task to handle async calls
+        Task {
+            switch (oldTab, newTab) {
+            case (0, _):
+                // Leaving home tab - pause main player if it's playing
+                if videoPlayerViewModel.isPlaying {
+                    await videoPlayerViewModel.pausePlayback()
+                }
+            case (1, _):
+                // Leaving search tab - pause search player if it's playing
+                if searchFeedViewModel.searchViewModel.isPlaying {
+                    await searchFeedViewModel.searchViewModel.pausePlayback()
+                }
+            case (2, _):
+                // Leaving favorites tab - pause favorites player if playing
+                if favoritesFeedViewModel.favoritesViewModel.isPlaying {
+                    await favoritesFeedViewModel.favoritesViewModel.pausePlayback()
+                }
+            default:
+                break
             }
-        case (1, _):
-            // Leaving search tab - pause search player if it's playing
-            if searchFeedViewModel.searchViewModel.isPlaying {
-                searchFeedViewModel.searchViewModel.pausePlayback()
+            
+            // Resume the player on the tab we're switching to if needed
+            if newTab == 0 && videoPlayerViewModel.player != nil {
+                await videoPlayerViewModel.resumePlayback()
             }
-        case (2, _):
-            // Leaving favorites tab - pause favorites player if playing
-            if favoritesFeedViewModel.favoritesViewModel.isPlaying {
-                favoritesFeedViewModel.favoritesViewModel.pausePlayback()
-            }
-        default:
-            break
-        }
-        
-        // Resume the player on the tab we're switching to if needed
-        if newTab == 0 && videoPlayerViewModel.player != nil {
-            videoPlayerViewModel.resumePlayback()
         }
     }
 }

@@ -10,8 +10,8 @@ protocol VideoControlProvider: ObservableObject, VideoDownloadable {
     var isFavorite: Bool { get }
     
     // Required actions
-    func toggleFavorite()
-    func restartVideo()
-    func pausePlayback()
-    func resumePlayback()
+    func toggleFavorite() 
+    func restartVideo() 
+    func pausePlayback() async
+    func resumePlayback() async
 }

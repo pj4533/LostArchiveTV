@@ -17,8 +17,10 @@ struct PlayerButtonPanel<Provider: VideoControlProvider>: View {
                 if showSettingsButton, let settingsAction = settingsAction {
                     SettingsButton(
                         action: {
-                            provider.pausePlayback()
-                            settingsAction()
+                            Task {
+                                await provider.pausePlayback()
+                                settingsAction()
+                            }
                         },
                         disabled: false
                     )
@@ -47,14 +49,16 @@ struct PlayerButtonPanel<Provider: VideoControlProvider>: View {
                 SimilarButton(
                     action: {
                         // Pause playback before navigating
-                        provider.pausePlayback()
-                        // Navigate to similar videos if an identifier exists
-                        if let identifier = provider.currentIdentifier {
-                            NotificationCenter.default.post(
-                                name: .showSimilarVideos,
-                                object: nil,
-                                userInfo: ["identifier": identifier]
-                            )
+                        Task {
+                            await provider.pausePlayback()
+                            // Navigate to similar videos if an identifier exists
+                            if let identifier = provider.currentIdentifier {
+                                NotificationCenter.default.post(
+                                    name: .showSimilarVideos,
+                                    object: nil,
+                                    userInfo: ["identifier": identifier]
+                                )
+                            }
                         }
                     },
                     disabled: provider.currentIdentifier == nil
@@ -63,8 +67,10 @@ struct PlayerButtonPanel<Provider: VideoControlProvider>: View {
                 // Trim button
                 TrimButton(
                     action: {
-                        provider.pausePlayback()
-                        trimAction()
+                        Task {
+                            await provider.pausePlayback()
+                            trimAction()
+                        }
                     },
                     disabled: provider.currentIdentifier == nil
                 )

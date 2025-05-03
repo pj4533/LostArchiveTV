@@ -81,3 +81,4 @@ APIKeys.swift
 
 # Exclude secrets configuration
 Secrets.xcconfig
+**/.claude/settings.local.json

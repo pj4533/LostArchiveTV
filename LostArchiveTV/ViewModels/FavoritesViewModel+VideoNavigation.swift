@@ -12,30 +12,53 @@ import OSLog
 
 // MARK: - Video Navigation
 extension FavoritesViewModel {
-    // VideoProvider protocol - Get next video
+    // VideoProvider protocol - Get next video (changes index when called)
     func getNextVideo() async -> CachedVideo? {
         let favorites = favoritesManager.favorites
         guard !favorites.isEmpty else { return nil }
         
-        // Calculate the next index but DON'T update currentIndex yet
-        // This is critical for preloading to work correctly
+        // Calculate the next index and update currentIndex
         let nextIndex = (currentIndex + 1) % favorites.count
-        Logger.caching.info("FavoritesViewModel.getNextVideo: Returning video at index \(nextIndex)")
+        currentIndex = nextIndex
+        Logger.caching.info("💫 FAVORITES: getNextVideo - Moving to index \(nextIndex)")
         
-        // Return the video without updating currentIndex
         return favorites[nextIndex]
     }
     
-    // VideoProvider protocol - Get previous video
+    // VideoProvider protocol - Get previous video (changes index when called)
     func getPreviousVideo() async -> CachedVideo? {
         let favorites = favoritesManager.favorites
         guard !favorites.isEmpty else { return nil }
         
-        // Calculate the previous index but DON'T update currentIndex yet
+        // Calculate the previous index and update currentIndex
         let previousIndex = (currentIndex - 1 + favorites.count) % favorites.count
-        Logger.caching.info("FavoritesViewModel.getPreviousVideo: Returning video at index \(previousIndex)")
+        currentIndex = previousIndex
+        Logger.caching.info("💫 FAVORITES: getPreviousVideo - Moving to index \(previousIndex)")
         
-        // Return the video without updating currentIndex
+        return favorites[previousIndex]
+    }
+    
+    // VideoProvider protocol - Peek at next video without changing index
+    func peekNextVideo() async -> CachedVideo? {
+        let favorites = favoritesManager.favorites
+        guard !favorites.isEmpty else { return nil }
+        
+        // Calculate the next index but DON'T update currentIndex
+        let nextIndex = (currentIndex + 1) % favorites.count
+        Logger.caching.info("👁️ FAVORITES: peekNextVideo - Peeking at index \(nextIndex) (current: \(self.currentIndex))")
+        
+        return favorites[nextIndex]
+    }
+    
+    // VideoProvider protocol - Peek at previous video without changing index
+    func peekPreviousVideo() async -> CachedVideo? {
+        let favorites = favoritesManager.favorites
+        guard !favorites.isEmpty else { return nil }
+        
+        // Calculate the previous index but DON'T update currentIndex
+        let previousIndex = (currentIndex - 1 + favorites.count) % favorites.count
+        Logger.caching.info("👁️ FAVORITES: peekPreviousVideo - Peeking at index \(previousIndex) (current: \(self.currentIndex))")
+        
         return favorites[previousIndex]
     }
     

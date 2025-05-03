@@ -54,7 +54,9 @@ struct VideoInfoOverlay: View {
             // Only handle dismissal if we're not advancing to the next step
             if trimStep == .none {
                 self.downloadedVideoURL = nil
-                viewModel.resumePlayback()
+                Task {
+                    await viewModel.resumePlayback()
+                }
             }
         }) {
             Group {
@@ -97,10 +99,12 @@ struct VideoInfoOverlay: View {
         logger.debug("Current video duration: \(String(describing: viewModel.currentVideoDuration))")
         
         // Pause playback
-        viewModel.pausePlayback()
-        
-        // Start the trim workflow with the download step
-        trimStep = .downloading
+        Task {
+            await viewModel.pausePlayback()
+            
+            // Start the trim workflow with the download step
+            trimStep = .downloading
+        }
     }
     
 }
