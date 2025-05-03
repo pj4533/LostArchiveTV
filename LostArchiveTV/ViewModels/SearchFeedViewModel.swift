@@ -19,6 +19,9 @@ class SearchFeedViewModel: BaseFeedViewModel<SearchFeedItem> {
         self.searchManager = searchManager
         self.searchViewModel = searchViewModel
         super.init()
+        
+        // Set up bidirectional reference for pagination support
+        searchViewModel.linkedFeedViewModel = self
     }
     
     func search() async {

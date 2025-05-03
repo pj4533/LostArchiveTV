@@ -84,7 +84,34 @@ extension FavoritesViewModel {
     }
     
     func isAtEndOfHistory() -> Bool {
-        currentIndex >= favoritesManager.favorites.count - 1 || favoritesManager.favorites.isEmpty
+        let isAtEnd = currentIndex >= favoritesManager.favorites.count - 1 || favoritesManager.favorites.isEmpty
+        
+        // If we're at the end, trigger loading more items
+        if isAtEnd {
+            Task {
+                _ = await loadMoreItemsIfNeeded()
+            }
+        }
+        
+        return isAtEnd
+    }
+    
+    func loadMoreItemsIfNeeded() async -> Bool {
+        // If we're at the end, try to load more items
+        if currentIndex >= favoritesManager.favorites.count - 3 { // Start loading when 3 items from the end
+            Logger.caching.info("FavoritesViewModel: Need to load more favorite items")
+            
+            // Use linked feed view model if available, but since favorites are all
+            // locally stored, we typically don't need to load more from a server
+            if let feedViewModel = linkedFeedViewModel, 
+               feedViewModel.hasMoreItems && !feedViewModel.isLoading {
+                Logger.caching.info("FavoritesViewModel: Loading more items via linkedFeedViewModel")
+                await feedViewModel.loadMoreItems()
+                return true
+            }
+        }
+        
+        return false
     }
     
     func createCachedVideoFromCurrentState() async -> CachedVideo? {

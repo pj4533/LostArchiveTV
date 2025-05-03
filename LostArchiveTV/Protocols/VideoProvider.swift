@@ -11,6 +11,9 @@ protocol VideoProvider: AnyObject {
     // Check if we're at the end of the sequence
     func isAtEndOfHistory() -> Bool
     
+    // Load more items when reaching the end of the sequence
+    func loadMoreItemsIfNeeded() async -> Bool
+    
     // Create a cached video from the current state
     func createCachedVideoFromCurrentState() async -> CachedVideo?
     

@@ -29,6 +29,9 @@ class FavoritesViewModel: BaseVideoViewModel, VideoProvider {
     // Reference to the transition manager for preloading
     var transitionManager: VideoTransitionManager? = nil
     
+    // Reference to feed view model for pagination support
+    weak var linkedFeedViewModel: FavoritesFeedViewModel?
+    
     override init() {
         // This empty init is needed to satisfy the compiler
         // We'll use the designated init instead

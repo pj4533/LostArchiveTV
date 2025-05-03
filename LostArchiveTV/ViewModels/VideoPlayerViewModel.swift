@@ -145,6 +145,13 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider {
         return historyManager.isAtEnd()
     }
     
+    // Default implementation for main video player
+    // Main feed doesn't need paging as it loads random videos
+    func loadMoreItemsIfNeeded() async -> Bool {
+        // Main player doesn't need to load more items as it plays random videos
+        return false
+    }
+    
     // MARK: - Video state management
     
     func createCachedVideoFromCurrentState() async -> CachedVideo? {

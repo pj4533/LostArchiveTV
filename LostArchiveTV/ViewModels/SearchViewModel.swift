@@ -19,6 +19,9 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider {
     @Published var isSearching = false
     @Published var showingPlayer = false
     
+    // Reference to feed view model for pagination support
+    weak var linkedFeedViewModel: SearchFeedViewModel?
+    
     // Navigation state
     // Changed to internal with setter for extensions to access
     internal var currentIndex = 0

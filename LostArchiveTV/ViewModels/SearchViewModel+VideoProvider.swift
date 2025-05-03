@@ -64,7 +64,33 @@ extension SearchViewModel {
     }
     
     func isAtEndOfHistory() -> Bool {
-        return searchResults.isEmpty || currentIndex >= searchResults.count - 1
+        let isAtEnd = searchResults.isEmpty || currentIndex >= searchResults.count - 1
+        
+        // If we're at the end, trigger loading more items
+        if isAtEnd {
+            Task {
+                _ = await loadMoreItemsIfNeeded()
+            }
+        }
+        
+        return isAtEnd
+    }
+    
+    func loadMoreItemsIfNeeded() async -> Bool {
+        // If we're at the end, try to load more items
+        if currentIndex >= searchResults.count - 3 { // Start loading when 3 items from the end
+            Logger.caching.info("SearchViewModel: Need to load more search results")
+            
+            // Use the linked feed view model to load more items
+            if let feedViewModel = linkedFeedViewModel, 
+               feedViewModel.hasMoreItems && !feedViewModel.isLoading {
+                Logger.caching.info("SearchViewModel: Loading more items via linkedFeedViewModel")
+                await feedViewModel.loadMoreItems()
+                return true
+            }
+        }
+        
+        return false
     }
     
     func createCachedVideoFromCurrentState() async -> CachedVideo? {

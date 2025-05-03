@@ -15,6 +15,9 @@ class FavoritesFeedViewModel: BaseFeedViewModel<FavoritesFeedItem> {
         self.favoritesManager = favoritesManager
         self.favoritesViewModel = favoritesViewModel
         super.init()
+        
+        // Set up bidirectional reference for pagination support
+        favoritesViewModel.linkedFeedViewModel = self
     }
     
     override func loadMoreItems(reset: Bool = false) async {
