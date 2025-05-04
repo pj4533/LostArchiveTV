@@ -43,15 +43,17 @@ class SearchFeedViewModel: BaseFeedViewModel<SearchFeedItem> {
             do {
                 guard !Task.isCancelled else { return }
                 
-                Logger.caching.info("Performing search for query: \(self.searchQuery)")
+                // Create context for the current search state
+                let context = searchQueryContext
+                
+                Logger.caching.info("Performing search with context: isSimilar=\(context.isSimilarSearch), query=\(context.query ?? "None")")
                 
                 // Reset pagination
                 currentPage = 0
                 
-                // Load first page
+                // Load first page using SearchQueryContext
                 let results = try await searchManager.search(
-                    query: self.searchQuery,
-                    filter: searchFilter,
+                    queryContext: context,
                     page: currentPage,
                     pageSize: pageSize
                 )
@@ -90,6 +92,26 @@ class SearchFeedViewModel: BaseFeedViewModel<SearchFeedItem> {
         }
     }
     
+    // Property to store similar video identifier, if this is a similar search
+    private var similarIdentifier: String?
+    
+    // Property to retrieve appropriate search context
+    private var searchQueryContext: SearchQueryContext {
+        if let identifier = similarIdentifier {
+            // For similar searches
+            return SearchQueryContext(similarToIdentifier: identifier)
+        } else {
+            // For regular text searches
+            return SearchQueryContext(query: searchQuery, filter: searchFilter)
+        }
+    }
+    
+    // Method to indicate this is a similar search
+    func setAsSimilarSearch(forIdentifier identifier: String) {
+        self.similarIdentifier = identifier
+        self.searchQuery = "Similar videos" // Just for UI display
+    }
+    
     override func loadMoreItems(reset: Bool = false) async {
         // If we're doing a new search, use the search method instead
         if reset {
@@ -103,10 +125,14 @@ class SearchFeedViewModel: BaseFeedViewModel<SearchFeedItem> {
         isLoading = true
         
         do {
-            // Load the next page
+            // Create context for the current search state
+            let context = searchQueryContext
+            
+            Logger.caching.info("Loading more items with context: isSimilar=\(context.isSimilarSearch), query=\(context.query ?? "None")")
+            
+            // Load the next page using SearchQueryContext
             let results = try await searchManager.search(
-                query: searchQuery,
-                filter: searchFilter,
+                queryContext: context,
                 page: currentPage,
                 pageSize: pageSize
             )

@@ -53,11 +53,20 @@ struct SimilarView: View {
         viewModel.isLoading = true
         
         do {
-            // Set a descriptive search query to display in the UI
-            viewModel.searchQuery = "Similar videos"
+            // Set the view model to similar search mode
+            viewModel.setAsSimilarSearch(forIdentifier: referenceIdentifier)
             
-            // Get similar videos from Pinecone
-            let results = try await PineconeService().findSimilarByIdentifier(referenceIdentifier)
+            // Create a search query context specifically for similar videos
+            let queryContext = SearchQueryContext(
+                similarToIdentifier: referenceIdentifier
+            )
+            
+            // Use SearchManager with the context for proper pagination
+            let results = try await SearchManager().search(
+                queryContext: queryContext,
+                page: 0,  // Start with first page
+                pageSize: viewModel.pageSize
+            )
             
             // Convert to SearchFeedItems and update the view model
             let items = results.map { SearchFeedItem(searchResult: $0) }
@@ -66,6 +75,10 @@ struct SimilarView: View {
             // Also update the searchViewModel for player functionality
             viewModel.searchViewModel.searchResults = results
             viewModel.searchViewModel.searchQuery = "Similar to \(referenceIdentifier)"
+            
+            // Store the query context for pagination
+            viewModel.currentPage = 1  // We've loaded page 0, next will be page 1
+            viewModel.hasMoreItems = !results.isEmpty  // If we got results, assume there might be more
             
             // Clear loading state
             viewModel.errorMessage = nil
