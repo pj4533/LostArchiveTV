@@ -89,10 +89,23 @@ class FavoritesManager: ObservableObject {
         
         // Sort favorites by timestamp (newest first)
         favorites = loadedFavorites.sorted { 
-            guard let date1 = $0.addedToFavoritesAt, let date2 = $1.addedToFavoritesAt else {
-                return false // Items without timestamps go to the end
+            // If first item has a date but second doesn't, first should come first
+            if let date1 = $0.addedToFavoritesAt, $1.addedToFavoritesAt == nil {
+                return true
             }
-            return date1 > date2 // Newest first
+            
+            // If second item has a date but first doesn't, second should come first
+            if $0.addedToFavoritesAt == nil, let date2 = $1.addedToFavoritesAt {
+                return false
+            }
+            
+            // If both have dates, compare them (newest first)
+            if let date1 = $0.addedToFavoritesAt, let date2 = $1.addedToFavoritesAt {
+                return date1 > date2
+            }
+            
+            // If both are nil, maintain original order
+            return false
         }
         
         Logger.metadata.debug("Loaded \(self.favorites.count) favorite videos from UserDefaults (newest first)")
