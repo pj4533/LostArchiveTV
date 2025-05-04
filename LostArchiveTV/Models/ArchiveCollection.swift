@@ -10,4 +10,5 @@ import Foundation
 struct ArchiveCollection: Codable {
     let name: String
     let preferred: Bool
+    let excluded: Bool
 }

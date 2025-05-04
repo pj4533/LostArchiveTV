@@ -46,8 +46,8 @@ class DatabaseService {
         
         var collections: [ArchiveCollection] = []
         
-        // Query for collections with preferred status
-        let queryString = "SELECT name, preferred FROM collections"
+        // Query for collections with preferred and excluded status
+        let queryString = "SELECT name, preferred, excluded FROM collections"
         var queryStatement: OpaquePointer?
         
         if sqlite3_prepare_v2(db, queryString, -1, &queryStatement, nil) != SQLITE_OK {
@@ -61,7 +61,8 @@ class DatabaseService {
             if let collectionCString = sqlite3_column_text(queryStatement, 0) {
                 let collectionName = String(cString: collectionCString)
                 let preferred = sqlite3_column_int(queryStatement, 1) == 1
-                collections.append(ArchiveCollection(name: collectionName, preferred: preferred))
+                let excluded = sqlite3_column_int(queryStatement, 2) == 1
+                collections.append(ArchiveCollection(name: collectionName, preferred: preferred, excluded: excluded))
             }
         }
         

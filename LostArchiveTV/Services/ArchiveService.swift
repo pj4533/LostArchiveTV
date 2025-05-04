@@ -44,8 +44,8 @@ actor ArchiveService {
         
         var identifiers: [ArchiveIdentifier] = []
         
-        // Load identifiers from each collection
-        for collection in collections {
+        // Load identifiers from each collection (excluding those marked as excluded)
+        for collection in collections where !collection.excluded {
             let collectionIdentifiers = try dbService.loadIdentifiersForCollection(collection.name)
             identifiers.append(contentsOf: collectionIdentifiers)
         }
@@ -55,7 +55,8 @@ actor ArchiveService {
             throw NSError(domain: "ArchiveService", code: 5, userInfo: [NSLocalizedDescriptionKey: "No identifiers found in the database"])
         }
         
-        Logger.metadata.info("Loaded \(identifiers.count) identifiers from \(self.collections.count) collections")
+        let nonExcludedCollectionsCount = collections.filter { !$0.excluded }.count
+        Logger.metadata.info("Loaded \(identifiers.count) identifiers from \(nonExcludedCollectionsCount) non-excluded collections")
         return identifiers
     }
     
@@ -101,8 +102,19 @@ actor ArchiveService {
     func getRandomIdentifier(from identifiers: [ArchiveIdentifier]) -> ArchiveIdentifier? {
         // First check if user has disabled default collection behavior
         if !CollectionPreferences.shouldUseDefaultCollections() {
-            // When using custom collections, just select randomly from all available identifiers
+            // When using custom collections, use the dedicated method to select from enabled collections
             Logger.metadata.info("Using random selection from user-selected collections")
+            let enabledCollections = CollectionPreferences.getEnabledCollections() ?? []
+            
+            if !enabledCollections.isEmpty {
+                do {
+                    return try dbService.getRandomIdentifierFromEnabledCollections(enabledCollections)
+                } catch {
+                    Logger.metadata.error("Failed to get random identifier from enabled collections: \(error.localizedDescription), falling back to random selection")
+                }
+            } else {
+                Logger.metadata.warning("No enabled collections found, falling back to random selection")
+            }
             return identifiers.randomElement()
         }
         
@@ -112,9 +124,18 @@ actor ArchiveService {
             return identifiers.randomElement()
         }
         
-        // Separate collections into preferred and non-preferred
-        let preferredCollections = collections.filter { $0.preferred }
-        let nonPreferredCollections = collections.filter { !$0.preferred }
+        // Filter out excluded collections first
+        let allowedCollections = collections.filter { !$0.excluded }
+        
+        // If all collections are excluded, fall back to random selection
+        guard !allowedCollections.isEmpty else {
+            Logger.metadata.warning("All collections are excluded, falling back to random selection")
+            return identifiers.randomElement()
+        }
+        
+        // Separate collections into preferred and non-preferred (from non-excluded collections)
+        let preferredCollections = allowedCollections.filter { $0.preferred }
+        let nonPreferredCollections = allowedCollections.filter { !$0.preferred }
         
         // Create a selection pool where:
         // - Each preferred collection gets one entry

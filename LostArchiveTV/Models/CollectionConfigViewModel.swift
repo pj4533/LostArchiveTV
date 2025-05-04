@@ -17,6 +17,7 @@ class CollectionConfigViewModel: ObservableObject {
         let name: String
         var isEnabled: Bool
         let isPreferred: Bool
+        var isExcluded: Bool
         
         static func == (lhs: CollectionItem, rhs: CollectionItem) -> Bool {
             return lhs.id == rhs.id
@@ -53,7 +54,8 @@ class CollectionConfigViewModel: ObservableObject {
                     id: collection.name,
                     name: collection.name,
                     isEnabled: defaultToEnabled || enabledCollectionIds.contains(collection.name),
-                    isPreferred: collection.preferred
+                    isPreferred: collection.preferred,
+                    isExcluded: collection.excluded
                 )
             }
             
