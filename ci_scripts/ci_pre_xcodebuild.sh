@@ -61,6 +61,13 @@ else
     echo "✅ PINECONE_HOST is set. (Length: ${#PINECONE_HOST})"
 fi
 
+if [ -z "${ARCHIVE_COOKIE}" ]; then
+    echo "❌ ERROR: ARCHIVE_COOKIE is not set."
+    MISSING_ENV_VARS=true
+else
+    echo "✅ ARCHIVE_COOKIE is set. (Length: ${#ARCHIVE_COOKIE})"
+fi
+
 if [ "$MISSING_ENV_VARS" = true ]; then
     echo "❌ ERROR: One or more environment variables are missing. Stopping build."
     exit 1
@@ -80,12 +87,14 @@ fi
 ESCAPED_OPENAI_API_KEY=$(printf '%s\n' "$OPENAI_API_KEY" | sed 's/[&/\]/\\&/g')
 ESCAPED_PINECONE_API_KEY=$(printf '%s\n' "$PINECONE_API_KEY" | sed 's/[&/\]/\\&/g')
 ESCAPED_PINECONE_HOST=$(printf '%s\n' "$PINECONE_HOST" | sed 's/[&/\]/\\&/g')
+ESCAPED_ARCHIVE_COOKIE=$(printf '%s\n' "$ARCHIVE_COOKIE" | sed 's/[&/\]/\\&/g')
 
 echo "🔧 Replacing placeholders in Secrets.swift..."
 
 sed -i '' "s|\${OPENAI_API_KEY}|${ESCAPED_OPENAI_API_KEY}|g" "$OUTPUT_FILE"
 sed -i '' "s|\${PINECONE_API_KEY}|${ESCAPED_PINECONE_API_KEY}|g" "$OUTPUT_FILE"
 sed -i '' "s|\${PINECONE_HOST}|${ESCAPED_PINECONE_HOST}|g" "$OUTPUT_FILE"
+sed -i '' "s|\${ARCHIVE_COOKIE}|${ESCAPED_ARCHIVE_COOKIE}|g" "$OUTPUT_FILE"
 
 # --- Step 6: Confirm output ---
 

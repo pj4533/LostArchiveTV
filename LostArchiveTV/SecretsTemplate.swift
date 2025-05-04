@@ -6,4 +6,5 @@ struct Secrets {
     static let openAIKey: String = "${OPENAI_API_KEY}"
     static let pineconeKey: String = "${PINECONE_API_KEY}"
     static let pineconeHost: String = "${PINECONE_HOST}"
+    static let archiveCooke: String = "${ARCHIVE_COOKIE}"
 }

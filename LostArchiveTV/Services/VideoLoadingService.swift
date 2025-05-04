@@ -75,8 +75,12 @@ actor VideoLoadingService {
         }
         
         // Create optimized asset
-        let asset = AVURLAsset(url: videoURL)
-        
+        let headers: [String: String] = [
+           "Cookie": EnvironmentService.shared.archiveCookie
+        ]
+        // Create an asset from the URL
+        let asset = AVURLAsset(url: videoURL, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
+
         // Create player item with caching configuration
         let playerItem = AVPlayerItem(asset: asset)
         playerItem.preferredForwardBufferDuration = 60
@@ -168,7 +172,11 @@ actor VideoLoadingService {
         
         // Create asset with optimized loading
         let assetStartTime = CFAbsoluteTimeGetCurrent()
-        let asset = AVURLAsset(url: videoURL)
+        let headers: [String: String] = [
+           "Cookie": EnvironmentService.shared.archiveCookie
+        ]
+        // Create an asset from the URL
+        let asset = AVURLAsset(url: videoURL, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
         Logger.videoPlayback.debug("Created AVURLAsset")
         
         // Set title and description from metadata

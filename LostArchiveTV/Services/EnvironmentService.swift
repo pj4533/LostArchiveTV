@@ -13,12 +13,14 @@ class EnvironmentService {
         static let openAIKey = "OPENAI_API_KEY"
         static let pineconeKey = "PINECONE_API_KEY" 
         static let pineconeHost = "PINECONE_HOST"
+        static let archiveCookie = "ARCHIVE_COOKIE"
     }
     
     // MARK: - API Keys
     private var cachedOpenAIKey: String?
     private var cachedPineconeKey: String?
     private var cachedPineconeHost: String?
+    private var cachedArchiveCookie: String?
     
     // MARK: - Initialization
     
@@ -43,6 +45,11 @@ class EnvironmentService {
         return cachedPineconeHost ?? ""
     }
     
+    /// Archive Cookie
+    var archiveCookie: String {
+        return cachedArchiveCookie ?? ""
+    }
+    
     // MARK: - Private Methods
     
     /// Loads API keys from environment variables or Info.plist
@@ -54,6 +61,7 @@ class EnvironmentService {
         cachedOpenAIKey = processInfo.environment[EnvironmentVariables.openAIKey]
         cachedPineconeKey = processInfo.environment[EnvironmentVariables.pineconeKey]
         cachedPineconeHost = processInfo.environment[EnvironmentVariables.pineconeHost]
+        cachedArchiveCookie = processInfo.environment[EnvironmentVariables.archiveCookie]
         
         // If not found in environment, try Info.plist (for app store builds)
         if cachedOpenAIKey == nil {
@@ -68,11 +76,16 @@ class EnvironmentService {
             cachedPineconeHost = Secrets.pineconeHost
         }
         
+        if cachedArchiveCookie == nil {
+            cachedArchiveCookie = Secrets.archiveCooke
+        }
+        
         // Log status (without exposing actual keys)
         Logger.network.debug("OpenAI API key status: \(self.cachedOpenAIKey != nil ? "Available" : "Missing")")
         Logger.network.debug("Pinecone API key status: \(self.cachedPineconeKey != nil ? "Available" : "Missing")")
         Logger.network.debug("Pinecone host status: \(self.cachedPineconeHost != nil ? "Available" : "Missing")")
-        
+        Logger.network.debug("Archive cookie status: \(self.cachedArchiveCookie != nil ? "Available" : "Missing")")
+
         // Validate that we have the required keys
         if self.cachedOpenAIKey == nil {
             Logger.network.error("MISSING OPENAI API KEY: Application will fail when attempting semantic search")

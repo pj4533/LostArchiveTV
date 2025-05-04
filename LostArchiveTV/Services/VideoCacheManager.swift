@@ -89,7 +89,11 @@ actor VideoCacheManager {
         }
         
         // Create optimized asset
-        let asset = AVURLAsset(url: videoURL)
+        let headers: [String: String] = [
+           "Cookie": EnvironmentService.shared.archiveCookie
+        ]
+        // Create an asset from the URL
+        let asset = AVURLAsset(url: videoURL, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
         
         // Create player item with caching configuration
         let playerItem = AVPlayerItem(asset: asset)

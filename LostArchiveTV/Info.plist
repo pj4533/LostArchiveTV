@@ -8,5 +8,7 @@
 	<string>$(PINECONE_API_KEY)</string>
 	<key>PineconeHost</key>
 	<string>$(PINECONE_HOST)</string>
+	<key>ArchiveCookie</key>
+	<string>$(ARCHIVE_COOKIE)</string>
 </dict>
 </plist>

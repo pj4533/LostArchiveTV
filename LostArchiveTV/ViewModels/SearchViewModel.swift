@@ -272,7 +272,11 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
         
         // Create asset with optimized loading
         let assetStartTime = CFAbsoluteTimeGetCurrent()
-        let asset = AVURLAsset(url: videoURL)
+        let headers: [String: String] = [
+           "Cookie": EnvironmentService.shared.archiveCookie
+        ]
+        // Create an asset from the URL
+        let asset = AVURLAsset(url: videoURL, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
         Logger.videoPlayback.debug("Created AVURLAsset")
         
         // Set title and description from metadata

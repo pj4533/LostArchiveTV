@@ -44,8 +44,12 @@ class FavoritesManager: ObservableObject {
         // Convert stored favorites to CachedVideo objects
         for storedFavorite in storedFavorites {
             if let videoURL = URL(string: storedFavorite.videoURLString) {
+                let headers: [String: String] = [
+                   "Cookie": EnvironmentService.shared.archiveCookie
+                ]
                 // Create an asset from the URL
-                let asset = AVURLAsset(url: videoURL)
+                let asset = AVURLAsset(url: videoURL, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
+                
                 let playerItem = AVPlayerItem(asset: asset)
                 
                 // Create metadata objects
