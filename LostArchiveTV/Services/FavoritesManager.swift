@@ -87,8 +87,13 @@ class FavoritesManager: ObservableObject {
             }
         }
         
-        // Reverse the favorites array here so newest videos are at the beginning
-        favorites = loadedFavorites.reversed()
+        // Sort favorites by timestamp (newest first)
+        favorites = loadedFavorites.sorted { 
+            guard let date1 = $0.addedToFavoritesAt, let date2 = $1.addedToFavoritesAt else {
+                return false // Items without timestamps go to the end
+            }
+            return date1 > date2 // Newest first
+        }
         
         Logger.metadata.debug("Loaded \(self.favorites.count) favorite videos from UserDefaults (newest first)")
     }
