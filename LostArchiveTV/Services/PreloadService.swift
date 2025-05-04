@@ -12,6 +12,9 @@ import OSLog
 actor PreloadService {
     private var preloadTask: Task<Void, Never>?
     
+    // Track whether the first video is ready for playback
+    private var isFirstVideoReady = false
+    
     func ensureVideosAreCached(cacheManager: VideoCacheManager, archiveService: ArchiveService, identifiers: [ArchiveIdentifier]) async {
         // Make sure we have identifiers before trying to preload
         guard !identifiers.isEmpty else {
@@ -78,8 +81,16 @@ actor PreloadService {
         }
         
         // Step 3: Start background task to fill the remainder of the cache
-        // Only start this task if we need more videos
-        if await cacheManager.cacheCount() < maxCache {
+        // Only start this task if we need more videos AND the first video is ready
+        // or if this isn't the first video loading sequence
+        let currentCount = await cacheManager.cacheCount()
+        if currentCount < maxCache {
+            // If first video isn't ready yet and cache has exactly 1 video, don't start background task
+            if !isFirstVideoReady && currentCount == 1 {
+                Logger.caching.info("PreloadService: First video not yet playing, delaying background cache filling")
+                return
+            }
+            
             Logger.caching.info("PreloadService: Starting background task to fill cache to \(maxCache) videos")
             
             // Use a new task for background filling
@@ -121,6 +132,12 @@ actor PreloadService {
                 }
             }
         }
+    }
+    
+    // Method to signal that the first video is ready and playing
+    func setFirstVideoReady() {
+        Logger.caching.info("PreloadService: First video is now playing, enabling background caching")
+        isFirstVideoReady = true
     }
     
     func preloadRandomVideo(cacheManager: VideoCacheManager, archiveService: ArchiveService, identifiers: [ArchiveIdentifier]) async throws {

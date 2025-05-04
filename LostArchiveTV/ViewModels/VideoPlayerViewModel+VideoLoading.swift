@@ -78,12 +78,6 @@ extension VideoPlayerViewModel {
         // Clean up existing player
         playbackManager.cleanupPlayer()
         
-        // Pre-emptively start caching next videos for smooth swipes
-        Task {
-            Logger.caching.info("🔄 LOADING: Starting background cache filling")
-            await ensureVideosAreCached()
-        }
-        
         do {
             // Load a random video using our service
             Logger.videoPlayback.info("🔄 LOADING: Requesting random video from service")
@@ -138,12 +132,14 @@ extension VideoPlayerViewModel {
                 Logger.videoPlayback.info("🏁 LOADING: Reset loading state to false")
             }
             
-            // Get cache state after video is loaded
-            let cacheCount = await cacheManager.cacheCount()
-            Logger.caching.info("📊 LOADING: Current cache size after loading: \(cacheCount)")
+            // Signal that the first video is ready to play, enabling additional caching
+            await preloadService.setFirstVideoReady()
             
-            // Start preloading the next video if needed
-            await ensureVideosAreCached()
+            // Now that the first video is playing, start preloading next videos in background
+            Task {
+                Logger.caching.info("🔄 LOADING: Starting background cache filling after first video is playing")
+                await ensureVideosAreCached()
+            }
             
             let overallTime = CFAbsoluteTimeGetCurrent() - overallStartTime
             Logger.videoPlayback.info("⏱️ LOADING: Total video load time: \(overallTime.formatted(.number.precision(.fractionLength(4)))) seconds")
