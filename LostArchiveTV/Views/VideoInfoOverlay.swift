@@ -9,7 +9,7 @@ struct VideoInfoOverlay: View {
     let identifier: String?
     
     @State private var downloadedVideoURL: URL? = nil
-    @State private var showCollectionConfig = false
+    @State private var showSettings = false
     
     // Logger for debugging
     private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "ui")
@@ -41,7 +41,7 @@ struct VideoInfoOverlay: View {
             // Right-side buttons
             ButtonPanel(
                 viewModel: viewModel,
-                showCollectionConfig: $showCollectionConfig,
+                showSettings: $showSettings,
                 identifier: identifier,
                 startTrimFlow: startTrimFlow
             )

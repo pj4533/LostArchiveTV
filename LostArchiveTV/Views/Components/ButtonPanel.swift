@@ -3,7 +3,7 @@ import OSLog
 
 struct ButtonPanel: View {
     @ObservedObject var viewModel: VideoPlayerViewModel
-    @Binding var showCollectionConfig: Bool
+    @Binding var showSettings: Bool
     let identifier: String?
     let startTrimFlow: () -> Void
     
@@ -13,26 +13,18 @@ struct ButtonPanel: View {
             provider: viewModel,
             showSettingsButton: true,
             settingsAction: { 
-                showCollectionConfig = true 
+                showSettings = true 
             },
             trimAction: startTrimFlow,
             identifier: identifier
         )
-        .sheet(isPresented: $showCollectionConfig) {
+        .sheet(isPresented: $showSettings) {
             // Resume playback when the sheet is dismissed
             Task {
                 await viewModel.resumePlayback()
             }
         } content: {
-            CollectionConfigView(
-                viewModel: CollectionConfigViewModel(databaseService: DatabaseService()),
-                onDismiss: { 
-                    // Callback when view is dismissed
-                    Task {
-                        await viewModel.reloadIdentifiers()
-                    }
-                }
-            )
+            SettingsView()
         }
     }
 }

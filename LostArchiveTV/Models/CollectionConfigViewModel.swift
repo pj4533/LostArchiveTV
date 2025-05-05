@@ -117,11 +117,23 @@ class CollectionConfigViewModel: ObservableObject {
             .map { $0.id }
         
         userDefaults.set(enabledCollectionIds, forKey: "EnabledCollections")
+        
+        // Automatically reload identifiers when settings change
+        Task {
+            await reloadIdentifiers()
+        }
     }
     
     func toggleDefaultCollections() {
         useDefaultCollections.toggle()
         saveSettings()
+    }
+    
+    // Reload identifiers - called when collection settings change
+    func reloadIdentifiers() async {
+        // Notify that settings have been changed and identifiers should be reloaded
+        logger.debug("Reloading identifiers after settings change")
+        NotificationCenter.default.post(name: Notification.Name("ReloadIdentifiers"), object: nil)
     }
     
     // User preferences methods moved to CollectionPreferences
