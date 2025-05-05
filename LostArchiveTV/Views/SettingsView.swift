@@ -33,8 +33,29 @@ struct SettingsView: View {
                         .padding(.vertical, 4)
                     }
                 }
+                                
+                // Playback settings section
+                Section(header: Text("Playback")) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "play.circle")
+                            .foregroundColor(.blue)
+                            .frame(width: 28, height: 28)
+                            .background(Color.blue.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                        
+                        Toggle("Start Videos at Beginning", isOn: Binding(
+                            get: {
+                                PlaybackPreferences.alwaysStartAtBeginning
+                            },
+                            set: { newValue in
+                                PlaybackPreferences.alwaysStartAtBeginning = newValue
+                            }
+                        ))
+                    }
+                    .padding(.vertical, 4)
+                }
                 
-                // About section with version info (placeholder for now)
+                // about should always be at the bottom of the settingsview
                 Section(header: Text("About")) {
                     HStack(spacing: 12) {
                         Image(systemName: "info.circle")
@@ -56,10 +77,6 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 4)
                 }
-                
-                // Future sections can go here
-                // Section(header: Text("Playback")) { }
-                // Section(header: Text("Downloads")) { }
             }
             .listStyle(InsetGroupedListStyle())
             .navigationTitle("Settings")

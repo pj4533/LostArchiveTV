@@ -62,7 +62,11 @@ extension FavoritesViewModel {
         // Create a fresh player item from the asset
         let freshPlayerItem = AVPlayerItem(asset: video.asset)
         let player = AVPlayer(playerItem: freshPlayerItem)
-        let startTime = CMTime(seconds: video.startPosition, preferredTimescale: 600)
+        
+        // Check if "start at beginning" setting is enabled
+        let startAtBeginning = PlaybackPreferences.alwaysStartAtBeginning
+        let startPosition = startAtBeginning ? 0.0 : video.startPosition
+        let startTime = CMTime(seconds: startPosition, preferredTimescale: 600)
         
         // Seek to the correct position
         Task {

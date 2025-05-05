@@ -85,12 +85,15 @@ actor VideoLoadingService {
         let playerItem = AVPlayerItem(asset: asset)
         playerItem.preferredForwardBufferDuration = 60
         
-        // Calculate a random start position
+        // Calculate a start position
         let estimatedDuration = await archiveService.estimateDuration(fromFile: mp4File)
         let safetyMargin = min(estimatedDuration * 0.2, 60.0)
         let maxStartTime = max(0, estimatedDuration - safetyMargin)
         let safeMaxStartTime = max(0, min(maxStartTime, estimatedDuration - 40))
-        let randomStart = safeMaxStartTime > 10 ? Double.random(in: 0..<safeMaxStartTime) : 0
+        
+        // Check if "start at beginning" setting is enabled
+        let startAtBeginning = PlaybackPreferences.alwaysStartAtBeginning
+        let startPosition = startAtBeginning ? 0.0 : (safeMaxStartTime > 10 ? Double.random(in: 0..<safeMaxStartTime) : 0)
         
         // Try to load the asset's duration to ensure it's valid and preload some data
         try? await asset.load(.duration)
@@ -104,7 +107,7 @@ actor VideoLoadingService {
             videoURL: videoURL,
             asset: asset,
             playerItem: playerItem,
-            startPosition: randomStart,
+            startPosition: startPosition,
             addedToFavoritesAt: nil
         )
         
@@ -191,11 +194,13 @@ actor VideoLoadingService {
         let maxStartTime = max(0, estimatedDuration - safetyMargin)
         let safeMaxStartTime = max(0, min(maxStartTime, estimatedDuration - 40))
         
-        // If video is very short, start from beginning
-        let randomStart = safeMaxStartTime > 10 ? Double.random(in: 0..<safeMaxStartTime) : 0
+        // Check if "start at beginning" setting is enabled
+        let startAtBeginning = PlaybackPreferences.alwaysStartAtBeginning
+        // If setting is enabled or video is very short, start from beginning
+        let startPosition = startAtBeginning ? 0.0 : (safeMaxStartTime > 10 ? Double.random(in: 0..<safeMaxStartTime) : 0)
         
         // Log video duration and offset information in a single line for easy identification
-        Logger.videoPlayback.info("VIDEO TIMING: Duration=\(estimatedDuration.formatted(.number.precision(.fractionLength(1))))s, Offset=\(randomStart.formatted(.number.precision(.fractionLength(1))))s (\(identifier))")
+        Logger.videoPlayback.info("VIDEO TIMING: Duration=\(estimatedDuration.formatted(.number.precision(.fractionLength(1))))s, Offset=\(startPosition.formatted(.number.precision(.fractionLength(1))))s (\(identifier))")
         
         let assetTime = CFAbsoluteTimeGetCurrent() - assetStartTime
         Logger.videoPlayback.info("Asset setup completed in \(assetTime.formatted(.number.precision(.fractionLength(4)))) seconds")
@@ -206,7 +211,7 @@ actor VideoLoadingService {
             title,
             description,
             asset,
-            randomStart
+            startPosition
         )
     }
 }
