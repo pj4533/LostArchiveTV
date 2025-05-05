@@ -154,8 +154,14 @@ struct TrimDownloadView<Provider: VideoProvider & ObservableObject>: View {
                         ])
                     }
                     
-                    // Now download to our specific location
-                    let downloadTask = URLSession.shared.downloadTask(with: videoURL) { tempFileURL, response, error in
+                    // Now download to our specific location with cookie header
+                    var request = URLRequest(url: videoURL)
+                    let headers: [String: String] = [
+                        "Cookie": EnvironmentService.shared.archiveCookie
+                    ]
+                    request.allHTTPHeaderFields = headers
+                    
+                    let downloadTask = URLSession.shared.downloadTask(with: request) { tempFileURL, response, error in
                         // Handle download errors
                         if let error = error {
                             continuation.resume(throwing: error)

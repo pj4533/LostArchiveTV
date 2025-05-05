@@ -28,8 +28,14 @@ class VideoSaveManager {
         let tempFileName = UUID().uuidString + ".mp4"
         let localURL = tempDir.appendingPathComponent(tempFileName)
         
-        // Download the video file
-        let downloadTask = URLSession.shared.downloadTask(with: url) { tempFileURL, response, error in
+        // Download the video file with cookie header
+        var request = URLRequest(url: url)
+        let headers: [String: String] = [
+            "Cookie": EnvironmentService.shared.archiveCookie
+        ]
+        request.allHTTPHeaderFields = headers
+        
+        let downloadTask = URLSession.shared.downloadTask(with: request) { tempFileURL, response, error in
             // Handle download errors
             if let error = error {
                 Logger.videoPlayback.error("Failed to download video: \(error.localizedDescription)")
