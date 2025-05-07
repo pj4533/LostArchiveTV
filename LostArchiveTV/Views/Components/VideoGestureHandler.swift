@@ -137,37 +137,48 @@ struct VideoGestureHandler: ViewModifier {
                 }
             }
         
-        // Long press gesture for double-speed playback
-        let longPressGesture = LongPressGesture(minimumDuration: 0.1)
+        // Use a TapGesture with minimum press duration to trigger 2x playback
+        // We'll track the state ourselves for more reliable press-and-hold behavior
+        let pressGesture = DragGesture(minimumDistance: 0)
             .onChanged { _ in
-                // Set the playback rate to 2x when the long press starts
+                // Set the playback rate to 2x when the press starts and maintain it
                 if !isLongPressing {
-                    Logger.videoPlayback.debug("Long press detected - setting 2x speed")
+                    Logger.videoPlayback.debug("⏩ PRESS DETECTED - SETTING 2X SPEED ⏩")
                     isLongPressing = true
                     
                     // Cast to VideoControlProvider to access the rate control methods
                     if let controlProvider = provider as? VideoControlProvider {
                         controlProvider.setTemporaryPlaybackRate(rate: 2.0)
+                        Logger.videoPlayback.debug("🎬 Set playback rate to 2.0 on \(type(of: controlProvider))")
+                    } else {
+                        Logger.videoPlayback.error("❌ Provider \(type(of: provider)) does not conform to VideoControlProvider")
                     }
                 }
             }
             .onEnded { _ in
-                // Reset the playback rate when the long press ends
+                // Reset the playback rate when the finger is lifted
                 if isLongPressing {
-                    Logger.videoPlayback.debug("Long press ended - resetting playback speed")
+                    Logger.videoPlayback.debug("⏩ FINGER LIFTED - RESETTING PLAYBACK SPEED ⏩")
                     isLongPressing = false
                     
                     // Cast to VideoControlProvider to access the rate control methods
                     if let controlProvider = provider as? VideoControlProvider {
                         controlProvider.resetPlaybackRate()
+                        Logger.videoPlayback.debug("🎬 Reset playback rate on \(type(of: controlProvider))")
+                    } else {
+                        Logger.videoPlayback.error("❌ Provider \(type(of: provider)) does not conform to VideoControlProvider")
                     }
                 }
             }
         
         // Apply both gestures to the content
         return content
-            .simultaneousGesture(longPressGesture)
-            .simultaneousGesture(provider.player == nil ? nil : dragGesture)
+            .gesture(
+                SimultaneousGesture(
+                    pressGesture,
+                    provider.player == nil ? nil : dragGesture
+                )
+            )
     }
 }
 
