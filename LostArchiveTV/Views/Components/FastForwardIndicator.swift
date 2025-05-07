@@ -19,12 +19,15 @@ struct FastForwardIndicator: View {
             Image(systemName: "forward.fill")
                 .font(.system(size: 12, weight: .bold))
                 .foregroundColor(.white)
+                .accessibilityHidden(true) // Hide from VoiceOver since text conveys meaning
             
             // 2x text with speed indication
             Text("2× Speed")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(.white)
         }
+        .accessibilityLabel("Playback speed: double")
+        .accessibilityAddTraits(.updatesFrequently) // Indicates status that changes
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(
@@ -33,13 +36,12 @@ struct FastForwardIndicator: View {
                 .shadow(color: .black.opacity(0.3), radius: 3)
         )
         .padding(.top, 10) // Space from the top edge
-        .transition(.opacity)
+        .transition(.opacity.animation(.easeInOut(duration: 0.3)))
         .onAppear {
-            // Auto-hide after visibleDuration
-            DispatchQueue.main.asyncAfter(deadline: .now() + visibleDuration) {
-                withAnimation(.easeOut(duration: fadeOutDuration)) {
-                    // The opacity will be handled by the parent view's condition
-                }
+            // Auto-hide after visibleDuration - use Task for better performance
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(visibleDuration))
+                // The opacity change will be handled by the parent view's condition
             }
         }
     }

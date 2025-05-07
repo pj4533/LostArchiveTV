@@ -43,6 +43,30 @@ struct VideoGestureHandler: ViewModifier {
         self._isDragging = isDragging
         self.swipeThreshold = swipeThreshold
         self.animationDuration = animationDuration
+        
+        // Listen for notifications that might require resetting playback rate
+        setupNotificationObservers()
+    }
+    
+    // Set up notification observers for trim mode and other state changes
+    private func setupNotificationObservers() {
+        // Listen for trim mode activation notification
+        NotificationCenter.default.addObserver(
+            forName: .startVideoTrimming,
+            object: nil,
+            queue: .main
+        ) { [self] _ in
+            // Reset double-speed state when entering trim mode
+            if isLongPressing {
+                isLongPressing = false
+                showIndicator = false
+                
+                if let controlProvider = provider as? VideoControlProvider {
+                    Logger.videoPlayback.debug("⏩ Resetting speed due to trim mode activation")
+                    controlProvider.resetPlaybackRate()
+                }
+            }
+        }
     }
     
     func body(content: Content) -> some View {
@@ -93,6 +117,16 @@ struct VideoGestureHandler: ViewModifier {
                     let shouldComplete = -dragOffset > swipeThreshold || -velocity > 500
                     
                     if shouldComplete && transitionManager.nextVideoReady {
+                        // If we're in 2x speed mode, reset it before transitioning
+                        if isLongPressing {
+                            if let controlProvider = provider as? VideoControlProvider {
+                                Logger.videoPlayback.debug("⏩ Transitioning while in 2x mode - resetting speed")
+                                controlProvider.resetPlaybackRate()
+                                isLongPressing = false
+                                showIndicator = false
+                            }
+                        }
+                        
                         // Complete the swipe animation upward (to next video)
                         transitionManager.completeTransition(
                             geometry: geometry,
@@ -114,6 +148,16 @@ struct VideoGestureHandler: ViewModifier {
                     let shouldComplete = dragOffset > swipeThreshold || velocity > 500
                     
                     if shouldComplete && transitionManager.prevVideoReady {
+                        // If we're in 2x speed mode, reset it before transitioning
+                        if isLongPressing {
+                            if let controlProvider = provider as? VideoControlProvider {
+                                Logger.videoPlayback.debug("⏩ Transitioning while in 2x mode - resetting speed")
+                                controlProvider.resetPlaybackRate()
+                                isLongPressing = false
+                                showIndicator = false
+                            }
+                        }
+                        
                         // Complete the swipe animation downward (to previous video)
                         transitionManager.completeTransition(
                             geometry: geometry,
@@ -156,6 +200,15 @@ struct VideoGestureHandler: ViewModifier {
                 if let controlProvider = provider as? VideoControlProvider {
                     controlProvider.setTemporaryPlaybackRate(rate: 2.0)
                     Logger.videoPlayback.debug("🎬 Set playback rate to 2.0 on \(type(of: controlProvider))")
+                    
+                    // Announce speed change to VoiceOver users
+                    #if os(iOS)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        if UIAccessibility.isVoiceOverRunning {
+                            UIAccessibility.post(notification: .announcement, argument: "Double speed playback activated")
+                        }
+                    }
+                    #endif
                 } else {
                     Logger.videoPlayback.error("❌ Provider \(type(of: provider)) does not conform to VideoControlProvider")
                 }
@@ -174,6 +227,15 @@ struct VideoGestureHandler: ViewModifier {
                     if let controlProvider = provider as? VideoControlProvider {
                         controlProvider.resetPlaybackRate()
                         Logger.videoPlayback.debug("🎬 Reset playback rate on \(type(of: controlProvider))")
+                        
+                        // Announce speed change to VoiceOver users
+                        #if os(iOS)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            if UIAccessibility.isVoiceOverRunning {
+                                UIAccessibility.post(notification: .announcement, argument: "Normal playback speed resumed")
+                            }
+                        }
+                        #endif
                     } else {
                         Logger.videoPlayback.error("❌ Provider \(type(of: provider)) does not conform to VideoControlProvider")
                     }
@@ -199,8 +261,8 @@ struct VideoGestureHandler: ViewModifier {
                     
                     Spacer() // Push the indicator to the top
                 }
+                // Use rendered effect instead of View animation for better performance
                 .transition(.opacity)
-                .animation(.easeInOut(duration: 0.3), value: showIndicator)
             }
         }
     }
