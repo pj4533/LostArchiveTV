@@ -187,12 +187,20 @@ struct VideoGestureHandler: ViewModifier {
                 .simultaneousGesture(combinedGesture)
                 .simultaneousGesture(provider.player == nil ? nil : dragGesture)
             
-            // Fast-forward indicator overlay
+            // Fast-forward indicator overlay at the top
             if showIndicator {
-                FastForwardIndicator()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.opacity)
-                    .animation(.easeInOut(duration: 0.3), value: showIndicator)
+                VStack {
+                    HStack {
+                        Spacer()
+                        FastForwardIndicator()
+                        Spacer()
+                    }
+                    .padding(.top, 50) // Position below status bar and any top controls
+                    
+                    Spacer() // Push the indicator to the top
+                }
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.3), value: showIndicator)
             }
         }
     }

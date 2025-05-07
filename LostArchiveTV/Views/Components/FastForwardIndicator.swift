@@ -13,24 +13,26 @@ struct FastForwardIndicator: View {
     private let fadeOutDuration: Double = 0.7
     
     var body: some View {
-        ZStack {
-            // Semi-transparent background circle with shadow for better visibility
-            Circle()
-                .fill(Color.black.opacity(0.7))
-                .frame(width: 100, height: 100)
-                .shadow(color: .black.opacity(0.5), radius: 4)
+        // Horizontal indicator at the top of the screen
+        HStack(spacing: 6) {
+            // Fast-forward icon
+            Image(systemName: "forward.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.white)
             
-            // 2x text and fast-forward icon - larger for better visibility
-            VStack(spacing: 4) {
-                Image(systemName: "forward.fill")
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundColor(.white)
-                
-                Text("2×")
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundColor(.white)
-            }
+            // 2x text with speed indication
+            Text("2× Speed")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.white)
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            Capsule()
+                .fill(Color.black.opacity(0.65))
+                .shadow(color: .black.opacity(0.3), radius: 3)
+        )
+        .padding(.top, 10) // Space from the top edge
         .transition(.opacity)
         .onAppear {
             // Auto-hide after visibleDuration
