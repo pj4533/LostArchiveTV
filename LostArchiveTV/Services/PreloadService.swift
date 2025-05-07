@@ -81,12 +81,12 @@ actor PreloadService {
         }
         
         // Step 3: Start background task to fill the remainder of the cache
-        // Only start this task if we need more videos AND the first video is ready
+        // Only start this task if we need more videos AND the first video is ready 
         // or if this isn't the first video loading sequence
         let currentCount = await cacheManager.cacheCount()
         if currentCount < maxCache {
-            // If first video isn't ready yet and cache has exactly 1 video, don't start background task
-            if !isFirstVideoReady && currentCount == 1 {
+            // If first video isn't ready yet, don't start background task - wait for signal
+            if !isFirstVideoReady {
                 Logger.caching.info("PreloadService: First video not yet playing, delaying background cache filling")
                 return
             }

@@ -33,8 +33,8 @@ struct SwipeableVideoView: View {
             }
         }
         .onAppear {
-            // Ensure we have a video loaded if needed
-            if viewModel.player == nil && !viewModel.isLoading {
+            // Ensure we have a video loaded if needed, but don't force reload if one is playing
+            if viewModel.player == nil && !viewModel.isLoading && !viewModel.isInitializing {
                 Task {
                     Logger.caching.info("SwipeableVideoView: No video loaded, loading first video")
                     await viewModel.loadRandomVideo()

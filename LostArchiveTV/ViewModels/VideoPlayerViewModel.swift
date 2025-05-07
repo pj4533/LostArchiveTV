@@ -77,34 +77,31 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider
         // Set initial state
         isInitializing = true
         
-        // Load identifiers and start preloading videos when the ViewModel is initialized
+        // CHANGED: Load identifiers and immediately start loading first video
         Task {
-            // Load identifiers first - must complete before preloading
+            // Load identifiers first - must complete before loading any video
             await loadIdentifiers()
             
-            // Only start preloading after identifiers are loaded
+            // CRITICAL CHANGE: Directly load first video without waiting for cache
             if !identifiers.isEmpty {
-                // Start monitoring cache progress
-                Logger.caching.info("Starting cache monitoring")
-                monitorCacheProgress()
+                // Start loading first video immediately
+                Task {
+                    // Show the first video as soon as it's loaded
+                    await loadFirstVideoDirectly()
+                }
                 
-                // Begin preloading videos
-                Logger.caching.info("Starting video preloading")
-                await ensureVideosAreCached()
+                // Start cache monitoring in parallel, but don't wait for it
+                Task {
+                    monitorCacheProgress()
+                }
                 
-                // After preloading is started, load the first video but don't show it yet
-                // (it will be shown once initialization is complete)
-                Logger.caching.info("Loading initial random video")
-                await loadRandomVideo(showImmediately: false)
-                
-                // IMPORTANT: Check if we have a player but initialization is still active
-                // This handles the case where loadRandomVideo succeeds but cache monitoring hasn't caught up
-                if self.player != nil && isInitializing {
-                    Logger.caching.info("Video loaded and player exists, but initialization state not updated - forcing update")
-                    isInitializing = false
+                // Start preloading in parallel, but don't block first video
+                Task {
+                    // This will now run in the background and not block first video
+                    await ensureVideosAreCached()
                 }
             } else {
-                Logger.caching.error("Cannot preload: identifiers not loaded properly")
+                Logger.caching.error("Cannot load: identifiers not loaded properly")
                 isInitializing = false
             }
         }
@@ -119,52 +116,35 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider
         cacheMonitorTask?.cancel()
         
         cacheMonitorTask = Task {
-            Logger.caching.info("🔄 INIT: Cache monitor task started")
-            // Track how many monitoring cycles we've performed
-            var monitorCycles = 0
-            var playerCheckPerformed = false
+            Logger.caching.info("🔄 CACHE: Monitor task started (background)")
             
-            // Wait until we have at least 1 video cached to begin playback
-            while !Task.isCancelled && isInitializing {
+            // Not crucial for first video anymore - run in background
+            var monitorCycles = 0
+            
+            while !Task.isCancelled {
                 monitorCycles += 1
-                let cacheCount = await cacheManager.cacheCount() 
-                
-                // Get player/video status for detailed logging
+                let cacheCount = await cacheManager.cacheCount()
                 let hasPlayer = self.player != nil
-                let playerStatus = hasPlayer ? "ACTIVE" : "none"
                 let currentVideoID = self.currentIdentifier ?? "none"
                 
-                Logger.caching.info("📊 INIT: Monitor cycle \(monitorCycles) | Cache size: \(cacheCount) | Initializing: \(self.isInitializing) | Player: \(playerStatus) | Current video: \(currentVideoID)")
+                Logger.caching.info("📊 CACHE: Monitor cycle \(monitorCycles) | Size: \(cacheCount) | Player: \(hasPlayer ? "ACTIVE" : "none") | Video: \(currentVideoID)")
                 
-                if cacheCount >= 1 {
-                    // Exit initialization mode once we have at least one video ready
-                    try? await Task.sleep(for: .seconds(0.2))
+                // If cache has videos, ensure preloading is active
+                if cacheCount >= 1 && isInitializing {
+                    // This is now a backup in case direct loading fails
+                    Logger.caching.info("📊 CACHE: Backup initialization exit - cache ready")
                     self.isInitializing = false
-                    Logger.caching.info("✅ INIT: Initial cache ready with \(cacheCount) videos - exiting initialization")
+                }
+                
+                // Reduced polling frequency since this is not critical path
+                try? await Task.sleep(for: .seconds(0.5))
+                
+                // Exit if we've been monitoring too long or initialization is complete
+                if !isInitializing || monitorCycles >= 20 {
+                    Logger.caching.info("📊 CACHE: Exiting monitor - initialization complete or timeout reached")
                     break
                 }
-                
-                // CRITICAL FIX: If no videos in cache but we already have an active player
-                // or if we've been waiting for too long (10 seconds), exit initialization
-                if monitorCycles >= 10 || (!playerCheckPerformed && self.player != nil) {
-                    playerCheckPerformed = true
-                    if self.player != nil {
-                        Logger.caching.info("🚨 INIT: Player exists but cache is empty (video ID: \(currentVideoID)). Exiting initialization state.")
-                        self.isInitializing = false
-                        break
-                    }
-                }
-                
-                // If we've been stuck for a long time (50 cycles = ~10 seconds), force exit initialization
-                if monitorCycles >= 50 {
-                    Logger.caching.error("⚠️ INIT: Forced exit from initialization after \(monitorCycles) monitoring cycles")
-                    self.isInitializing = false
-                    break
-                }
-                
-                try? await Task.sleep(for: .seconds(0.2))
             }
-            Logger.caching.info("🏁 INIT: Cache monitor task completed - initialization finished")
         }
     }
     

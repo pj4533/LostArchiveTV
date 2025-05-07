@@ -47,6 +47,81 @@ extension VideoPlayerViewModel {
         Logger.metadata.info("Collection settings updated, changes will apply to next videos")
     }
     
+    /// Loads first video directly without cache involvement for fast startup
+    func loadFirstVideoDirectly() async {
+        let startTime = CFAbsoluteTimeGetCurrent()
+        Logger.videoPlayback.info("🚀 FAST START: Loading first video directly")
+        
+        do {
+            // Ensure we have identifiers loaded
+            if identifiers.isEmpty {
+                Logger.metadata.warning("⚠️ FAST START: No identifiers available, loading identifiers first")
+                await loadIdentifiers()
+                
+                // Check again after loading
+                if identifiers.isEmpty {
+                    Logger.metadata.error("❌ FAST START: Failed to load identifiers, cannot continue")
+                    errorMessage = "No identifiers available. Make sure the identifiers.sqlite database is in the app bundle."
+                    isInitializing = false
+                    return
+                }
+            }
+            
+            // Clean up existing player if needed
+            playbackManager.cleanupPlayer()
+            
+            // Load the video directly, bypassing cache
+            Logger.videoPlayback.info("🔄 FAST START: Requesting video directly, bypassing cache")
+            let videoInfo = try await videoLoadingService.loadFreshRandomVideo()
+            
+            Logger.videoPlayback.info("✅ FAST START: Successfully loaded video: \(videoInfo.identifier)")
+            
+            // Set the current video info
+            currentIdentifier = videoInfo.identifier
+            currentCollection = videoInfo.collection
+            currentTitle = videoInfo.title
+            currentDescription = videoInfo.description
+            
+            // Create a player with the seek position already applied
+            let player = AVPlayer(playerItem: AVPlayerItem(asset: videoInfo.asset))
+            let startSeekPosition = CMTime(seconds: videoInfo.startPosition, preferredTimescale: 600)
+            
+            Logger.videoPlayback.info("⏱️ FAST START: Video loaded. Now seeking to position")
+            await player.seek(to: startSeekPosition, toleranceBefore: .zero, toleranceAfter: .zero)
+            
+            // Set the player and start playback
+            playbackManager.useExistingPlayer(player)
+            playbackManager.play()
+            
+            // Monitor buffer status in background
+            if let playerItem = playbackManager.player?.currentItem {
+                Task {
+                    await playbackManager.monitorBufferStatus(for: playerItem)
+                }
+            }
+            
+            // Create cached video from current state and add to history
+            if let currentVideo = await createCachedVideoFromCurrentState() {
+                addVideoToHistory(currentVideo)
+                updateCurrentCachedVideo(currentVideo)
+                Logger.caching.info("📝 FAST START: Added initial video to history")
+            }
+            
+            // CRITICAL: Immediately exit initialization mode
+            isInitializing = false
+            
+            // Only now signal that first video is ready for preloading
+            await preloadService.setFirstVideoReady()
+            
+            let totalTime = CFAbsoluteTimeGetCurrent() - startTime
+            Logger.videoPlayback.info("🏁 FAST START: First video ready in \(totalTime.formatted(.number.precision(.fractionLength(4)))) seconds")
+        } catch {
+            Logger.videoPlayback.error("❌ FAST START: Failed to load first video: \(error.localizedDescription)")
+            errorMessage = "Error loading video: \(error.localizedDescription)"
+            isInitializing = false
+        }
+    }
+    
     func loadRandomVideo(showImmediately: Bool = true) async {
         let overallStartTime = CFAbsoluteTimeGetCurrent()
         Logger.videoPlayback.info("🎬 LOADING: Starting to load random video (showImmediately: \(showImmediately))")

@@ -140,7 +140,9 @@ actor VideoLoadingService {
         return result
     }
     
-    private func loadFreshRandomVideo() async throws -> (identifier: String, collection: String, title: String, description: String, asset: AVAsset, startPosition: Double) {
+    /// Public method for loading a fresh random video directly, bypassing the cache
+    /// Used for fast startup to show the first video as quickly as possible
+    func loadFreshRandomVideo() async throws -> (identifier: String, collection: String, title: String, description: String, asset: AVAsset, startPosition: Double) {
         // Get random identifier with user preferences
         let identifiers = try await loadIdentifiersWithUserPreferences()
         guard let randomArchiveIdentifier = await archiveService.getRandomIdentifier(from: identifiers) else {
