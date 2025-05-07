@@ -29,7 +29,7 @@ class TimelineManager {
     // Callbacks for updating the view model
     var onUpdateStartTime: ((CMTime) -> Void)?
     var onUpdateEndTime: ((CMTime) -> Void)?
-    var onSeekToTime: ((CMTime) -> Void)?
+    var onSeekToTime: ((CMTime, Bool) -> Void)?
     
     init(startTrimTime: CMTime, endTrimTime: CMTime, currentTime: CMTime, assetDuration: CMTime) {
         self.startTrimTime = startTrimTime
@@ -123,8 +123,8 @@ class TimelineManager {
         // Notify view model
         onUpdateStartTime?(newStartTime)
         
-        // Also update current time to match the handle
-        onSeekToTime?(newStartTime)
+        // Also update current time to match the handle, indicating this is from a handle drag
+        onSeekToTime?(newStartTime, true)
     }
     
     func endLeftHandleDrag() {
@@ -157,8 +157,8 @@ class TimelineManager {
         // Notify view model
         onUpdateEndTime?(newEndTime)
         
-        // Also update current time to match the handle
-        onSeekToTime?(newEndTime)
+        // Also update current time to match the handle, indicating this is from a handle drag
+        onSeekToTime?(newEndTime, true)
     }
     
     func endRightHandleDrag() {
@@ -181,7 +181,7 @@ class TimelineManager {
         // Update current time
         currentTime = newTime
         
-        // Notify view model for seeking
-        onSeekToTime?(newTime)
+        // Notify view model for seeking (true = from handle drag/scrub)
+        onSeekToTime?(newTime, true)
     }
 }

@@ -78,7 +78,7 @@ extension VideoTrimViewModel {
         playheadUpdateTimer = nil
     }
     
-    func seekToTime(_ time: CMTime) {
+    func seekToTime(_ time: CMTime, fromHandleDrag: Bool = false) {
         // Update currentTime immediately so the playhead updates right away
         self.currentTime = time
         
@@ -86,8 +86,8 @@ extension VideoTrimViewModel {
         playerManager.seek(to: time) { [weak self] completed in
             guard let self = self, completed else { return }
             
-            // If player is already in playing state, ensure it's actually playing
-            if self.isPlaying {
+            // Only restart playback if not from handle dragging and already in playing state
+            if self.isPlaying && !fromHandleDrag {
                 self.playerManager.play()
             }
         }

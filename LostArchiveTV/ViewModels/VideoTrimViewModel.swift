@@ -85,13 +85,7 @@ class VideoTrimViewModel: ObservableObject {
         
         logger.debug("Trim time window: \(startTimeSeconds) to \(endTimeSeconds) seconds")
         
-        // Initialize player with a unique audio configuration
-        let asset = AVAsset(url: assetURL)
-        let playerItem = AVPlayerItem(asset: asset)
-        
-        // Configure player manager
-        playerManager.createNewPlayer(from: asset, url: assetURL)
-        
+        // Only configure audio session here, player initialization happens in prepareForTrimming
         // Configure audio session for trimming
         playerManager.setupAudioSession(forTrimming: true)
         
@@ -115,12 +109,11 @@ class VideoTrimViewModel: ObservableObject {
             self?.endTrimTime = newTime
         }
         
-        timelineManager.onSeekToTime = { [weak self] time in
-            self?.seekToTime(time)
+        timelineManager.onSeekToTime = { [weak self] time, fromHandleDrag in
+            self?.seekToTime(time, fromHandleDrag: fromHandleDrag)
         }
         
-        // Seek to start trim time but don't play automatically
-        seekToTime(startTrimTime)
+        // Don't seek here - we'll seek after player is created in prepareForTrimming
         
         // We will set up the time observer when playback starts, not here
         // This avoids potential race conditions during initialization
