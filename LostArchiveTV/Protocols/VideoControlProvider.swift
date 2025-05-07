@@ -14,4 +14,8 @@ protocol VideoControlProvider: ObservableObject, VideoDownloadable {
     func restartVideo() 
     func pausePlayback() async
     func resumePlayback() async
+    
+    // Playback rate control
+    func setTemporaryPlaybackRate(rate: Float)
+    func resetPlaybackRate()
 }

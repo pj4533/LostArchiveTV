@@ -112,4 +112,12 @@ class VideoPlaybackManager: ObservableObject {
     func cleanupPlayer() {
         playerManager.cleanupPlayer()
     }
+    
+    func setTemporaryPlaybackRate(rate: Float) {
+        playerManager.setTemporaryPlaybackRate(rate: rate)
+    }
+    
+    func resetPlaybackRate() {
+        playerManager.resetPlaybackRate()
+    }
 }

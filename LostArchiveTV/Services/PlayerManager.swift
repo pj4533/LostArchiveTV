@@ -22,6 +22,7 @@ class PlayerManager: ObservableObject {
     private var timeObserverToken: Any?
     private var _currentVideoURL: URL?
     private let audioSessionManager = AudioSessionManager()
+    private var normalPlaybackRate: Float = 1.0
     
     // MARK: - Computed Properties
     var currentVideoURL: URL? {
@@ -269,5 +270,35 @@ class PlayerManager: ObservableObject {
     /// Deactivates the audio session when done with playback
     func deactivateAudioSession() {
         audioSessionManager.deactivate()
+    }
+    
+    // MARK: - Playback Rate Control
+    
+    /// Sets a temporary playback rate, storing the current rate for later restoration
+    func setTemporaryPlaybackRate(rate: Float) {
+        Logger.videoPlayback.debug("Setting temporary playback rate to \(rate)")
+        guard let player = player else { return }
+        
+        // Store the current rate before changing it (if we haven't already)
+        if normalPlaybackRate == 1.0 && player.rate != rate {
+            normalPlaybackRate = player.rate > 0 ? player.rate : 1.0
+        }
+        
+        // Set the new playback rate
+        player.rate = rate
+    }
+    
+    /// Resets the playback rate to the previously stored normal rate
+    func resetPlaybackRate() {
+        Logger.videoPlayback.debug("Resetting playback rate to \(self.normalPlaybackRate)")
+        guard let player = player else { return }
+        
+        // Only reset if we're not already at the normal rate
+        if player.rate != self.normalPlaybackRate {
+            player.rate = self.normalPlaybackRate
+        }
+        
+        // Reset the stored normal rate
+        self.normalPlaybackRate = 1.0
     }
 }

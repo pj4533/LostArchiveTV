@@ -120,6 +120,16 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
         // Default implementation does nothing, to be overridden by subclasses
     }
     
+    func setTemporaryPlaybackRate(rate: Float) {
+        Logger.videoPlayback.debug("Setting temporary playback rate to \(rate)")
+        playbackManager.setTemporaryPlaybackRate(rate: rate)
+    }
+    
+    func resetPlaybackRate() {
+        Logger.videoPlayback.debug("Resetting playback rate")
+        playbackManager.resetPlaybackRate()
+    }
+    
     // MARK: - Video Caching
     
     /// Ensures videos are properly cached for smooth playback
