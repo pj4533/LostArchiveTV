@@ -7,6 +7,7 @@
 
 import SwiftUI
 import OSLog
+import CoreHaptics
 
 struct VideoGestureHandler: ViewModifier {
     let transitionManager: VideoTransitionManager
@@ -23,6 +24,7 @@ struct VideoGestureHandler: ViewModifier {
     
     // State for double-speed playback
     @State private var isLongPressing: Bool = false
+    @State private var showIndicator: Bool = false
     
     // Initialize with all dependencies
     init(
@@ -137,29 +139,36 @@ struct VideoGestureHandler: ViewModifier {
                 }
             }
         
-        // Use a TapGesture with minimum press duration to trigger 2x playback
-        // We'll track the state ourselves for more reliable press-and-hold behavior
-        let pressGesture = DragGesture(minimumDistance: 0)
-            .onChanged { _ in
-                // Set the playback rate to 2x when the press starts and maintain it
-                if !isLongPressing {
-                    Logger.videoPlayback.debug("⏩ PRESS DETECTED - SETTING 2X SPEED ⏩")
-                    isLongPressing = true
-                    
-                    // Cast to VideoControlProvider to access the rate control methods
-                    if let controlProvider = provider as? VideoControlProvider {
-                        controlProvider.setTemporaryPlaybackRate(rate: 2.0)
-                        Logger.videoPlayback.debug("🎬 Set playback rate to 2.0 on \(type(of: controlProvider))")
-                    } else {
-                        Logger.videoPlayback.error("❌ Provider \(type(of: provider)) does not conform to VideoControlProvider")
-                    }
+        // Create a long press gesture that activates after 1 second
+        // and handles both start and end of the gesture properly
+        let longPressGesture = LongPressGesture(minimumDuration: 1.0)
+            .onEnded { _ in
+                // Set the playback rate to 2x when the long press activates (after 1 second)
+                Logger.videoPlayback.debug("⏩ LONG PRESS ACTIVATED AFTER 1s - SETTING 2X SPEED ⏩")
+                isLongPressing = true
+                showIndicator = true
+                
+                // Provide haptic feedback
+                let impactGenerator = UIImpactFeedbackGenerator(style: .medium)
+                impactGenerator.impactOccurred()
+                
+                // Cast to VideoControlProvider to access the rate control methods
+                if let controlProvider = provider as? VideoControlProvider {
+                    controlProvider.setTemporaryPlaybackRate(rate: 2.0)
+                    Logger.videoPlayback.debug("🎬 Set playback rate to 2.0 on \(type(of: controlProvider))")
+                } else {
+                    Logger.videoPlayback.error("❌ Provider \(type(of: provider)) does not conform to VideoControlProvider")
                 }
             }
+        
+        // Combine the long press with a drag gesture to handle the end state
+        let combinedGesture = longPressGesture.sequenced(before: DragGesture(minimumDistance: 0))
             .onEnded { _ in
                 // Reset the playback rate when the finger is lifted
                 if isLongPressing {
                     Logger.videoPlayback.debug("⏩ FINGER LIFTED - RESETTING PLAYBACK SPEED ⏩")
                     isLongPressing = false
+                    showIndicator = false
                     
                     // Cast to VideoControlProvider to access the rate control methods
                     if let controlProvider = provider as? VideoControlProvider {
@@ -171,14 +180,21 @@ struct VideoGestureHandler: ViewModifier {
                 }
             }
         
-        // Apply both gestures to the content
-        return content
-            .gesture(
-                SimultaneousGesture(
-                    pressGesture,
-                    provider.player == nil ? nil : dragGesture
-                )
-            )
+        // Apply gestures to the content using simultaneousGesture which is safer
+        // than chaining multiple .gesture() calls
+        return ZStack {
+            content
+                .simultaneousGesture(combinedGesture)
+                .simultaneousGesture(provider.player == nil ? nil : dragGesture)
+            
+            // Fast-forward indicator overlay
+            if showIndicator {
+                FastForwardIndicator()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.opacity)
+                    .animation(.easeInOut(duration: 0.3), value: showIndicator)
+            }
+        }
     }
 }
 
