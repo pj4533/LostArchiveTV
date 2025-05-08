@@ -265,9 +265,9 @@ actor ArchiveService {
         return selectedFiles
     }
     
-    /// Selects a file from an array of playable files, prioritizing longer durations
+    /// Selects a file from an array of playable files, deprioritizing very short clips
     /// - Parameter files: Array of playable files (already filtered by format priority)
-    /// - Returns: A selected file, biased toward longer durations
+    /// - Returns: A selected file, with reduced likelihood of selecting clips under 1 minute
     func selectFilePreferringLongerDurations(from files: [ArchiveFile]) -> ArchiveFile? {
         guard !files.isEmpty else {
             Logger.metadata.error("Cannot select file from empty array")
@@ -313,39 +313,36 @@ actor ArchiveService {
             return files.randomElement()
         }
         
-        // Sort files by duration (longest first)
-        let sortedFiles = filesWithDuration.sorted { $0.duration > $1.duration }
+        // Define threshold for "very short" clips (60 seconds = 1 minute)
+        let shortClipThreshold: Double = 60.0
         
-        // Implement weighted random selection favoring longer videos
-        // Use exponential weighting to strongly prefer longer videos
-        var totalWeight: Double = 0
-        var weights: [Double] = []
+        // Separate files into "normal" and "very short" categories
+        let normalDurationFiles = filesWithDuration.filter { $0.duration >= shortClipThreshold }
+        let shortClipFiles = filesWithDuration.filter { $0.duration < shortClipThreshold }
         
-        // Calculate weights: longer videos get exponentially higher weights
-        for (index, _) in sortedFiles.enumerated() {
-            // Exponential decay based on position in sorted list
-            // Files at beginning (longest) get highest weight
-            let weight = exp(-0.5 * Double(index))
-            weights.append(weight)
-            totalWeight += weight
-        }
-        
-        // Generate a random point in the total weight range
-        let randomPoint = Double.random(in: 0..<totalWeight)
-        
-        // Find which weight segment the random point falls into
-        var currentSum: Double = 0
-        for i in 0..<weights.count {
-            currentSum += weights[i]
-            if randomPoint < currentSum {
-                Logger.metadata.info("Selected file with duration \(sortedFiles[i].duration)s (weighted selection)")
-                return sortedFiles[i].file
+        // If we have normal-length files, almost always pick from those (99% chance)
+        // but very occasionally allow short clips (1% chance)
+        if !normalDurationFiles.isEmpty {
+            // Determine if we should select from normal-length files or short clips
+            let allowShortClip = Double.random(in: 0..<1.0) < 0.01 // 1% chance to allow short clips
+            
+            if allowShortClip && !shortClipFiles.isEmpty {
+                // Select a random short clip
+                let selectedShortClip = shortClipFiles.randomElement()!
+                Logger.metadata.info("Selected short clip with duration \(selectedShortClip.duration)s (randomly allowed)")
+                return selectedShortClip.file
+            } else {
+                // Select a random normal-length file (all treated with equal weight)
+                let selectedNormalFile = normalDurationFiles.randomElement()!
+                Logger.metadata.info("Selected normal-length file with duration \(selectedNormalFile.duration)s")
+                return selectedNormalFile.file
             }
+        } else {
+            // All files are short clips, just pick randomly from what we have
+            let selectedFile = filesWithDuration.randomElement()!
+            Logger.metadata.info("All files are short clips, selected file with duration \(selectedFile.duration)s")
+            return selectedFile.file
         }
-        
-        // Fallback (should not reach here unless there's a numerical precision issue)
-        Logger.metadata.info("Fallback to longest file selection")
-        return sortedFiles.first?.file ?? files.randomElement()
     }
     
     func getFileDownloadURL(for file: ArchiveFile, identifier: String) -> URL? {
