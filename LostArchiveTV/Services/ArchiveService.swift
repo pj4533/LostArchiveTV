@@ -212,6 +212,89 @@ actor ArchiveService {
         return mp4Files
     }
     
+    /// Selects a file from an array of playable files, prioritizing longer durations
+    /// - Parameter files: Array of playable files (already filtered by format priority)
+    /// - Returns: A selected file, biased toward longer durations
+    func selectFilePreferringLongerDurations(from files: [ArchiveFile]) -> ArchiveFile? {
+        guard !files.isEmpty else {
+            Logger.metadata.error("Cannot select file from empty array")
+            return nil
+        }
+        
+        // If only one file, return it
+        if files.count == 1 {
+            return files.first
+        }
+        
+        // Extract durations for files that have them
+        var filesWithDuration: [(file: ArchiveFile, duration: Double)] = []
+        
+        for file in files {
+            if let lengthStr = file.length {
+                var estimatedDuration: Double = 0
+                
+                // Parse as direct seconds
+                if let directSeconds = Double(lengthStr) {
+                    estimatedDuration = directSeconds
+                }
+                // Parse as HH:MM:SS format
+                else if lengthStr.contains(":") {
+                    let components = lengthStr.components(separatedBy: ":")
+                    if components.count == 3, 
+                       let hours = Double(components[0]),
+                       let minutes = Double(components[1]),
+                       let seconds = Double(components[2]) {
+                        estimatedDuration = hours * 3600 + minutes * 60 + seconds
+                    }
+                }
+                
+                if estimatedDuration > 0 {
+                    filesWithDuration.append((file: file, duration: estimatedDuration))
+                }
+            }
+        }
+        
+        // If no files have duration info, fall back to random selection
+        if filesWithDuration.isEmpty {
+            Logger.metadata.info("No duration information available, using random selection")
+            return files.randomElement()
+        }
+        
+        // Sort files by duration (longest first)
+        let sortedFiles = filesWithDuration.sorted { $0.duration > $1.duration }
+        
+        // Implement weighted random selection favoring longer videos
+        // Use exponential weighting to strongly prefer longer videos
+        var totalWeight: Double = 0
+        var weights: [Double] = []
+        
+        // Calculate weights: longer videos get exponentially higher weights
+        for (index, _) in sortedFiles.enumerated() {
+            // Exponential decay based on position in sorted list
+            // Files at beginning (longest) get highest weight
+            let weight = exp(-0.5 * Double(index))
+            weights.append(weight)
+            totalWeight += weight
+        }
+        
+        // Generate a random point in the total weight range
+        let randomPoint = Double.random(in: 0..<totalWeight)
+        
+        // Find which weight segment the random point falls into
+        var currentSum: Double = 0
+        for i in 0..<weights.count {
+            currentSum += weights[i]
+            if randomPoint < currentSum {
+                Logger.metadata.info("Selected file with duration \(sortedFiles[i].duration)s (weighted selection)")
+                return sortedFiles[i].file
+            }
+        }
+        
+        // Fallback (should not reach here unless there's a numerical precision issue)
+        Logger.metadata.info("Fallback to longest file selection")
+        return sortedFiles.first?.file ?? files.randomElement()
+    }
+    
     func getFileDownloadURL(for file: ArchiveFile, identifier: String) -> URL? {
         return URL(string: "https://archive.org/download/\(identifier)/\(file.name)")
     }

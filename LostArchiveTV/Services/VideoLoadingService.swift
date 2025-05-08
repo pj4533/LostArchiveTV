@@ -70,8 +70,11 @@ actor VideoLoadingService {
             throw NSError(domain: "VideoLoadingError", code: 1, userInfo: [NSLocalizedDescriptionKey: "No MP4 file found"])
         }
         
-        // Select a random file from the available ones (maintaining priority - all files in mp4Files are of the same priority)
-        let mp4File = mp4Files.randomElement()!
+        // Select a file prioritizing longer durations
+        guard let mp4File = await archiveService.selectFilePreferringLongerDurations(from: mp4Files) else {
+            Logger.metadata.error("Failed to select file from available mp4Files")
+            throw NSError(domain: "VideoLoadingError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to select file"])
+        }
         
         guard let videoURL = await archiveService.getFileDownloadURL(for: mp4File, identifier: identifier.identifier) else {
             throw NSError(domain: "VideoLoadingError", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not create URL"])
@@ -225,8 +228,11 @@ actor VideoLoadingService {
             throw NSError(domain: "VideoPlayerError", code: 1, userInfo: [NSLocalizedDescriptionKey: error])
         }
         
-        // Select a random file from the available ones (maintaining priority - all files in mp4Files are of the same priority)
-        let mp4File = mp4Files.randomElement()!
+        // Select a file prioritizing longer durations
+        guard let mp4File = await archiveService.selectFilePreferringLongerDurations(from: mp4Files) else {
+            Logger.metadata.error("Failed to select file from available mp4Files")
+            throw NSError(domain: "VideoLoadingError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to select file"])
+        }
         
         guard let videoURL = await archiveService.getFileDownloadURL(for: mp4File, identifier: identifier) else {
             let error = "Could not create video URL"

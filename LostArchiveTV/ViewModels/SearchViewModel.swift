@@ -264,8 +264,12 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
             throw NSError(domain: "VideoPlayerError", code: 1, userInfo: [NSLocalizedDescriptionKey: error])
         }
         
-        // Select a random file from the available ones (maintaining priority - all files in mp4Files are of the same priority)
-        let mp4File = mp4Files.randomElement()!
+        // Select a file prioritizing longer durations
+        guard let mp4File = await archiveService.selectFilePreferringLongerDurations(from: mp4Files) else {
+            let error = "Failed to select file from available mp4Files"
+            Logger.metadata.error("\(error)")
+            throw NSError(domain: "VideoPlayerError", code: 1, userInfo: [NSLocalizedDescriptionKey: error])
+        }
         
         guard let videoURL = await archiveService.getFileDownloadURL(for: mp4File, identifier: identifier.identifier) else {
             let error = "Could not create video URL"
