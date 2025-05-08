@@ -258,11 +258,14 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
         // Find MP4 file
         let mp4Files = await archiveService.findPlayableFiles(in: metadata)
         
-        guard let mp4File = mp4Files.first else {
+        guard !mp4Files.isEmpty else {
             let error = "No MP4 file found in the archive"
             Logger.metadata.error("\(error)")
             throw NSError(domain: "VideoPlayerError", code: 1, userInfo: [NSLocalizedDescriptionKey: error])
         }
+        
+        // Select a random file from the available ones (maintaining priority - all files in mp4Files are of the same priority)
+        let mp4File = mp4Files.randomElement()!
         
         guard let videoURL = await archiveService.getFileDownloadURL(for: mp4File, identifier: identifier.identifier) else {
             let error = "Could not create video URL"

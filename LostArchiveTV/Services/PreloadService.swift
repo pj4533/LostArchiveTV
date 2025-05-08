@@ -157,10 +157,13 @@ actor PreloadService {
         // Find MP4 file
         let mp4Files = await archiveService.findPlayableFiles(in: metadata)
         
-        guard let mp4File = mp4Files.first else {
+        guard !mp4Files.isEmpty else {
             Logger.caching.error("No MP4 file found for \(identifier)")
             throw NSError(domain: "PreloadError", code: 2, userInfo: [NSLocalizedDescriptionKey: "No MP4 file found"])
         }
+        
+        // Select a random file from the available ones (maintaining priority - all files in mp4Files are of the same priority)
+        let mp4File = mp4Files.randomElement()!
         
         // Create URL and asset
         guard let videoURL = await archiveService.getFileDownloadURL(for: mp4File, identifier: identifier) else {
