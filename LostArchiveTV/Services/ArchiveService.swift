@@ -186,7 +186,29 @@ actor ArchiveService {
     }
     
     func findPlayableFiles(in metadata: ArchiveMetadata) -> [ArchiveFile] {
+        let identifier = metadata.metadata?.identifier ?? "unknown"
+        
+        // First look for h.264 IA format files (highest priority)
+        let h264IAFiles = metadata.files.filter { $0.format == "h.264 IA" }
+        
+        // If h.264 IA files exist, return those
+        if !h264IAFiles.isEmpty {
+            Logger.metadata.debug("[\(identifier)] Found \(h264IAFiles.count) h.264 IA format files")
+            return h264IAFiles
+        }
+        
+        // Second, look for h.264 format files
+        let h264Files = metadata.files.filter { $0.format == "h.264" }
+        
+        // If h.264 files exist, return those
+        if !h264Files.isEmpty {
+            Logger.metadata.debug("[\(identifier)] No h.264 IA files found. Found \(h264Files.count) h.264 format files")
+            return h264Files
+        }
+        
+        // Finally fall back to MPEG4 files as before
         let mp4Files = metadata.files.filter { $0.format == "MPEG4" || ($0.name.hasSuffix(".mp4")) }
+        Logger.metadata.debug("[\(identifier)] No h.264 IA or h.264 files found, falling back to \(mp4Files.count) MPEG4 files")
         return mp4Files
     }
     
