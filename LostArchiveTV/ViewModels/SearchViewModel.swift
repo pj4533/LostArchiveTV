@@ -232,6 +232,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
             
             // Update metadata properties
             currentIdentifier = identifier.identifier
+            currentFilename = videoInfo.filename
             if let result = searchResults.first(where: { $0.identifier.identifier == identifier.identifier }) {
                 currentTitle = result.title
                 currentDescription = result.description
@@ -247,7 +248,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
     }
     
     // Method to load a video for a specific identifier
-    internal func loadFreshRandomVideo(for identifier: ArchiveIdentifier) async throws -> (identifier: String, collection: String, title: String, description: String, asset: AVAsset, startPosition: Double) {
+    internal func loadFreshRandomVideo(for identifier: ArchiveIdentifier) async throws -> (identifier: String, collection: String, title: String, description: String, filename: String, asset: AVAsset, startPosition: Double) {
         Logger.metadata.info("Loading video for specific identifier: \(identifier.identifier) from collection: \(identifier.collection)")
         
         let metadataStartTime = CFAbsoluteTimeGetCurrent()
@@ -289,6 +290,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
         // Set title and description from metadata
         let title = metadata.metadata?.title ?? identifier.identifier
         let description = metadata.metadata?.description ?? "Internet Archive video"
+        let filename = mp4File.name
         
         // Get estimated duration from metadata
         let estimatedDuration = await archiveService.estimateDuration(fromFile: mp4File)
@@ -312,6 +314,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
             identifier.collection,
             title,
             description,
+            filename,
             asset,
             randomStart
         )

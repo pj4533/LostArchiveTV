@@ -6,6 +6,7 @@ struct VideoMetadataView: View {
     let collection: String?
     let description: String?
     let identifier: String?
+    let filename: String?
     var currentTime: Double? = nil
     var duration: Double? = nil
     
@@ -37,6 +38,13 @@ struct VideoMetadataView: View {
             
             if let collection = collection {
                 Text("Collection: \(collection)")
+                    .font(.footnote)
+                    .foregroundColor(.white.opacity(0.8))
+                    .lineLimit(1)
+            }
+            
+            if let filename = filename {
+                Text("File: \(filename)")
                     .font(.footnote)
                     .foregroundColor(.white.opacity(0.8))
                     .lineLimit(1)

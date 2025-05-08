@@ -81,6 +81,7 @@ extension VideoPlayerViewModel {
             currentCollection = videoInfo.collection
             currentTitle = videoInfo.title
             currentDescription = videoInfo.description
+            currentFilename = videoInfo.filename
             
             // Create a player with the seek position already applied
             let player = AVPlayer(playerItem: AVPlayerItem(asset: videoInfo.asset))
@@ -165,6 +166,7 @@ extension VideoPlayerViewModel {
             currentCollection = videoInfo.collection
             currentTitle = videoInfo.title
             currentDescription = videoInfo.description
+            currentFilename = videoInfo.filename
             
             // Create a player with the seek position already applied
             let player = AVPlayer(playerItem: AVPlayerItem(asset: videoInfo.asset))

@@ -69,6 +69,7 @@ class FavoritesViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
             currentTitle = video.title
             currentCollection = video.collection
             currentDescription = video.description
+            currentFilename = video.mp4File.name
         }
     }
     

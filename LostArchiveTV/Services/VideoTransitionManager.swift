@@ -29,6 +29,7 @@ class VideoTransitionManager: ObservableObject {
     var nextCollection: String { preloadManager.nextCollection }
     var nextDescription: String { preloadManager.nextDescription }
     var nextIdentifier: String { preloadManager.nextIdentifier }
+    var nextFilename: String { preloadManager.nextFilename }
     
     var prevVideoReady: Bool { preloadManager.prevVideoReady }
     var prevPlayer: AVPlayer? { preloadManager.prevPlayer }
@@ -36,6 +37,7 @@ class VideoTransitionManager: ObservableObject {
     var prevCollection: String { preloadManager.prevCollection }
     var prevDescription: String { preloadManager.prevDescription }
     var prevIdentifier: String { preloadManager.prevIdentifier }
+    var prevFilename: String { preloadManager.prevFilename }
     
     // MARK: - Preloading Methods
     
@@ -216,6 +218,7 @@ class VideoTransitionManager: ObservableObject {
             provider.currentCollection = self.nextCollection
             provider.currentDescription = self.nextDescription
             provider.currentIdentifier = self.nextIdentifier
+            provider.currentFilename = self.nextFilename
             
             // Unmute the new player and play it
             nextPlayer.isMuted = false
@@ -314,6 +317,7 @@ class VideoTransitionManager: ObservableObject {
             provider.currentCollection = self.prevCollection
             provider.currentDescription = self.prevDescription
             provider.currentIdentifier = self.prevIdentifier
+            provider.currentFilename = self.prevFilename
             
             // Unmute the previous player and play it
             prevPlayer.isMuted = false

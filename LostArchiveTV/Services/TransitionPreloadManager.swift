@@ -18,6 +18,7 @@ class TransitionPreloadManager {
     @Published var nextCollection: String = ""
     @Published var nextDescription: String = ""
     @Published var nextIdentifier: String = ""
+    @Published var nextFilename: String = ""
     
     // Previous (up) video properties
     @Published var prevVideoReady = false
@@ -26,6 +27,7 @@ class TransitionPreloadManager {
     @Published var prevCollection: String = ""
     @Published var prevDescription: String = ""
     @Published var prevIdentifier: String = ""
+    @Published var prevFilename: String = ""
     
     // Preload the next video while current one is playing
     func preloadNextVideo(provider: VideoProvider) async {
@@ -59,6 +61,7 @@ class TransitionPreloadManager {
                 nextCollection = nextVideo.collection
                 nextDescription = nextVideo.description
                 nextIdentifier = nextVideo.identifier
+                nextFilename = nextVideo.mp4File.name
                 
                 // Store reference to next player
                 nextPlayer = player
@@ -149,6 +152,7 @@ class TransitionPreloadManager {
                         nextCollection = nextVideo.collection ?? ""
                         nextDescription = nextVideo.description
                         nextIdentifier = nextVideo.identifier
+                        nextFilename = nextVideo.mp4File.name
                         
                         // Store reference to next player
                         nextPlayer = player
@@ -203,6 +207,7 @@ class TransitionPreloadManager {
                 prevCollection = previousVideo.collection ?? ""
                 prevDescription = previousVideo.description
                 prevIdentifier = previousVideo.identifier
+                prevFilename = previousVideo.mp4File.name
                 
                 // Store reference to previous player
                 prevPlayer = player

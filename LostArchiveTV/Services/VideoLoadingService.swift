@@ -174,7 +174,7 @@ actor VideoLoadingService {
         return cachedVideo
     }
 
-    func loadRandomVideo() async throws -> (identifier: String, collection: String, title: String, description: String, asset: AVAsset, startPosition: Double) {
+    func loadRandomVideo() async throws -> (identifier: String, collection: String, title: String, description: String, filename: String, asset: AVAsset, startPosition: Double) {
         Logger.videoPlayback.info("▶️ PLAYBACK: loadRandomVideo called - checking cache first")
         
         // Check if we have cached videos available
@@ -187,6 +187,7 @@ actor VideoLoadingService {
                 cachedVideo.collection,
                 cachedVideo.title,
                 cachedVideo.description,
+                cachedVideo.mp4File.name,
                 cachedVideo.asset,
                 cachedVideo.startPosition
             )
@@ -201,7 +202,7 @@ actor VideoLoadingService {
     
     /// Public method for loading a fresh random video directly, bypassing the cache
     /// Used for fast startup to show the first video as quickly as possible
-    func loadFreshRandomVideo() async throws -> (identifier: String, collection: String, title: String, description: String, asset: AVAsset, startPosition: Double) {
+    func loadFreshRandomVideo() async throws -> (identifier: String, collection: String, title: String, description: String, filename: String, asset: AVAsset, startPosition: Double) {
         // Get random identifier with user preferences
         let identifiers = try await loadIdentifiersWithUserPreferences()
         guard let randomArchiveIdentifier = await archiveService.getRandomIdentifier(from: identifiers) else {
@@ -298,6 +299,7 @@ actor VideoLoadingService {
         // Set title and description from metadata
         let title = metadata.metadata?.title ?? identifier
         let description = metadata.metadata?.description ?? "Internet Archive random video clip"
+        let filename = mp4File.name
         
         // Get estimated duration from metadata
         let estimatedDuration = await archiveService.estimateDuration(fromFile: mp4File)
@@ -323,6 +325,7 @@ actor VideoLoadingService {
             collection,
             title,
             description,
+            filename,
             asset,
             startPosition
         )

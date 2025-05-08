@@ -45,6 +45,7 @@ struct SearchVideoLayerContent: View {
                         collection: result.identifier.collection,
                         description: result.description,
                         identifier: result.identifier.identifier,
+                        filename: viewModel.currentFilename,
                         currentTime: player.currentItem != nil ? player.currentTime().seconds : nil,
                         duration: viewModel.videoDuration
                     )

@@ -5,14 +5,16 @@ struct BottomInfoPanel: View {
     let collection: String?
     let description: String?
     let identifier: String?
+    let filename: String?
     let currentTime: Double?
     let duration: Double
     
-    init(title: String?, collection: String?, description: String?, identifier: String?, currentTime: Double?, duration: Double) {
+    init(title: String?, collection: String?, description: String?, identifier: String?, filename: String? = nil, currentTime: Double?, duration: Double) {
         self.title = title
         self.collection = collection
         self.description = description
         self.identifier = identifier
+        self.filename = filename
         self.currentTime = currentTime
         // Ensure duration is valid (not NaN or infinity)
         if duration.isNaN || duration.isInfinite {
@@ -28,12 +30,13 @@ struct BottomInfoPanel: View {
             
             // Bottom overlay with title and description
             VStack(alignment: .leading, spacing: 8) {
-                // Video metadata (title, collection, description)
+                // Video metadata (title, collection, description, filename)
                 VideoMetadataView(
                     title: title,
                     collection: collection,
                     description: description,
                     identifier: identifier,
+                    filename: filename,
                     currentTime: currentTime,
                     duration: duration
                 )

@@ -199,7 +199,7 @@ extension SearchViewModel {
                 )
             ),
             mp4File: ArchiveFile(
-                name: identifier.identifier,
+                name: videoInfo.filename,
                 format: "h.264",
                 size: "",
                 length: nil

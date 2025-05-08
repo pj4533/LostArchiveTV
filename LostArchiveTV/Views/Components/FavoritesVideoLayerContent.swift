@@ -44,6 +44,7 @@ struct FavoritesVideoLayerContent: View {
                         collection: video.collection,
                         description: video.description,
                         identifier: video.identifier,
+                        filename: viewModel.currentFilename,
                         currentTime: player.currentItem != nil ? player.currentTime().seconds : nil,
                         duration: viewModel.videoDuration
                     )

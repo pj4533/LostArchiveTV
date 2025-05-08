@@ -36,6 +36,7 @@ protocol VideoProvider: AnyObject {
     var currentTitle: String? { get set }
     var currentCollection: String? { get set }
     var currentDescription: String? { get set }
+    var currentFilename: String? { get set }
     
     // Ensure videos are preloaded/cached
     func ensureVideosAreCached() async

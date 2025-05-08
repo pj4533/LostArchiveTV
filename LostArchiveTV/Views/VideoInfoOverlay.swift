@@ -34,6 +34,7 @@ struct VideoInfoOverlay: View {
                 collection: collection,
                 description: description,
                 identifier: identifier,
+                filename: viewModel.currentFilename,
                 currentTime: viewModel.player?.currentTime().seconds,
                 duration: viewModel.videoDuration
             )

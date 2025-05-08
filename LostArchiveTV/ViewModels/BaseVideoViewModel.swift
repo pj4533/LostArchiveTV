@@ -25,6 +25,7 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
     @Published var currentCollection: String?
     @Published var currentTitle: String?
     @Published var currentDescription: String?
+    @Published var currentFilename: String?
     @Published var videoDuration: Double = 0
     
     // MARK: - Initialization
