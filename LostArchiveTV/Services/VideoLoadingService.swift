@@ -74,16 +74,72 @@ actor VideoLoadingService {
             throw NSError(domain: "VideoLoadingError", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not create URL"])
         }
         
-        // Create optimized asset
+        // Create optimized asset with format-specific settings
         let headers: [String: String] = [
            "Cookie": EnvironmentService.shared.archiveCookie
         ]
-        // Create an asset from the URL
-        let asset = AVURLAsset(url: videoURL, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
-
-        // Create player item with caching configuration
+        
+        // -------------------- START: FORMAT-SPECIFIC ASSET OPTIMIZATIONS --------------------
+        // Detect file format for optimizations
+        let fileFormat = mp4File.format ?? "unknown"
+        let isH264 = fileFormat.contains("h.264")
+        let isH264IA = fileFormat == "h.264 IA"
+        
+        Logger.videoPlayback.info("Format-specific optimizations for file format: \(fileFormat)")
+        
+        // Configure asset options based on format
+        var resourceOptions: [String: Any] = ["AVURLAssetHTTPHeaderFieldsKey": headers]
+        
+        if isH264IA {
+            // h.264 IA specific optimizations for fastest startup
+            Logger.videoPlayback.debug("Applying h.264 IA specific optimizations")
+            // No additional options needed - the format is already optimized for streaming
+        } else if isH264 {
+            // Regular h.264 optimizations
+            Logger.videoPlayback.debug("Applying regular h.264 optimizations")
+            resourceOptions["AVURLAssetPreferPreciseDurationAndTimingKey"] = true
+        } else {
+            // MPEG4 optimizations
+            Logger.videoPlayback.debug("Applying MPEG4 optimizations")
+            resourceOptions["AVURLAssetPreferPreciseDurationAndTimingKey"] = true
+            resourceOptions["AVURLAssetHTTPUserAgentKey"] = "Mozilla/5.0" // More complete header helps with CDNs
+        }
+        
+        // Create an asset from the URL with format-specific options
+        let asset = AVURLAsset(url: videoURL, options: resourceOptions)
+        
+        // Preload specific keys based on format for faster startup
+        do {
+            if isH264IA {
+                // For h.264 IA files, just load the playable key
+                try await asset.loadValues(forKeys: ["playable"])
+            } else if isH264 {
+                // For regular h.264, load minimal keys
+                try await asset.loadValues(forKeys: ["playable"])
+            } else {
+                // For MPEG4, preload essential metadata
+                try await asset.loadValues(forKeys: ["tracks", "duration"])
+            }
+        } catch {
+            Logger.videoPlayback.warning("Failed to preload asset keys: \(error.localizedDescription)")
+            // Continue anyway - this is just an optimization
+        }
+        
+        // Create player item with format-specific caching configuration
         let playerItem = AVPlayerItem(asset: asset)
-        playerItem.preferredForwardBufferDuration = 60
+        
+        // Configure buffer size based on format
+        if isH264IA {
+            playerItem.preferredForwardBufferDuration = 15  // Smaller buffer for optimized format
+        } else if isH264 {
+            playerItem.preferredForwardBufferDuration = 30  // Medium buffer for h.264
+        } else {
+            playerItem.preferredForwardBufferDuration = 60  // Larger buffer for MPEG4
+        }
+        
+        // Allow network caching while paused for all formats
+        playerItem.canUseNetworkResourcesForLiveStreamingWhilePaused = true
+        // -------------------- END: FORMAT-SPECIFIC ASSET OPTIMIZATIONS --------------------
         
         // Calculate a start position
         let estimatedDuration = await archiveService.estimateDuration(fromFile: mp4File)
@@ -94,9 +150,6 @@ actor VideoLoadingService {
         // Check if "start at beginning" setting is enabled
         let startAtBeginning = PlaybackPreferences.alwaysStartAtBeginning
         let startPosition = startAtBeginning ? 0.0 : (safeMaxStartTime > 10 ? Double.random(in: 0..<safeMaxStartTime) : 0)
-        
-        // Try to load the asset's duration to ensure it's valid and preload some data
-        try? await asset.load(.duration)
         
         // Create and return the cached video
         let cachedVideo = CachedVideo(
@@ -180,9 +233,55 @@ actor VideoLoadingService {
         let headers: [String: String] = [
            "Cookie": EnvironmentService.shared.archiveCookie
         ]
-        // Create an asset from the URL
-        let asset = AVURLAsset(url: videoURL, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
-        Logger.videoPlayback.debug("Created AVURLAsset")
+        
+        // -------------------- START: FORMAT-SPECIFIC ASSET OPTIMIZATIONS --------------------
+        // Detect file format for optimizations
+        let fileFormat = mp4File.format ?? "unknown"
+        let isH264 = fileFormat.contains("h.264")
+        let isH264IA = fileFormat == "h.264 IA"
+        
+        Logger.videoPlayback.info("Format-specific optimizations for file format: \(fileFormat)")
+        
+        // Configure asset options based on format
+        var resourceOptions: [String: Any] = ["AVURLAssetHTTPHeaderFieldsKey": headers]
+        
+        if isH264IA {
+            // h.264 IA specific optimizations for fastest startup
+            Logger.videoPlayback.debug("Applying h.264 IA specific optimizations")
+            // No additional options needed - the format is already optimized for streaming
+        } else if isH264 {
+            // Regular h.264 optimizations
+            Logger.videoPlayback.debug("Applying regular h.264 optimizations")
+            resourceOptions["AVURLAssetPreferPreciseDurationAndTimingKey"] = true
+        } else {
+            // MPEG4 optimizations
+            Logger.videoPlayback.debug("Applying MPEG4 optimizations")
+            resourceOptions["AVURLAssetPreferPreciseDurationAndTimingKey"] = true
+            resourceOptions["AVURLAssetHTTPUserAgentKey"] = "Mozilla/5.0" // More complete header helps with CDNs
+        }
+        
+        // Create an asset from the URL with format-specific options
+        let asset = AVURLAsset(url: videoURL, options: resourceOptions)
+        
+        // Preload specific keys based on format for faster startup
+        do {
+            if isH264IA {
+                // For h.264 IA files, just load the playable key
+                try await asset.loadValues(forKeys: ["playable"])
+            } else if isH264 {
+                // For regular h.264, load minimal keys
+                try await asset.loadValues(forKeys: ["playable"])
+            } else {
+                // For MPEG4, preload essential metadata
+                try await asset.loadValues(forKeys: ["tracks", "duration"])
+            }
+        } catch {
+            Logger.videoPlayback.warning("Failed to preload asset keys: \(error.localizedDescription)")
+            // Continue anyway - this is just an optimization
+        }
+        // -------------------- END: FORMAT-SPECIFIC ASSET OPTIMIZATIONS --------------------
+        
+        Logger.videoPlayback.debug("Created AVURLAsset with format-specific optimizations")
         
         // Set title and description from metadata
         let title = metadata.metadata?.title ?? identifier

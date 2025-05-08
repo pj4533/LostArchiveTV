@@ -109,6 +109,48 @@ class PlayerManager: ObservableObject {
             _currentVideoURL = urlAsset.url
         }
         
+        // -------------------- START: FORMAT-SPECIFIC PLAYER OPTIMIZATIONS --------------------
+        // Detect the format from URL if possible
+        var fileFormat = "unknown"
+        var isH264 = false
+        var isH264IA = false
+        
+        if let urlAsset = asset as? AVURLAsset {
+            // Try to extract format from URL path components
+            let urlPath = urlAsset.url.path.lowercased()
+            
+            // Update format information for logging
+            if urlPath.contains("h.264") && urlPath.contains("ia") {
+                fileFormat = "h.264 IA"
+                isH264 = true
+                isH264IA = true
+            } else if urlPath.contains("h.264") || urlPath.contains("h264") {
+                fileFormat = "h.264"
+                isH264 = true
+            } else {
+                fileFormat = "MPEG4"
+            }
+            
+            Logger.videoPlayback.info("Player setup with format-specific optimizations for: \(fileFormat)")
+        }
+        
+        // Apply format-specific player settings
+        if isH264IA {
+            // h.264 IA specific player optimizations
+            Logger.videoPlayback.debug("Applying h.264 IA specific player settings")
+            // For h.264 IA, we can disable waiting to minimize stalling since it's optimized for streaming
+            player?.automaticallyWaitsToMinimizeStalling = false
+        } else if isH264 {
+            // Regular h.264 optimizations - keep auto stalling for smoother playback
+            Logger.videoPlayback.debug("Applying regular h.264 player settings")
+            player?.automaticallyWaitsToMinimizeStalling = true
+        } else {
+            // MPEG4 - definitely need auto stalling
+            Logger.videoPlayback.debug("Applying MPEG4 player settings")
+            player?.automaticallyWaitsToMinimizeStalling = true
+        }
+        // -------------------- END: FORMAT-SPECIFIC PLAYER OPTIMIZATIONS --------------------
+        
         // Set up time observer
         setupTimeObserver()
         
