@@ -188,28 +188,81 @@ actor ArchiveService {
     func findPlayableFiles(in metadata: ArchiveMetadata) -> [ArchiveFile] {
         let identifier = metadata.metadata?.identifier ?? "unknown"
         
-        // First look for h.264 IA format files (highest priority)
-        let h264IAFiles = metadata.files.filter { $0.format == "h.264 IA" }
+        // Create file groups by name (without extension)
+        var fileGroups: [String: [ArchiveFile]] = [:]
         
-        // If h.264 IA files exist, return those
-        if !h264IAFiles.isEmpty {
-            Logger.metadata.debug("[\(identifier)] Found \(h264IAFiles.count) h.264 IA format files")
-            return h264IAFiles
+        // Group files that represent the same content but in different formats
+        for file in metadata.files {
+            // Skip non-video files or files without names
+            guard file.name.hasSuffix(".mp4") || 
+                  file.format == "h.264 IA" || 
+                  file.format == "h.264" || 
+                  file.format == "MPEG4" else {
+                continue
+            }
+            
+            // Extract base name without extension to group files
+            let baseName = file.name.replacingOccurrences(of: "\\.mp4$", with: "", options: .regularExpression)
+            
+            if fileGroups[baseName] == nil {
+                fileGroups[baseName] = []
+            }
+            fileGroups[baseName]?.append(file)
         }
         
-        // Second, look for h.264 format files
-        let h264Files = metadata.files.filter { $0.format == "h.264" }
+        // For each group, select the highest priority format
+        var selectedFiles: [ArchiveFile] = []
         
-        // If h.264 files exist, return those
-        if !h264Files.isEmpty {
-            Logger.metadata.debug("[\(identifier)] No h.264 IA files found. Found \(h264Files.count) h.264 format files")
-            return h264Files
+        for (baseName, files) in fileGroups {
+            // Check for each format in priority order
+            let h264IAFile = files.first { $0.format == "h.264 IA" }
+            let h264File = files.first { $0.format == "h.264" }
+            let mp4File = files.first { $0.format == "MPEG4" || $0.name.hasSuffix(".mp4") }
+            
+            // Add the highest priority format available for this file
+            if let file = h264IAFile {
+                selectedFiles.append(file)
+                Logger.metadata.debug("[\(identifier)] Selected h.264 IA format for \(baseName)")
+            } else if let file = h264File {
+                selectedFiles.append(file)
+                Logger.metadata.debug("[\(identifier)] Selected h.264 format for \(baseName)")
+            } else if let file = mp4File {
+                selectedFiles.append(file)
+                Logger.metadata.debug("[\(identifier)] Selected MPEG4 format for \(baseName)")
+            }
         }
         
-        // Finally fall back to MPEG4 files as before
-        let mp4Files = metadata.files.filter { $0.format == "MPEG4" || ($0.name.hasSuffix(".mp4")) }
-        Logger.metadata.debug("[\(identifier)] No h.264 IA or h.264 files found, falling back to \(mp4Files.count) MPEG4 files")
-        return mp4Files
+        // If we don't have any files after grouping (which could happen if the grouping logic has issues),
+        // fall back to the old method
+        if selectedFiles.isEmpty {
+            Logger.metadata.warning("[\(identifier)] No files selected using per-file priority, falling back to legacy method")
+            
+            // First look for h.264 IA format files (highest priority)
+            let h264IAFiles = metadata.files.filter { $0.format == "h.264 IA" }
+            
+            // If h.264 IA files exist, return those
+            if !h264IAFiles.isEmpty {
+                Logger.metadata.debug("[\(identifier)] Found \(h264IAFiles.count) h.264 IA format files")
+                return h264IAFiles
+            }
+            
+            // Second, look for h.264 format files
+            let h264Files = metadata.files.filter { $0.format == "h.264" }
+            
+            // If h.264 files exist, return those
+            if !h264Files.isEmpty {
+                Logger.metadata.debug("[\(identifier)] No h.264 IA files found. Found \(h264Files.count) h.264 format files")
+                return h264Files
+            }
+            
+            // Finally fall back to MPEG4 files
+            let mp4Files = metadata.files.filter { $0.format == "MPEG4" || ($0.name.hasSuffix(".mp4")) }
+            Logger.metadata.debug("[\(identifier)] No h.264 IA or h.264 files found, falling back to \(mp4Files.count) MPEG4 files")
+            return mp4Files
+        }
+        
+        Logger.metadata.debug("[\(identifier)] Selected \(selectedFiles.count) files using per-file format prioritization")
+        return selectedFiles
     }
     
     /// Selects a file from an array of playable files, prioritizing longer durations
