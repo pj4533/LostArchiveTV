@@ -34,7 +34,14 @@ class TransitionPreloadManager {
     // Preload the next video while current one is playing
     func preloadNextVideo(provider: VideoProvider) async {
         Logger.caching.info("🔍 PRELOAD NEXT: Starting for \(String(describing: type(of: provider)))")
-        
+
+        // Log cache state for debugging
+        if let cacheableProvider = provider as? CacheableProvider {
+            let cacheCount = await cacheableProvider.cacheManager.cacheCount()
+            let maxCache = await cacheableProvider.cacheManager.getMaxCacheSize()
+            Logger.caching.info("⚙️ PRELOAD NEXT: Cache state: \(cacheCount)/\(maxCache) before preloading")
+        }
+
         // Reset next video ready flag
         await MainActor.run {
             nextVideoReady = false
@@ -76,6 +83,23 @@ class TransitionPreloadManager {
             }
             
             Logger.caching.info("✅ PRELOAD NEXT: Successfully prepared next video: \(nextVideo.identifier)")
+
+            // Check cache state after preloading to understand relationship to cache
+            if let cacheableProvider = provider as? CacheableProvider {
+                let cacheCount = await cacheableProvider.cacheManager.cacheCount()
+                let maxCache = await cacheableProvider.cacheManager.getMaxCacheSize()
+                Logger.caching.info("🔍 PRELOAD NEXT: Cache state AFTER preloading from history: \(cacheCount)/\(maxCache)")
+
+                // Debug: log all cached video identifiers
+                let cachedIds = await cacheableProvider.cacheManager.getCachedVideos().map { $0.identifier }
+                Logger.caching.info("🔍 PRELOAD NEXT: Cached IDs: \(cachedIds.joined(separator: ", "))")
+                Logger.caching.info("🔍 PRELOAD NEXT: Next video ID: \(nextVideo.identifier)")
+
+                // The critical check - is the next video from the cache or separate?
+                let isInCache = cachedIds.contains(nextVideo.identifier)
+                Logger.caching.info("❓ PRELOAD NEXT: Is next video in cache? \(isInCache)")
+            }
+
             return
         }
         
@@ -124,8 +148,20 @@ class TransitionPreloadManager {
                     // Mark next video as ready
                     nextVideoReady = true
                 }
-                
+
                 Logger.caching.info("Successfully preloaded new random video: \(videoInfo.identifier)")
+
+                // Check cache state after preloading to understand relationship to cache
+                if let cacheableProvider = provider as? CacheableProvider {
+                    let cacheCount = await cacheableProvider.cacheManager.cacheCount()
+                    let maxCache = await cacheableProvider.cacheManager.getMaxCacheSize()
+                    Logger.caching.info("⚠️ PRELOAD NEXT: Cache state AFTER preloading random: \(cacheCount)/\(maxCache) - NEXT VIDEO IS OUTSIDE CACHE!")
+
+                    // Debug: log all cached video identifiers
+                    let cachedIds = await cacheableProvider.cacheManager.getCachedVideos().map { $0.identifier }
+                    Logger.caching.info("⚠️ PRELOAD NEXT: Cached IDs: \(cachedIds.joined(separator: ", "))")
+                    Logger.caching.info("⚠️ PRELOAD NEXT: Next video ID: \(videoInfo.identifier)")
+                }
             } catch {
                 // Retry on error after a short delay
                 Logger.caching.error("Failed to preload random video: \(error.localizedDescription)")
@@ -256,43 +292,51 @@ class TransitionPreloadManager {
     /// - Parameter provider: The video provider that supplies videos
     func ensureAllVideosCached(provider: VideoProvider) async {
         Logger.caching.info("🔄 CACHING: Starting unified caching for \(String(describing: type(of: provider)))")
-        
+
         // 1. Fill general cache if provider supports it
         if let cacheableProvider = provider as? CacheableProvider {
             Logger.caching.info("✅ CACHING: Provider supports general caching")
             let identifiers = cacheableProvider.getIdentifiersForGeneralCaching()
-            
+
             if !identifiers.isEmpty {
                 Logger.caching.info("📊 CACHING: Provider returned \(identifiers.count) identifiers for general caching")
-                
+
                 // Check current cache state before caching
-                let initialCacheCount = await cacheableProvider.cacheManager.cacheCount()
-                Logger.caching.info("📊 CACHING: Current cache size before caching: \(initialCacheCount)")
-                
-                if provider is VideoPlayerViewModel {
-                    // For the main player, use PreloadService which has the most robust implementation
-                    Logger.caching.info("🔄 CACHING: Using PreloadService for main player with \(identifiers.count) identifiers")
-                    await cacheableProvider.preloadService.ensureVideosAreCached(
-                        cacheManager: cacheableProvider.cacheManager,
-                        archiveService: cacheableProvider.archiveService,
-                        identifiers: identifiers
-                    )
-                    
-                    // Check cache state after preload service has run
-                    let cacheSizeAfterPreload = await cacheableProvider.cacheManager.cacheCount()
-                    Logger.caching.info("📊 CACHING: Cache size after PreloadService: \(cacheSizeAfterPreload)")
+                let cacheManager = cacheableProvider.cacheManager
+                let initialCacheCount = await cacheManager.cacheCount()
+                let maxCacheSize = await cacheManager.getMaxCacheSize()
+
+                Logger.caching.info("📊 CACHING: Current cache size before caching: \(initialCacheCount)/\(maxCacheSize)")
+
+                // Calculate how many videos we need to add to reach the full cache size
+                let videosNeeded = maxCacheSize - initialCacheCount
+
+                if videosNeeded > 0 {
+                    Logger.caching.info("🔄 CACHING: Need to add \(videosNeeded) videos to reach full cache")
+
+                    if provider is VideoPlayerViewModel {
+                        // For the main player, use PreloadService which has the most robust implementation
+                        Logger.caching.info("🔄 CACHING: Using PreloadService for main player with \(identifiers.count) identifiers")
+                        await cacheableProvider.preloadService.ensureVideosAreCached(
+                            cacheManager: cacheableProvider.cacheManager,
+                            archiveService: cacheableProvider.archiveService,
+                            identifiers: identifiers
+                        )
+                    } else {
+                        // For other providers (Favorites, Search), use VideoCacheManager directly
+                        // This provides more immediate caching for the current view
+                        Logger.caching.info("🔄 CACHING: Using VideoCacheManager directly for \(String(describing: type(of: provider)))")
+                        await cacheableProvider.cacheManager.ensureVideosAreCached(
+                            identifiers: identifiers,
+                            using: cacheableProvider.archiveService
+                        )
+                    }
+
+                    // Check cache after caching
+                    let finalCacheCount = await cacheManager.cacheCount()
+                    Logger.caching.info("📊 CACHING: Cache size after filling: \(finalCacheCount)/\(maxCacheSize)")
                 } else {
-                    // For other providers (Favorites, Search), use VideoCacheManager directly
-                    // This provides more immediate caching for the current view
-                    Logger.caching.info("🔄 CACHING: Using VideoCacheManager directly for \(String(describing: type(of: provider)))")
-                    await cacheableProvider.cacheManager.ensureVideosAreCached(
-                        identifiers: identifiers, 
-                        using: cacheableProvider.archiveService
-                    )
-                    
-                    // Check cache after direct caching
-                    let cacheSizeAfterDirect = await cacheableProvider.cacheManager.cacheCount()
-                    Logger.caching.info("📊 CACHING: Cache size after direct caching: \(cacheSizeAfterDirect)")
+                    Logger.caching.info("📊 CACHING: Cache is already full, no need to add more videos")
                 }
             } else {
                 Logger.caching.warning("⚠️ CACHING: Provider returned no identifiers for general caching")
@@ -300,13 +344,13 @@ class TransitionPreloadManager {
         } else {
             Logger.caching.info("⚠️ CACHING: Provider does not support general caching")
         }
-        
+
         // 2. Always prepare next/previous videos for transitions
         Logger.caching.info("🔄 CACHING: Preloading next and previous videos for transitions")
         async let nextTask = preloadNextVideo(provider: provider)
         async let prevTask = preloadPreviousVideo(provider: provider)
         _ = await (nextTask, prevTask)
-        
+
         Logger.caching.info("✅ CACHING: Unified caching complete - nextVideoReady: \(self.nextVideoReady), prevVideoReady: \(self.prevVideoReady)")
     }
 }

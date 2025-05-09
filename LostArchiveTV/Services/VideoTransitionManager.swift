@@ -252,11 +252,34 @@ class VideoTransitionManager: ObservableObject {
                 self.preloadManager.nextPlayer = nil
             }
             
-            // Preload the next videos in both directions
+            // Preload the next videos in both directions and advance cache window
             Task {
-                // Start filling cache to maintain videos
-                await provider.ensureVideosAreCached()
-                
+                // Create a cached video from the current preloaded video first
+                if let cacheableProvider = provider as? CacheableProvider {
+                    // Get cache state before any operations
+                    let cacheCount = await cacheableProvider.cacheManager.cacheCount()
+                    Logger.caching.info("📊 TRANSITION: Initial cache count: \(cacheCount)")
+
+                    // This is the key part - ensure the current video is in the cache
+                    // since it was previously outside the cache as a preloaded video
+                    if let currentVideo = await provider.createCachedVideoFromCurrentState() {
+                        Logger.caching.info("🧹 TRANSITION: Removing current video from cache if it exists: \(currentVideo.identifier)")
+                        await cacheableProvider.cacheManager.removeVideo(identifier: currentVideo.identifier)
+                    }
+
+                    // Now advance the cache window - at this point the cache should have at least 3 videos
+                    // (the previous 2/3 + the new current video)
+                    Logger.caching.info("🔄 TRANSITION: Using sliding window cache advancement for next transition")
+                    await cacheableProvider.cacheManager.advanceCacheWindow(
+                        archiveService: cacheableProvider.archiveService,
+                        identifiers: cacheableProvider.getIdentifiersForGeneralCaching()
+                    )
+                } else {
+                    // Fallback for non-cacheable providers
+                    Logger.caching.info("🔄 TRANSITION: Provider doesn't support sliding window, using regular cache filling")
+                    await provider.ensureVideosAreCached()
+                }
+
                 // Preload the next and previous videos for the UI
                 await self.preloadNextVideo(provider: provider)
                 await self.preloadPreviousVideo(provider: provider)
@@ -357,23 +380,37 @@ class VideoTransitionManager: ObservableObject {
                 self.preloadManager.prevPlayer = nil
             }
             
-            // Preload in both directions
+            // Preload in both directions and advance cache window
             Task {
-                Logger.caching.info("📢 TRANSITION COMPLETE: Starting cache refill after UP transition")
-                
-                // Check cache state
-                if let cacheProvider = provider as? CacheableProvider {
-                    let cacheCount = await cacheProvider.cacheManager.cacheCount()
-                    Logger.caching.info("📊 TRANSITION COMPLETE: Cache size before refill: \(cacheCount)")
-                }
-                
-                // Start filling cache to maintain videos
-                await provider.ensureVideosAreCached()
-                
-                // Log cache state after refill
-                if let cacheProvider = provider as? CacheableProvider {
-                    let cacheCount = await cacheProvider.cacheManager.cacheCount()
-                    Logger.caching.info("📊 TRANSITION COMPLETE: Cache size after refill: \(cacheCount)")
+                Logger.caching.info("📢 TRANSITION COMPLETE: Starting cache advancement after DOWN transition")
+
+                // Advance the cache window using our new sliding window approach
+                if let cacheableProvider = provider as? CacheableProvider {
+                    // Check initial cache state
+                    let initialCacheCount = await cacheableProvider.cacheManager.cacheCount()
+                    Logger.caching.info("📊 TRANSITION COMPLETE: Cache size before advancement: \(initialCacheCount)")
+
+                    // This is the key part - ensure the current video is in the cache
+                    // since it was previously outside the cache as a preloaded video
+                    if let currentVideo = await provider.createCachedVideoFromCurrentState() {
+                        Logger.caching.info("🧹 TRANSITION: Removing current video from cache if it exists: \(currentVideo.identifier)")
+                        await cacheableProvider.cacheManager.removeVideo(identifier: currentVideo.identifier)
+                    }
+
+                    // Use sliding window cache advancement
+                    Logger.caching.info("🔄 TRANSITION: Using sliding window cache advancement for previous transition")
+                    await cacheableProvider.cacheManager.advanceCacheWindow(
+                        archiveService: cacheableProvider.archiveService,
+                        identifiers: cacheableProvider.getIdentifiersForGeneralCaching()
+                    )
+
+                    // Log final cache state
+                    let finalCacheCount = await cacheableProvider.cacheManager.cacheCount()
+                    Logger.caching.info("📊 TRANSITION COMPLETE: Cache size after advancement: \(finalCacheCount)")
+                } else {
+                    // Fallback for non-cacheable providers
+                    Logger.caching.info("🔄 TRANSITION: Provider doesn't support sliding window, using regular cache filling")
+                    await provider.ensureVideosAreCached()
                 }
                 
                 // Preload the next and previous videos for the UI
