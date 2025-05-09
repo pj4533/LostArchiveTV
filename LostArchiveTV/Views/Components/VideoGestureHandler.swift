@@ -88,7 +88,8 @@ struct VideoGestureHandler: ViewModifier {
                         dragOffset = max(translation, -geometry.size.height)
                         Logger.caching.debug("Dragging UP (next): nextVideoReady=true, dragOffset=\(dragOffset)")
                     } else {
-                        // Log detailed information about the current state to help debug the issue
+                        // Apply small bounce effect for blocked swipes (up to 30px)
+                        dragOffset = max(translation, -30)
                         Logger.caching.info("⚠️ BLOCKED Dragging UP: nextVideoReady=false, dragOffset=\(dragOffset), isDragging=\(isDragging), isTransitioning=\(transitionManager.isTransitioning)")
                         Logger.caching.info("⚠️ TRANSITION STATE: nextPlayer=\(transitionManager.nextPlayer != nil ? "exists" : "nil"), prevPlayer=\(transitionManager.prevPlayer != nil ? "exists" : "nil")")
                     }
@@ -98,6 +99,8 @@ struct VideoGestureHandler: ViewModifier {
                         dragOffset = min(translation, geometry.size.height)
                         Logger.caching.debug("Dragging DOWN (prev): prevVideoReady=true, dragOffset=\(dragOffset)")
                     } else {
+                        // Apply small bounce effect for blocked swipes (up to 30px)
+                        dragOffset = min(translation, 30)
                         Logger.caching.debug("⚠️ BLOCKED Dragging DOWN: prevVideoReady=false")
                     }
                 }
@@ -142,8 +145,8 @@ struct VideoGestureHandler: ViewModifier {
                             direction: .up
                         )
                     } else {
-                        // Bounce back to original position
-                        withAnimation(.spring(response: animationDuration, dampingFraction: 0.7)) {
+                        // Enhanced bounce animation for blocked swipes
+                        withAnimation(.spring(response: animationDuration, dampingFraction: 0.6, blendDuration: 0.1)) {
                             dragOffset = 0
                             isDragging = false
                         }
@@ -173,15 +176,15 @@ struct VideoGestureHandler: ViewModifier {
                             direction: .down
                         )
                     } else {
-                        // Bounce back to original position
-                        withAnimation(.spring(response: animationDuration, dampingFraction: 0.7)) {
+                        // Enhanced bounce animation for blocked swipes
+                        withAnimation(.spring(response: animationDuration, dampingFraction: 0.6, blendDuration: 0.1)) {
                             dragOffset = 0
                             isDragging = false
                         }
                     }
                 } else {
                     // Reset animation if no significant drag
-                    withAnimation(.spring(response: animationDuration, dampingFraction: 0.7)) {
+                    withAnimation(.spring(response: animationDuration, dampingFraction: 0.6, blendDuration: 0.1)) {
                         dragOffset = 0
                         isDragging = false
                     }
