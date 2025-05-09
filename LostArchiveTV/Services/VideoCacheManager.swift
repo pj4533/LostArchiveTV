@@ -63,35 +63,42 @@ actor VideoCacheManager {
         if videosToAdd > 0 {
             Logger.caching.info("Need to add \(videosToAdd) videos to cache")
 
-            // Shuffle the identifiers to get more variety
-            let shuffledIdentifiers = identifiers.shuffled()
-
             // Track already cached identifiers to avoid duplicates
             let existingIdentifiers = Set(cachedVideos.map { $0.identifier })
 
             // Start filling the cache
             var added = 0
-            var index = 0
+            var attempts = 0
+            let maxAttempts = 20 // Prevent infinite loops
 
-            // Loop until we've added enough videos or run out of identifiers
-            while added < videosToAdd && index < shuffledIdentifiers.count {
-                let currentIdentifier = shuffledIdentifiers[index]
+            // Loop until we've added enough videos or too many attempts
+            while added < videosToAdd && attempts < maxAttempts {
+                attempts += 1
 
-                // Skip if this identifier is already in the cache
-                if !existingIdentifiers.contains(currentIdentifier.identifier) {
-                    do {
-                        // Attempt to preload the video
-                        try await preloadVideo(for: currentIdentifier, using: archiveService)
-                        added += 1
-                        Logger.caching.info("Added video \(added) of \(videosToAdd): \(currentIdentifier.identifier)")
-                    } catch {
-                        Logger.caching.error("Failed to preload video \(currentIdentifier.identifier): \(error.localizedDescription)")
-                    }
-                } else {
-                    Logger.caching.info("Skipping already cached identifier: \(currentIdentifier.identifier)")
+                // FIXED: Always use getRandomIdentifier() to respect collection weighting
+                guard let randomIdentifier = await archiveService.getRandomIdentifier(from: identifiers) else {
+                    Logger.caching.error("Failed to get random identifier, aborting cache fill")
+                    break
                 }
 
-                index += 1
+                // Skip if this identifier is already in the cache
+                if !existingIdentifiers.contains(randomIdentifier.identifier) {
+                    do {
+                        // Attempt to preload the video
+                        try await preloadVideo(for: randomIdentifier, using: archiveService)
+                        added += 1
+                        Logger.caching.info("Added video \(added) of \(videosToAdd): \(randomIdentifier.identifier) from \(randomIdentifier.collection)")
+                    } catch {
+                        Logger.caching.error("Failed to preload video \(randomIdentifier.identifier): \(error.localizedDescription)")
+                    }
+                } else {
+                    Logger.caching.info("Skipping already cached identifier: \(randomIdentifier.identifier)")
+                }
+            }
+
+            // Log if we couldn't add enough videos
+            if added < videosToAdd {
+                Logger.caching.warning("Could only add \(added) of \(videosToAdd) videos after \(attempts) attempts")
             }
 
             Logger.caching.info("Cache filling complete, now at \(self.cacheCount())/\(self.maxCachedVideos)")
@@ -292,41 +299,39 @@ actor VideoCacheManager {
         Logger.caching.info("🔢 CACHE WINDOW: Need to add exactly \(videosToAdd) videos to reach target of \(targetSize)")
 
         if videosToAdd > 0 {
-            // 2. Instead of using ensureVideosAreCached, we'll explicitly add exactly
-            // as many videos as we need for more reliable cache filling
-
-            // Shuffle identifiers for variety
-            let shuffledIdentifiers = identifiers.shuffled()
+            // 2. Use getRandomIdentifier() to select videos with proper weighting
 
             // Track already cached identifiers to avoid duplicates
             let existingIdentifiers = Set(cachedVideos.map { $0.identifier })
 
             // Start filling the cache
             var added = 0
-            var index = 0
             var attempts = 0
-            let maxAttempts = 10 // safety limit to prevent infinite loops
+            let maxAttempts = 20 // safety limit to prevent infinite loops
 
-            // Continue until we've added enough videos or exhausted options
-            while added < videosToAdd && index < shuffledIdentifiers.count && attempts < maxAttempts {
+            // Continue until we've added enough videos or hit the attempt limit
+            while added < videosToAdd && attempts < maxAttempts {
                 attempts += 1
-                let currentIdentifier = shuffledIdentifiers[index]
 
-                // Skip if this identifier is already in the cache
-                if !existingIdentifiers.contains(currentIdentifier.identifier) {
-                    do {
-                        // Attempt to preload the video
-                        try await preloadVideo(for: currentIdentifier, using: archiveService)
-                        added += 1
-                        Logger.caching.info("✅ CACHE WINDOW: Added video \(added)/\(videosToAdd): \(currentIdentifier.identifier)")
-                    } catch {
-                        Logger.caching.error("❌ CACHE WINDOW: Failed to add video \(currentIdentifier.identifier): \(error.localizedDescription)")
-                    }
-                } else {
-                    Logger.caching.info("⏩ CACHE WINDOW: Skipping already cached identifier: \(currentIdentifier.identifier)")
+                // FIXED: Always use getRandomIdentifier() for proper collection weighting
+                guard let randomIdentifier = await archiveService.getRandomIdentifier(from: identifiers) else {
+                    Logger.caching.error("❌ CACHE WINDOW: Failed to get random identifier, aborting")
+                    break
                 }
 
-                index += 1
+                // Skip if this identifier is already in the cache
+                if !existingIdentifiers.contains(randomIdentifier.identifier) {
+                    do {
+                        // Attempt to preload the video
+                        try await preloadVideo(for: randomIdentifier, using: archiveService)
+                        added += 1
+                        Logger.caching.info("✅ CACHE WINDOW: Added video \(added)/\(videosToAdd): \(randomIdentifier.identifier) from \(randomIdentifier.collection)")
+                    } catch {
+                        Logger.caching.error("❌ CACHE WINDOW: Failed to add video \(randomIdentifier.identifier): \(error.localizedDescription)")
+                    }
+                } else {
+                    Logger.caching.info("⏩ CACHE WINDOW: Skipping already cached identifier: \(randomIdentifier.identifier)")
+                }
             }
 
             // Force additional logging if we couldn't add enough videos
