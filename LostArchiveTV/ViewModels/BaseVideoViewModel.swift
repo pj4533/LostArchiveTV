@@ -113,13 +113,44 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
     }
     
     // MARK: - VideoControlProvider Protocol Conformance
-    
+
     var isFavorite: Bool {
         false // Default implementation, to be overridden by subclasses
     }
-    
+
+    var isIdentifierSaved: Bool {
+        guard let identifier = currentIdentifier else { return false }
+        return UserSelectedIdentifiersManager.shared.contains(identifier: identifier)
+    }
+
     func toggleFavorite() {
         // Default implementation does nothing, to be overridden by subclasses
+    }
+
+    func saveIdentifier() async {
+        guard let identifier = currentIdentifier,
+              let collection = currentCollection,
+              let title = currentTitle,
+              !UserSelectedIdentifiersManager.shared.contains(identifier: identifier) else {
+            return
+        }
+
+        let newSavedIdentifier = UserSelectedIdentifier(
+            id: identifier,
+            identifier: identifier,
+            title: title,
+            collection: collection,
+            fileCount: totalFiles
+        )
+
+        UserSelectedIdentifiersManager.shared.addIdentifier(newSavedIdentifier)
+
+        // Notify that identifier has been saved
+        NotificationCenter.default.post(
+            name: Notification.Name("IdentifierSaved"),
+            object: nil,
+            userInfo: ["identifier": identifier, "title": title]
+        )
     }
     
     func setTemporaryPlaybackRate(rate: Float) {

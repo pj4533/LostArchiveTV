@@ -102,20 +102,75 @@ actor ArchiveService {
     func getRandomIdentifier(from identifiers: [ArchiveIdentifier]) -> ArchiveIdentifier? {
         // First check if user has disabled default home feed behavior
         if !HomeFeedPreferences.shouldUseDefaultCollections() {
-            // When using custom collections, use the dedicated method to select from enabled collections
-            Logger.metadata.info("Using random selection from user-selected collections")
+            Logger.metadata.info("Using random selection from user settings")
+
+            // Get user selected collections and individual identifiers
             let enabledCollections = HomeFeedPreferences.getEnabledCollections() ?? []
-            
-            if !enabledCollections.isEmpty {
+            let savedIdentifiers = UserSelectedIdentifiersManager.shared.getArchiveIdentifiers()
+
+            // If there are no enabled collections or saved identifiers, fall back to random selection
+            if enabledCollections.isEmpty && savedIdentifiers.isEmpty {
+                Logger.metadata.warning("No enabled collections or saved identifiers found, falling back to random selection")
+                return identifiers.randomElement()
+            }
+
+            // Create a selection pool with equal weighting:
+            // - Each enabled collection gets one entry
+            // - Each saved identifier gets one entry
+            var selectionPool: [String] = []
+
+            // Add enabled collections to the pool
+            for collection in enabledCollections {
+                selectionPool.append("collection:\(collection)")
+            }
+
+            // Add saved identifiers to the pool
+            for savedIdentifier in savedIdentifiers {
+                selectionPool.append("identifier:\(savedIdentifier.identifier)")
+            }
+
+            // Randomly select from the pool
+            guard let selection = selectionPool.randomElement() else {
+                Logger.metadata.error("Failed to select from selection pool")
+                return identifiers.randomElement()
+            }
+
+            // Process the selected pool entry
+            if selection.starts(with: "collection:") {
+                // We selected a collection, get a random identifier from it
+                let collectionName = String(selection.dropFirst("collection:".count))
+                Logger.metadata.debug("Selected collection: \(collectionName)")
+
                 do {
-                    return try dbService.getRandomIdentifierFromEnabledCollections(enabledCollections)
+                    let collectionIdentifiers = try dbService.loadIdentifiersForCollection(collectionName)
+                    if collectionIdentifiers.isEmpty {
+                        Logger.metadata.warning("No identifiers found in selected collection \(collectionName), falling back to random selection")
+                        return identifiers.randomElement()
+                    }
+
+                    // Return a random identifier from the selected collection
+                    return collectionIdentifiers.randomElement()
                 } catch {
-                    Logger.metadata.error("Failed to get random identifier from enabled collections: \(error.localizedDescription), falling back to random selection")
+                    Logger.metadata.error("Failed to load identifiers for collection \(collectionName): \(error.localizedDescription)")
+                    return identifiers.randomElement()
+                }
+            } else if selection.starts(with: "identifier:") {
+                // We selected a specific identifier
+                let identifierString = String(selection.dropFirst("identifier:".count))
+                Logger.metadata.debug("Selected specific identifier: \(identifierString)")
+
+                // Find the collection for this identifier
+                if let matchingIdentifier = savedIdentifiers.first(where: { $0.identifier == identifierString }) {
+                    return matchingIdentifier
+                } else {
+                    Logger.metadata.error("Selected identifier not found in saved identifiers")
+                    return identifiers.randomElement()
                 }
             } else {
-                Logger.metadata.warning("No enabled collections found, falling back to random selection")
+                // This shouldn't happen with our format, but handle it just in case
+                Logger.metadata.error("Invalid selection format: \(selection)")
+                return identifiers.randomElement()
             }
-            return identifiers.randomElement()
         }
         
         // Continue with default preferred/not-preferred behavior

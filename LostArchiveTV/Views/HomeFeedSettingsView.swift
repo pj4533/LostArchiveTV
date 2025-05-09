@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HomeFeedSettingsView: View {
     @ObservedObject var viewModel: HomeFeedSettingsViewModel
+    @StateObject private var identifiersViewModel = IdentifiersSettingsViewModel()
     
     init(viewModel: HomeFeedSettingsViewModel) {
         self.viewModel = viewModel
@@ -36,19 +37,50 @@ struct HomeFeedSettingsView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(.systemBackground))
             } else {
-                // Show NavigationLink to Collections View
+                // Show NavigationLinks to Collections and Identifiers
                 List {
-                    NavigationLink(destination: CollectionsView(viewModel: viewModel)) {
-                        HStack {
-                            Text("Collections")
-                            Spacer()
-                            Text("\(viewModel.collections.filter { $0.isEnabled }.count) selected")
+                    Section(header: Text("Collections")) {
+                        NavigationLink(destination: CollectionsView(viewModel: viewModel)) {
+                            HStack {
+                                Text("Collection Settings")
+                                Spacer()
+                                Text("\(viewModel.collections.filter { $0.isEnabled }.count) selected")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    
+                    Section(header: Text("Saved Videos")) {
+                        NavigationLink(destination: IdentifiersView(viewModel: identifiersViewModel)) {
+                            HStack {
+                                Text("Saved Identifiers")
+                                Spacer()
+                                Text("\(identifiersViewModel.identifiers.count) saved")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    
+                    Section {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("How videos are selected")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
+                                .padding(.top, 4)
+                            
+                            Text("When custom settings are used, random videos are selected from either your enabled collections or your saved identifiers with equal weighting.")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .padding(.bottom, 4)
                         }
                     }
                 }
                 .listStyle(InsetGroupedListStyle())
+                .onAppear {
+                    identifiersViewModel.loadIdentifiers()
+                }
             }
         }
         .navigationTitle("Home Feed Settings")

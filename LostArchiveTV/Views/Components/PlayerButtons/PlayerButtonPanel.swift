@@ -38,6 +38,16 @@ struct PlayerButtonPanel<Provider: VideoControlProvider>: View {
                     action: { provider.toggleFavorite() },
                     disabled: provider.currentIdentifier == nil
                 )
+
+                // Save identifier button
+                SaveIdentifierButton(
+                    action: {
+                        Task {
+                            await provider.saveIdentifier()
+                        }
+                    },
+                    disabled: provider.currentIdentifier == nil || provider.isIdentifierSaved
+                )
                 
                 // Restart video button
                 RestartButton(

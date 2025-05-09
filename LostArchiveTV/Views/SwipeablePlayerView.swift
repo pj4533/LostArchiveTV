@@ -10,22 +10,26 @@ import AVKit
 import OSLog
 
 // Helper class to manage notification observing - using a class allows us to properly handle deallocation
-class TrimObserver: ObservableObject {
-    private var token: NSObjectProtocol?
+class NotificationObserver: ObservableObject {
+    private var trimToken: NSObjectProtocol?
+    private var identifierToken: NSObjectProtocol?
+
     @Published var trimStep: TrimWorkflowStep = .none
-    
+    @Published var showSavedNotification = false
+    @Published var savedIdentifierTitle = ""
+
     enum TrimWorkflowStep {
         case none        // No trim action in progress
         case downloading // Downloading video for trimming
         case trimming    // Showing trim interface
     }
-    
-    func setupObserver(handler: @escaping () -> Void) {
+
+    func setupTrimObserver(handler: @escaping () -> Void) {
         // Remove existing observer if it exists
-        removeObserver()
-        
+        removeObservers()
+
         // Create a new observer
-        token = NotificationCenter.default.addObserver(
+        trimToken = NotificationCenter.default.addObserver(
             forName: .startVideoTrimming,
             object: nil,
             queue: .main
@@ -33,38 +37,64 @@ class TrimObserver: ObservableObject {
             handler()
         }
     }
-    
-    func removeObserver() {
-        if let token = token {
-            NotificationCenter.default.removeObserver(token)
-            self.token = nil
+
+    func setupIdentifierSavedObserver() {
+        identifierToken = NotificationCenter.default.addObserver(
+            forName: Notification.Name("IdentifierSaved"),
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self else { return }
+
+            // Get the saved identifier title from the notification
+            if let userInfo = notification.userInfo,
+               let title = userInfo["title"] as? String {
+                self.savedIdentifierTitle = title
+
+                // Show the notification
+                withAnimation {
+                    self.showSavedNotification = true
+                }
+            }
         }
     }
-    
+
+    func removeObservers() {
+        if let token = trimToken {
+            NotificationCenter.default.removeObserver(token)
+            self.trimToken = nil
+        }
+
+        if let token = identifierToken {
+            NotificationCenter.default.removeObserver(token)
+            self.identifierToken = nil
+        }
+    }
+
     deinit {
-        removeObserver()
+        removeObservers()
     }
 }
 
 struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
     @ObservedObject var provider: Provider
     @StateObject private var transitionManager = VideoTransitionManager()
-    @StateObject private var trimObserver = TrimObserver()
-    
+    @StateObject private var notificationObserver = NotificationObserver()
+
     // Make the transitionManager accessible to the provider for direct preloading
     var onPreloadReady: ((VideoTransitionManager) -> Void)? = nil
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging = false
     @State private var showBackButton = false
-    
+
     // Track downloaded URL for trimming
     @State private var downloadedVideoURL: URL? = nil
-    
+
     // Optional binding for dismissal in modal presentations
     var isPresented: Binding<Bool>?
-    
-    // Use the TrimWorkflowStep enum from TrimObserver
-    typealias TrimWorkflowStep = TrimObserver.TrimWorkflowStep
+
+    // Use the TrimWorkflowStep enum from NotificationObserver
+    typealias TrimWorkflowStep = NotificationObserver.TrimWorkflowStep
     
     var body: some View {
         GeometryReader { geometry in
@@ -81,50 +111,67 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
             .contentShape(Rectangle())
             // Sheet for trim workflow (only when a trim step is active)
             .overlay {
-                // Use a ZStack with conditional content for trim UI instead of a sheet
-                if trimObserver.trimStep != .none {
-                    ZStack {
-                        // Semi-transparent black background
-                        Color.black.opacity(0.9).ignoresSafeArea()
-                        
-                        // Use specific content view based on the current trim step
-                        VStack {
-                            if trimObserver.trimStep == .downloading {
-                                // Download view
-                                TrimDownloadView(provider: provider) { downloadedURL in
-                                    if let url = downloadedURL {
-                                        // Success - move to trim step
-                                        self.downloadedVideoURL = url
-                                        self.trimObserver.trimStep = .trimming
-                                    } else {
-                                        // Failed download - dismiss everything
-                                        self.downloadedVideoURL = nil
-                                        self.trimObserver.trimStep = .none
+                ZStack {
+                    // Use a ZStack with conditional content for trim UI instead of a sheet
+                    if notificationObserver.trimStep != .none {
+                        ZStack {
+                            // Semi-transparent black background
+                            Color.black.opacity(0.9).ignoresSafeArea()
+
+                            // Use specific content view based on the current trim step
+                            VStack {
+                                if notificationObserver.trimStep == .downloading {
+                                    // Download view
+                                    TrimDownloadView(provider: provider) { downloadedURL in
+                                        if let url = downloadedURL {
+                                            // Success - move to trim step
+                                            self.downloadedVideoURL = url
+                                            self.notificationObserver.trimStep = .trimming
+                                        } else {
+                                            // Failed download - dismiss everything
+                                            self.downloadedVideoURL = nil
+                                            self.notificationObserver.trimStep = .none
+                                        }
                                     }
+                                } else if notificationObserver.trimStep == .trimming,
+                                        let downloadedURL = downloadedVideoURL,
+                                        let baseViewModel = provider as? BaseVideoViewModel {
+                                    // Get current time and duration from the player
+                                    let currentTimeSeconds = baseViewModel.player?.currentTime().seconds ?? 0
+                                    let durationSeconds = baseViewModel.videoDuration
+
+                                    // Convert to CMTime for VideoTrimViewModel
+                                    let currentTime = CMTime(seconds: currentTimeSeconds, preferredTimescale: 600)
+                                    let duration = CMTime(seconds: durationSeconds, preferredTimescale: 600)
+
+                                    // Trim view
+                                    VideoTrimView(viewModel: VideoTrimViewModel(
+                                        assetURL: downloadedURL,
+                                        currentPlaybackTime: currentTime,
+                                        duration: duration
+                                    ))
                                 }
-                            } else if trimObserver.trimStep == .trimming, 
-                                    let downloadedURL = downloadedVideoURL,
-                                    let baseViewModel = provider as? BaseVideoViewModel {
-                                // Get current time and duration from the player
-                                let currentTimeSeconds = baseViewModel.player?.currentTime().seconds ?? 0
-                                let durationSeconds = baseViewModel.videoDuration
-                                
-                                // Convert to CMTime for VideoTrimViewModel
-                                let currentTime = CMTime(seconds: currentTimeSeconds, preferredTimescale: 600)
-                                let duration = CMTime(seconds: durationSeconds, preferredTimescale: 600)
-                                
-                                // Trim view
-                                VideoTrimView(viewModel: VideoTrimViewModel(
-                                    assetURL: downloadedURL,
-                                    currentPlaybackTime: currentTime,
-                                    duration: duration
-                                ))
+                                Spacer()
                             }
+                        }
+                        .transition(.opacity)
+                        .zIndex(100) // Ensure it's above all other content
+                    }
+
+                    // Identifier saved notification overlay
+                    if notificationObserver.showSavedNotification {
+                        VStack {
+                            IdentifierSavedNotification(
+                                title: notificationObserver.savedIdentifierTitle,
+                                isVisible: $notificationObserver.showSavedNotification
+                            )
+                            .padding(.top, 50)
+
                             Spacer()
                         }
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .zIndex(110) // Ensure it's above all other content including trim UI
                     }
-                    .transition(.opacity)
-                    .zIndex(100) // Ensure it's above all other content
                 }
             }
             // Add gesture recognizer as a modifier
@@ -150,20 +197,21 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                     Logger.caching.error("⚠️ SwipeablePlayerView onAppear: Player is nil, cannot preload")
                 }
                 
-                // Setup notification observer for trim action
-                trimObserver.setupObserver {
+                // Setup notification observers
+                notificationObserver.setupTrimObserver {
                     startTrimFlow()
                 }
+                notificationObserver.setupIdentifierSavedObserver()
             }
             .onDisappear {
                 // Clean up resources when view disappears
                 Logger.caching.debug("SwipeablePlayerView disappearing - removing observers")
-                
-                // Remove observer
-                trimObserver.removeObserver()
-                
+
+                // Remove observers
+                notificationObserver.removeObservers()
+
                 // Reset trim state
-                trimObserver.trimStep = .none
+                notificationObserver.trimStep = .none
                 downloadedVideoURL = nil
             }
         }
@@ -201,12 +249,12 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
     // Function to start the trim flow for any video provider
     private func startTrimFlow() {
         guard let _ = provider as? BaseVideoViewModel else { return }
-        
+
         // Log the action
         Logger.caching.debug("Starting trim flow for \(type(of: provider))")
-        
+
         // Start the trim workflow with the download step
-        trimObserver.trimStep = .downloading
+        notificationObserver.trimStep = .downloading
     }
 }
 
