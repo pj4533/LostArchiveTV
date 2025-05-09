@@ -27,8 +27,7 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider
     // App initialization tracking
     @Published var isInitializing = true
     
-    // Cache monitoring
-    private var cacheMonitorTask: Task<Void, Never>?
+    // Removed unnecessary cache monitoring
     
     // Archive.org video identifiers
     internal var identifiers: [ArchiveIdentifier] = [] // Changed to internal for extension access
@@ -95,10 +94,7 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider
                     await ensureVideosAreCached()
                 }
 
-                // Start cache monitoring in parallel, but don't wait for it
-                Task {
-                    monitorCacheProgress()
-                }
+                // Removed unnecessary cache monitoring
             } else {
                 Logger.caching.error("Cannot load: identifiers not loaded properly")
                 isInitializing = false
@@ -109,43 +105,7 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider
         Logger.videoPlayback.info("TikTok-style video player initialized with swipe interface")
     }
     
-    // MARK: - Cache monitoring
-    
-    private func monitorCacheProgress() {
-        cacheMonitorTask?.cancel()
-        
-        cacheMonitorTask = Task {
-            Logger.caching.info("🔄 CACHE: Monitor task started (background)")
-            
-            // Not crucial for first video anymore - run in background
-            var monitorCycles = 0
-            
-            while !Task.isCancelled {
-                monitorCycles += 1
-                let cacheCount = await cacheManager.cacheCount()
-                let hasPlayer = self.player != nil
-                let currentVideoID = self.currentIdentifier ?? "none"
-                
-                Logger.caching.info("📊 CACHE: Monitor cycle \(monitorCycles) | Size: \(cacheCount) | Player: \(hasPlayer ? "ACTIVE" : "none") | Video: \(currentVideoID)")
-                
-                // If cache has videos, ensure preloading is active
-                if cacheCount >= 1 && isInitializing {
-                    // This is now a backup in case direct loading fails
-                    Logger.caching.info("📊 CACHE: Backup initialization exit - cache ready")
-                    self.isInitializing = false
-                }
-                
-                // Reduced polling frequency since this is not critical path
-                try? await Task.sleep(for: .seconds(0.5))
-                
-                // Exit if we've been monitoring too long or initialization is complete
-                if !isInitializing || monitorCycles >= 20 {
-                    Logger.caching.info("📊 CACHE: Exiting monitor - initialization complete or timeout reached")
-                    break
-                }
-            }
-        }
-    }
+    // Removed unnecessary cache monitoring function
     
     // MARK: - VideoProvider Protocol - History Management
     
@@ -267,13 +227,10 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider
     }
     
     deinit {
-        // Cancel any ongoing tasks
-        cacheMonitorTask?.cancel()
-        
         Task {
             await preloadService.cancelPreloading()
             await cacheManager.clearCache()
-            
+
             // Player cleanup is handled by parent class
             // Must use MainActor since the cleanup() method is @MainActor
             await MainActor.run {
