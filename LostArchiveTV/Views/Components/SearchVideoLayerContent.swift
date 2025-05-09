@@ -48,9 +48,10 @@ struct SearchVideoLayerContent: View {
                         filename: viewModel.currentFilename,
                         currentTime: player.currentItem != nil ? player.currentTime().seconds : nil,
                         duration: viewModel.videoDuration,
-                        totalFiles: viewModel.totalFiles
+                        totalFiles: viewModel.totalFiles,
+                        cacheStatuses: viewModel.cacheStatuses
                     )
-                    .id(viewModel.totalFiles) // Force refresh when totalFiles changes
+                    .id("\(viewModel.totalFiles)-\(Date())") // Force refresh periodically and when totalFiles changes
                 }
                 
                 // Add custom back button for modal presentation

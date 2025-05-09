@@ -28,11 +28,34 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
     @Published var currentFilename: String?
     @Published var videoDuration: Double = 0
     @Published var totalFiles: Int = 0
+    @Published var cacheStatuses: [CacheStatus] = [.notCached, .notCached, .notCached]
     
+    // MARK: - Cache Status Update Timer
+    private var cacheStatusTask: Task<Void, Never>?
+
     // MARK: - Initialization
     init() {
         setupAudioSession()
         setupDurationObserver()
+        startCacheStatusUpdates()
+    }
+
+    private func startCacheStatusUpdates() {
+        cacheStatusTask?.cancel()
+
+        cacheStatusTask = Task {
+            // Update every second - less frequently to reduce log noise
+            while !Task.isCancelled {
+                await updateCacheStatuses()
+
+                // Wait before checking again
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    break
+                }
+            }
+        }
     }
     
     // MARK: - Setup Functions
@@ -100,12 +123,16 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
     // We're just delegating to the playbackManager
     
     // MARK: - Cleanup
-    
+
     func cleanup() {
         // Stop playback immediately
         playbackManager.pause()
         playbackManager.cleanupPlayer()
-        
+
+        // Cancel the cache status update task
+        cacheStatusTask?.cancel()
+        cacheStatusTask = nil
+
         // Other async cleanup can be done in a Task
         Task {
             // Any additional async cleanup could go here
@@ -164,7 +191,7 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
     }
     
     // MARK: - Video Caching
-    
+
     /// Ensures videos are properly cached for smooth playback
     /// This base implementation uses the transition manager's ensureAllCaching method
     /// which will handle both general caching and transition-specific caching
@@ -175,17 +202,41 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
                 // This handles both general caching and transition preloading in one call
                 Logger.caching.info("BaseVideoViewModel.ensureVideosAreCached: Using transition manager's unified caching")
                 await transitionManager.ensureAllVideosCached(provider: videoProvider)
+
+                // Update cache statuses
+                await updateCacheStatuses()
             } else {
                 // Fallback to just preloading next and previous videos
                 Logger.caching.warning("BaseVideoViewModel.ensureVideosAreCached: No transition manager available, using basic preloading")
-                
+
                 // Still try to preload videos if possible
                 async let nextTask = videoProvider.getNextVideo()
                 async let prevTask = videoProvider.getPreviousVideo()
                 _ = await (nextTask, prevTask)
+
+                // Update cache statuses
+                await updateCacheStatuses()
             }
         } else {
             Logger.caching.error("BaseVideoViewModel.ensureVideosAreCached: Failed - not a VideoProvider")
+        }
+    }
+
+    /// Updates the cache statuses based on the current video and cache state
+    /// This method should be called whenever the cache state changes
+    func updateCacheStatuses() async {
+        guard let identifier = currentIdentifier else {
+            return
+        }
+
+        if let cacheableProvider = self as? CacheableProvider {
+            // Get cache statuses from the cache manager
+            let statuses = await cacheableProvider.cacheManager.getCacheStatuses(currentVideoIdentifier: identifier)
+
+            // Update on the main thread since we're modifying @Published properties
+            await MainActor.run {
+                self.cacheStatuses = statuses
+            }
         }
     }
 }

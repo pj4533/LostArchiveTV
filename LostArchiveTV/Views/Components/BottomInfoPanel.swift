@@ -10,8 +10,9 @@ struct BottomInfoPanel: View {
     let currentTime: Double?
     let duration: Double
     let totalFiles: Int?
+    let cacheStatuses: [CacheStatus]
 
-    init(title: String?, collection: String?, description: String?, identifier: String?, filename: String? = nil, currentTime: Double?, duration: Double, totalFiles: Int? = nil) {
+    init(title: String?, collection: String?, description: String?, identifier: String?, filename: String? = nil, currentTime: Double?, duration: Double, totalFiles: Int? = nil, cacheStatuses: [CacheStatus] = [.notCached, .notCached, .notCached]) {
         self.title = title
         self.collection = collection
         self.description = description
@@ -19,6 +20,7 @@ struct BottomInfoPanel: View {
         self.filename = filename
         self.currentTime = currentTime
         self.totalFiles = totalFiles
+        self.cacheStatuses = cacheStatuses
         // Ensure duration is valid (not NaN or infinity)
         if duration.isNaN || duration.isInfinite {
             self.duration = 0
@@ -26,11 +28,11 @@ struct BottomInfoPanel: View {
             self.duration = duration
         }
     }
-    
+
     var body: some View {
         VStack {
             Spacer()
-            
+
             // Bottom overlay with title and description
             VStack(alignment: .leading, spacing: 8) {
                 // Video metadata (title, collection, description, filename)
@@ -44,19 +46,19 @@ struct BottomInfoPanel: View {
                     duration: duration,
                     totalFiles: totalFiles
                 )
-                .onAppear {
-                    if let identifier = identifier, let totalFiles = totalFiles, let filename = filename {
-                        Logger.files.info("🖥️ UI DISPLAY: [\(identifier)] Showing video info with totalFiles: \(totalFiles), filename: \(filename)")
-                    }
-                }
+                // Removed logging that was generating too much noise
                 .id(duration) // Force view refresh when duration updates
-                
-                // Swipe hint
-                Text("Swipe up for next video")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.7))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.bottom, 8)
+
+                // Swipe hint with cache status indicators
+                HStack {
+                    Spacer()
+                    Text("Swipe up for next video")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.7))
+                    CacheStatusIndicator(cacheStatuses: cacheStatuses)
+                    Spacer()
+                }
+                .padding(.bottom, 8)
             }
             .frame(maxWidth: .infinity)
             .background(

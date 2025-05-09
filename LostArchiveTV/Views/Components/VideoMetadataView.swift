@@ -51,22 +51,14 @@ struct VideoMetadataView: View {
                         .font(.footnote)
                         .foregroundColor(.white.opacity(0.8))
                         .lineLimit(1)
-                        .onAppear {
-                            if let identifier = identifier {
-                                Logger.files.debug("📄 FILES LABEL: [\(identifier)] Multiple files displayed: \(totalFiles) Files: \(filename)")
-                            }
-                        }
+                        // Removed noisy logging
                         .id("\(totalFiles)_\(filename)") // Force refresh when either totalFiles or filename changes
                 } else {
                     Text("File: \(filename)")
                         .font(.footnote)
                         .foregroundColor(.white.opacity(0.8))
                         .lineLimit(1)
-                        .onAppear {
-                            if let identifier = identifier, let totalFiles = totalFiles {
-                                Logger.files.debug("📄 FILES LABEL: [\(identifier)] Single file displayed. totalFiles = \(totalFiles), showing: File: \(filename)")
-                            }
-                        }
+                        // Removed noisy logging
                         .id("\(totalFiles ?? 0)_\(filename)") // Force refresh when either totalFiles or filename changes
                 }
             }
