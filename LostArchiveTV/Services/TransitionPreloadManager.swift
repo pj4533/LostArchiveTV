@@ -293,7 +293,16 @@ class TransitionPreloadManager {
     func ensureAllVideosCached(provider: VideoProvider) async {
         Logger.caching.info("🔄 CACHING: Starting unified caching for \(String(describing: type(of: provider)))")
 
-        // 1. Fill general cache if provider supports it
+        // CRITICAL FIX: First prepare individual videos for swiping to ensure smooth navigation
+        // Decoupling the swiping ability from the cache completion state
+        Logger.caching.info("🔄 CACHING: Prioritizing transition videos for swipe readiness")
+        async let nextTask = preloadNextVideo(provider: provider)
+        async let prevTask = preloadPreviousVideo(provider: provider)
+        _ = await (nextTask, prevTask)
+
+        Logger.caching.info("✅ CACHING: Transition videos ready - nextVideoReady: \(self.nextVideoReady), prevVideoReady: \(self.prevVideoReady)")
+
+        // Now fill general cache if provider supports it, but don't block swiping on it
         if let cacheableProvider = provider as? CacheableProvider {
             Logger.caching.info("✅ CACHING: Provider supports general caching")
             let identifiers = cacheableProvider.getIdentifiersForGeneralCaching()
@@ -345,12 +354,6 @@ class TransitionPreloadManager {
             Logger.caching.info("⚠️ CACHING: Provider does not support general caching")
         }
 
-        // 2. Always prepare next/previous videos for transitions
-        Logger.caching.info("🔄 CACHING: Preloading next and previous videos for transitions")
-        async let nextTask = preloadNextVideo(provider: provider)
-        async let prevTask = preloadPreviousVideo(provider: provider)
-        _ = await (nextTask, prevTask)
-
-        Logger.caching.info("✅ CACHING: Unified caching complete - nextVideoReady: \(self.nextVideoReady), prevVideoReady: \(self.prevVideoReady)")
+        Logger.caching.info("✅ CACHING: Unified caching complete")
     }
 }
