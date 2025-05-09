@@ -15,7 +15,7 @@ struct SettingsView: View {
                     // Home Feed Settings navigation link
                     NavigationLink(destination:
                         HomeFeedSettingsView(
-                            viewModel: HomeFeedSettingsViewModel(databaseService: DatabaseService())
+                            viewModel: HomeFeedSettingsViewModel(databaseService: DatabaseService.shared)
                         )
                     ) {
                         HStack(spacing: 12) {

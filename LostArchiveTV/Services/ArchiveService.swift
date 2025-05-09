@@ -13,8 +13,8 @@ actor ArchiveService {
     private var collections: [ArchiveCollection] = []
     
     init() {
-        self.dbService = DatabaseService()
-        
+        self.dbService = DatabaseService.shared
+
         // Try to initialize database and collections
         do {
             try dbService.openDatabase()
@@ -25,12 +25,12 @@ actor ArchiveService {
     }
     
     deinit {
-        dbService.closeDatabase()
+        // We no longer close the database here since it's a shared instance
     }
     
     private func loadCollections() throws {
+        // Load collections once during initialization - they'll be cached in DatabaseService
         collections = try dbService.loadCollections()
-        Logger.metadata.info("Loaded \(self.collections.count) collections from the database, including \(self.collections.filter { $0.preferred }.count) preferred collections")
     }
     
     // MARK: - Metadata Loading
