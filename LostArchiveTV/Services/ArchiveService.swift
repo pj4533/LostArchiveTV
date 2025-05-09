@@ -388,8 +388,8 @@ actor ArchiveService {
             return files.randomElement()
         }
         
-        // Define threshold for "very short" clips (60 seconds = 1 minute)
-        let shortClipThreshold: Double = 60.0
+        // Define threshold for "very short" clips (600 seconds = 10 minutes)
+        let shortClipThreshold: Double = 600.0
         
         // Separate files into "normal" and "very short" categories
         let normalDurationFiles = filesWithDuration.filter { $0.duration >= shortClipThreshold }
