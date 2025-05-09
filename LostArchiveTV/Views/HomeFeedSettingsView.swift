@@ -1,15 +1,15 @@
 import SwiftUI
 
-struct CollectionConfigView: View {
-    @ObservedObject var viewModel: CollectionConfigViewModel
+struct HomeFeedSettingsView: View {
+    @ObservedObject var viewModel: HomeFeedSettingsViewModel
     
-    init(viewModel: CollectionConfigViewModel) {
+    init(viewModel: HomeFeedSettingsViewModel) {
         self.viewModel = viewModel
     }
     
     var body: some View {
         VStack(spacing: 0) {
-            Toggle("Use Default Collections", isOn: $viewModel.useDefaultCollections)
+            Toggle("Use Default", isOn: $viewModel.useDefaultCollections)
                 .padding()
                 .onChange(of: viewModel.useDefaultCollections) { _ in
                     viewModel.toggleDefaultCollections()
@@ -25,7 +25,7 @@ struct CollectionConfigView: View {
                         .foregroundColor(.green)
                         .padding(.top, 50)
                     
-                    Text("Using Default Collection Settings")
+                    Text("Using Default Home Feed Settings")
                         .font(.headline)
                     
                     Text("The app will automatically prioritize preferred collections for better content quality.")
@@ -131,7 +131,7 @@ struct CollectionConfigView: View {
                 }
             }
         }
-        .navigationTitle("Collection Settings")
+        .navigationTitle("Home Feed Settings")
         .navigationBarTitleDisplayMode(.large)
     }
 }

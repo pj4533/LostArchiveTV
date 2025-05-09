@@ -23,8 +23,8 @@ actor VideoLoadingService {
     }
     
     func loadIdentifiersWithUserPreferences() async throws -> [ArchiveIdentifier] {
-        // Check if user has custom collection settings using the utility class
-        let enabledCollections = CollectionPreferences.getEnabledCollections()
+        // Check if user has custom home feed settings using the utility class
+        let enabledCollections = HomeFeedPreferences.getEnabledCollections()
         
         if let enabledCollections = enabledCollections, !enabledCollections.isEmpty {
             // User has custom collections enabled

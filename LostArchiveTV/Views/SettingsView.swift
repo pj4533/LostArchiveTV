@@ -12,10 +12,10 @@ struct SettingsView: View {
         NavigationView {
             List {
                 Section(header: Text("Content")) {
-                    // Collection settings navigation link
-                    NavigationLink(destination: 
-                        CollectionConfigView(
-                            viewModel: CollectionConfigViewModel(databaseService: DatabaseService())
+                    // Home Feed Settings navigation link
+                    NavigationLink(destination:
+                        HomeFeedSettingsView(
+                            viewModel: HomeFeedSettingsViewModel(databaseService: DatabaseService())
                         )
                     ) {
                         HStack(spacing: 12) {
@@ -24,10 +24,10 @@ struct SettingsView: View {
                                 .frame(width: 28, height: 28)
                                 .background(Color.blue.opacity(0.1))
                                 .clipShape(RoundedRectangle(cornerRadius: 6))
-                            
-                            Text("Collection Settings")
+
+                            Text("Home Feed Settings")
                                 .font(.system(size: 16))
-                                
+
                             Spacer()
                         }
                         .padding(.vertical, 4)

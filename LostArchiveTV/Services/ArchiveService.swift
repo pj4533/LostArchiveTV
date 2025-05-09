@@ -100,11 +100,11 @@ actor ArchiveService {
     }
     
     func getRandomIdentifier(from identifiers: [ArchiveIdentifier]) -> ArchiveIdentifier? {
-        // First check if user has disabled default collection behavior
-        if !CollectionPreferences.shouldUseDefaultCollections() {
+        // First check if user has disabled default home feed behavior
+        if !HomeFeedPreferences.shouldUseDefaultCollections() {
             // When using custom collections, use the dedicated method to select from enabled collections
             Logger.metadata.info("Using random selection from user-selected collections")
-            let enabledCollections = CollectionPreferences.getEnabledCollections() ?? []
+            let enabledCollections = HomeFeedPreferences.getEnabledCollections() ?? []
             
             if !enabledCollections.isEmpty {
                 do {

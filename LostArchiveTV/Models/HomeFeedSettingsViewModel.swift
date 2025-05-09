@@ -3,13 +3,13 @@ import SwiftUI
 import OSLog
 
 @MainActor
-class CollectionConfigViewModel: ObservableObject {
+class HomeFeedSettingsViewModel: ObservableObject {
     @Published var useDefaultCollections: Bool = true
     @Published var collections: [CollectionItem] = []
     @Published var searchText: String = ""
     @Published var isLoading: Bool = false
     
-    private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "CollectionConfig")
+    private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "HomeFeedSettings")
     private let databaseService: DatabaseService
     
     struct CollectionItem: Identifiable, Equatable {
@@ -135,6 +135,4 @@ class CollectionConfigViewModel: ObservableObject {
         logger.debug("Reloading identifiers after settings change")
         NotificationCenter.default.post(name: Notification.Name("ReloadIdentifiers"), object: nil)
     }
-    
-    // User preferences methods moved to CollectionPreferences
 }

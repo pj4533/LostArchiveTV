@@ -1,9 +1,9 @@
 import Foundation
 import OSLog
 
-// Simple utility class for managing collection preferences
-// Separate from CollectionConfigViewModel to avoid async/await compilation issues
-class CollectionPreferences {
+// Simple utility class for managing home feed preferences
+// Separate from HomeFeedSettingsViewModel to avoid async/await compilation issues
+class HomeFeedPreferences {
     // In-memory cache of last settings to detect changes
     private static var lastUseDefault: Bool = true
     private static var lastEnabledCollections: [String] = []
