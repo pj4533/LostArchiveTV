@@ -27,21 +27,24 @@ extension VideoPlayerViewModel {
     // Public method to reload identifiers when collection preferences change
     func reloadIdentifiers() async {
         Logger.metadata.info("Reloading identifiers due to collection preference changes")
-        
+
         // Clear the cache to ensure we don't show videos from collections that might now be disabled
         await cacheManager.clearCache()
-        
-        // Clear existing identifiers 
+
+        // Clear the identifier caches in ArchiveService
+        await videoLoadingService.clearIdentifierCaches()
+
+        // Clear existing identifiers
         identifiers = []
-        
+
         // Load identifiers with new preferences
         await loadIdentifiers()
-        
+
         // Start preloading new videos from the updated collection list
         Task {
             await ensureVideosAreCached()
         }
-        
+
         // Note: We don't automatically load a new video or change the current one
         // The user will see the effect of their changes when they swipe to the next video
         Logger.metadata.info("Collection settings updated, changes will apply to next videos")

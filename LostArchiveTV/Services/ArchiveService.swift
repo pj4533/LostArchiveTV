@@ -11,7 +11,12 @@ import OSLog
 actor ArchiveService {
     private let dbService: DatabaseService
     private var collections: [ArchiveCollection] = []
-    
+
+    // Cache for all loaded identifiers
+    private var cachedIdentifiers: [ArchiveIdentifier]?
+    // Cache for collection-specific identifiers
+    private var collectionIdentifiersCache: [String: [ArchiveIdentifier]] = [:]
+
     init() {
         self.dbService = DatabaseService.shared
 
@@ -23,54 +28,83 @@ actor ArchiveService {
             Logger.metadata.error("Failed to initialize SQLite database: \(error.localizedDescription)")
         }
     }
-    
+
     deinit {
         // We no longer close the database here since it's a shared instance
     }
-    
+
     private func loadCollections() throws {
         // Load collections once during initialization - they'll be cached in DatabaseService
         collections = try dbService.loadCollections()
     }
-    
+
+    // Method to clear all caches when preferences change
+    func clearIdentifierCaches() {
+        Logger.metadata.debug("Clearing all identifier caches")
+        cachedIdentifiers = nil
+        collectionIdentifiersCache.removeAll()
+    }
+
     // MARK: - Metadata Loading
     func loadArchiveIdentifiers() async throws -> [ArchiveIdentifier] {
+        // Return cached identifiers if available
+        if let cachedIdentifiers = cachedIdentifiers {
+            Logger.metadata.debug("Using cached identifiers (\(cachedIdentifiers.count) identifiers)")
+            return cachedIdentifiers
+        }
+
         Logger.metadata.debug("Loading archive identifiers from SQLite database")
-        
+
         // Ensure collections are loaded
         if collections.isEmpty {
             try loadCollections()
         }
-        
+
         var identifiers: [ArchiveIdentifier] = []
-        
+
         // Load identifiers from each collection (excluding those marked as excluded)
         for collection in collections where !collection.excluded {
             let collectionIdentifiers = try dbService.loadIdentifiersForCollection(collection.name)
             identifiers.append(contentsOf: collectionIdentifiers)
+
+            // Cache the collection identifiers
+            collectionIdentifiersCache[collection.name] = collectionIdentifiers
         }
-        
+
         if identifiers.isEmpty {
             Logger.metadata.error("No identifiers found in the database")
             throw NSError(domain: "ArchiveService", code: 5, userInfo: [NSLocalizedDescriptionKey: "No identifiers found in the database"])
         }
-        
+
         let nonExcludedCollectionsCount = collections.filter { !$0.excluded }.count
         Logger.metadata.info("Loaded \(identifiers.count) identifiers from \(nonExcludedCollectionsCount) non-excluded collections")
+
+        // Cache the full identifier list
+        cachedIdentifiers = identifiers
+
         return identifiers
     }
     
     func loadIdentifiersForCollection(_ collectionName: String) async throws -> [ArchiveIdentifier] {
+        // Check if we have these identifiers cached
+        if let cachedCollectionIdentifiers = collectionIdentifiersCache[collectionName] {
+            Logger.metadata.debug("Using cached identifiers for collection: \(collectionName) (\(cachedCollectionIdentifiers.count) identifiers)")
+            return cachedCollectionIdentifiers
+        }
+
         Logger.metadata.debug("Loading archive identifiers for collection: \(collectionName)")
-        
+
         let identifiers = try dbService.loadIdentifiersForCollection(collectionName)
-        
+
         if identifiers.isEmpty {
             Logger.metadata.warning("No identifiers found for collection: \(collectionName)")
         } else {
             Logger.metadata.info("Loaded \(identifiers.count) identifiers from collection \(collectionName)")
         }
-        
+
+        // Cache the identifiers for this collection
+        collectionIdentifiersCache[collectionName] = identifiers
+
         return identifiers
     }
     
