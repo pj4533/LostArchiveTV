@@ -46,8 +46,10 @@ struct FavoritesVideoLayerContent: View {
                         identifier: video.identifier,
                         filename: viewModel.currentFilename,
                         currentTime: player.currentItem != nil ? player.currentTime().seconds : nil,
-                        duration: viewModel.videoDuration
+                        duration: viewModel.videoDuration,
+                        totalFiles: viewModel.totalFiles
                     )
+                    .id(viewModel.totalFiles) // Force refresh when totalFiles changes
                 }
                 
                 // Add custom back button for modal presentation

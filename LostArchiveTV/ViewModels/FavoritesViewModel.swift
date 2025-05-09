@@ -70,6 +70,50 @@ class FavoritesViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
             currentCollection = video.collection
             currentDescription = video.description
             currentFilename = video.mp4File.name
+
+            // Update total files count
+            Task {
+                do {
+                    let metadata = try await self.archiveService.fetchMetadata(for: video.identifier)
+
+                    // Count all video files before prioritization (for UI display purposes)
+                    let allVideoFiles = metadata.files.filter {
+                        $0.name.hasSuffix(".mp4") ||
+                        $0.format == "h.264 IA" ||
+                        $0.format == "h.264" ||
+                        $0.format == "MPEG4"
+                    }
+
+                    // Count unique file base names (for more accurate file count)
+                    var uniqueBaseNames = Set<String>()
+                    for file in allVideoFiles {
+                        let baseName = file.name.replacingOccurrences(of: "\\.mp4$", with: "", options: .regularExpression)
+                        uniqueBaseNames.insert(baseName)
+                    }
+
+                    self.totalFiles = uniqueBaseNames.count
+
+                    Logger.files.info("📊 FILE COUNT: [\(video.identifier)] Total files in metadata: \(metadata.files.count)")
+                    Logger.files.info("📊 FILE COUNT: [\(video.identifier)] Video files before grouping: \(allVideoFiles.count)")
+                    Logger.files.info("📊 FILE COUNT: [\(video.identifier)] Unique video files: \(self.totalFiles)")
+
+                    // Still get the actual playable files for detailed logging
+                    let playableFiles = await self.archiveService.findPlayableFiles(in: metadata)
+                    Logger.files.info("📊 FILE COUNT: [\(video.identifier)] Playable files after format prioritization: \(playableFiles.count)")
+
+                    // Extra verification that we're setting the right value in the view model
+                    Logger.files.info("🔍 FAVORITES UI VALUE: [\(video.identifier)] Setting FavoritesViewModel.totalFiles to: \(self.totalFiles)")
+                    if self.totalFiles <= 1 && uniqueBaseNames.count > 1 {
+                        Logger.files.warning("⚠️ FAVORITES UI MISMATCH: Unique video count (\(uniqueBaseNames.count)) doesn't match totalFiles (\(self.totalFiles))")
+                        for baseName in uniqueBaseNames {
+                            Logger.files.debug("🔖 FAVORITES UNIQUE NAME: [\(video.identifier)] \(baseName)")
+                        }
+                    }
+                } catch {
+                    Logger.files.error("❌ FILE COUNT: [\(video.identifier)] Failed to get file count: \(error.localizedDescription)")
+                    self.totalFiles = 0
+                }
+            }
         }
     }
     

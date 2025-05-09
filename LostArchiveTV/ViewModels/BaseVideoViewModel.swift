@@ -27,6 +27,7 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
     @Published var currentDescription: String?
     @Published var currentFilename: String?
     @Published var videoDuration: Double = 0
+    @Published var totalFiles: Int = 0
     
     // MARK: - Initialization
     init() {

@@ -36,8 +36,10 @@ struct VideoInfoOverlay: View {
                 identifier: identifier,
                 filename: viewModel.currentFilename,
                 currentTime: viewModel.player?.currentTime().seconds,
-                duration: viewModel.videoDuration
+                duration: viewModel.videoDuration,
+                totalFiles: viewModel.totalFiles
             )
+            .id(viewModel.totalFiles) // Force refresh when totalFiles changes
             
             // Right-side buttons
             ButtonPanel(

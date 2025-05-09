@@ -1,4 +1,5 @@
 import SwiftUI
+import OSLog
 
 struct BottomInfoPanel: View {
     let title: String?
@@ -8,14 +9,16 @@ struct BottomInfoPanel: View {
     let filename: String?
     let currentTime: Double?
     let duration: Double
-    
-    init(title: String?, collection: String?, description: String?, identifier: String?, filename: String? = nil, currentTime: Double?, duration: Double) {
+    let totalFiles: Int?
+
+    init(title: String?, collection: String?, description: String?, identifier: String?, filename: String? = nil, currentTime: Double?, duration: Double, totalFiles: Int? = nil) {
         self.title = title
         self.collection = collection
         self.description = description
         self.identifier = identifier
         self.filename = filename
         self.currentTime = currentTime
+        self.totalFiles = totalFiles
         // Ensure duration is valid (not NaN or infinity)
         if duration.isNaN || duration.isInfinite {
             self.duration = 0
@@ -38,8 +41,14 @@ struct BottomInfoPanel: View {
                     identifier: identifier,
                     filename: filename,
                     currentTime: currentTime,
-                    duration: duration
+                    duration: duration,
+                    totalFiles: totalFiles
                 )
+                .onAppear {
+                    if let identifier = identifier, let totalFiles = totalFiles, let filename = filename {
+                        Logger.files.info("🖥️ UI DISPLAY: [\(identifier)] Showing video info with totalFiles: \(totalFiles), filename: \(filename)")
+                    }
+                }
                 .id(duration) // Force view refresh when duration updates
                 
                 // Swipe hint

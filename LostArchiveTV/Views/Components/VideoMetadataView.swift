@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import OSLog
 
 struct VideoMetadataView: View {
     let title: String?
@@ -9,6 +10,7 @@ struct VideoMetadataView: View {
     let filename: String?
     var currentTime: Double? = nil
     var duration: Double? = nil
+    var totalFiles: Int? = nil
     
     private func formatTime(_ seconds: Double) -> String {
         // Check for invalid values (NaN or infinity)
@@ -44,10 +46,27 @@ struct VideoMetadataView: View {
             }
             
             if let filename = filename {
-                Text("File: \(filename)")
-                    .font(.footnote)
-                    .foregroundColor(.white.opacity(0.8))
-                    .lineLimit(1)
+                if let totalFiles = totalFiles, totalFiles > 1 {
+                    Text("\(totalFiles) Files: \(filename)")
+                        .font(.footnote)
+                        .foregroundColor(.white.opacity(0.8))
+                        .lineLimit(1)
+                        .onAppear {
+                            if let identifier = identifier {
+                                Logger.files.debug("📄 FILES LABEL: [\(identifier)] Multiple files displayed: \(totalFiles) Files: \(filename)")
+                            }
+                        }
+                } else {
+                    Text("File: \(filename)")
+                        .font(.footnote)
+                        .foregroundColor(.white.opacity(0.8))
+                        .lineLimit(1)
+                        .onAppear {
+                            if let identifier = identifier, let totalFiles = totalFiles {
+                                Logger.files.debug("📄 FILES LABEL: [\(identifier)] Single file displayed. totalFiles = \(totalFiles), showing: File: \(filename)")
+                            }
+                        }
+                }
             }
             
             if let currentTime = currentTime, let duration = duration {

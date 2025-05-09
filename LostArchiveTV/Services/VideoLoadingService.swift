@@ -10,7 +10,7 @@ import AVFoundation
 import OSLog
 
 actor VideoLoadingService {
-    private let archiveService: ArchiveService
+    let archiveService: ArchiveService
     private let cacheManager: VideoCacheManager
     
     init(archiveService: ArchiveService, cacheManager: VideoCacheManager) {

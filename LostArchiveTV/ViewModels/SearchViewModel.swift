@@ -238,6 +238,48 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
                 currentDescription = result.description
                 currentCollection = identifier.collection
             }
+
+            // Update total files count
+            do {
+                let metadata = try await self.archiveService.fetchMetadata(for: identifier.identifier)
+
+                // Count all video files before prioritization (for UI display purposes)
+                let allVideoFiles = metadata.files.filter {
+                    $0.name.hasSuffix(".mp4") ||
+                    $0.format == "h.264 IA" ||
+                    $0.format == "h.264" ||
+                    $0.format == "MPEG4"
+                }
+
+                // Count unique file base names (for more accurate file count)
+                var uniqueBaseNames = Set<String>()
+                for file in allVideoFiles {
+                    let baseName = file.name.replacingOccurrences(of: "\\.mp4$", with: "", options: .regularExpression)
+                    uniqueBaseNames.insert(baseName)
+                }
+
+                self.totalFiles = uniqueBaseNames.count
+
+                Logger.files.info("📊 FILE COUNT: [\(identifier.identifier)] Total files in metadata: \(metadata.files.count)")
+                Logger.files.info("📊 FILE COUNT: [\(identifier.identifier)] Video files before grouping: \(allVideoFiles.count)")
+                Logger.files.info("📊 FILE COUNT: [\(identifier.identifier)] Unique video files: \(self.totalFiles)")
+
+                // Still get the actual playable files for detailed logging
+                let playableFiles = await self.archiveService.findPlayableFiles(in: metadata)
+                Logger.files.info("📊 FILE COUNT: [\(identifier.identifier)] Playable files after format prioritization: \(playableFiles.count)")
+
+                // Extra verification that we're setting the right value in the view model
+                Logger.files.info("🔍 SEARCH UI VALUE: [\(identifier.identifier)] Setting SearchViewModel.totalFiles to: \(self.totalFiles)")
+                if self.totalFiles <= 1 && uniqueBaseNames.count > 1 {
+                    Logger.files.warning("⚠️ SEARCH UI MISMATCH: Unique video count (\(uniqueBaseNames.count)) doesn't match totalFiles (\(self.totalFiles))")
+                    for baseName in uniqueBaseNames {
+                        Logger.files.debug("🔖 SEARCH UNIQUE NAME: [\(identifier.identifier)] \(baseName)")
+                    }
+                }
+            } catch {
+                Logger.files.error("❌ FILE COUNT: [\(identifier.identifier)] Failed to get file count: \(error.localizedDescription)")
+                self.totalFiles = 0
+            }
             
             isLoading = false
         } catch {
