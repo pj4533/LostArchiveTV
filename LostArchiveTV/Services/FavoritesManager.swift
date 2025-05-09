@@ -70,7 +70,7 @@ class FavoritesManager: ObservableObject {
                     length: nil
                 )
                 
-                // Create cached video
+                // Create cached video (Use default of 1 for totalFiles since we don't store this in UserDefaults)
                 let cachedVideo = CachedVideo(
                     identifier: storedFavorite.identifier,
                     collection: storedFavorite.collection,
@@ -80,7 +80,8 @@ class FavoritesManager: ObservableObject {
                     asset: asset,
                     playerItem: playerItem,
                     startPosition: storedFavorite.startPosition,
-                    addedToFavoritesAt: storedFavorite.timestamp
+                    addedToFavoritesAt: storedFavorite.timestamp,
+                    totalFiles: 1 // Will be updated when video is played
                 )
                 
                 loadedFavorites.append(cachedVideo)
@@ -143,7 +144,8 @@ class FavoritesManager: ObservableObject {
                 asset: video.asset,
                 playerItem: video.playerItem,
                 startPosition: video.startPosition,
-                addedToFavoritesAt: Date()
+                addedToFavoritesAt: Date(),
+                totalFiles: video.totalFiles
             )
             // Insert at the beginning to maintain newest-first order
             favorites.insert(videoWithTimestamp, at: 0)

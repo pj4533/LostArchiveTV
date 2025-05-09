@@ -186,6 +186,24 @@ extension SearchViewModel {
         
         let urlAsset = videoInfo.asset as! AVURLAsset
         
+        // Fetch full metadata to get total files count
+        let metadata = try await self.archiveService.fetchMetadata(for: identifier.identifier)
+
+        // Count unique video files for this item
+        let allVideoFiles = metadata.files.filter {
+            $0.name.hasSuffix(".mp4") ||
+            $0.format == "h.264 IA" ||
+            $0.format == "h.264" ||
+            $0.format == "MPEG4"
+        }
+
+        // Count unique file base names
+        var uniqueBaseNames = Set<String>()
+        for file in allVideoFiles {
+            let baseName = file.name.replacingOccurrences(of: "\\.mp4$", with: "", options: .regularExpression)
+            uniqueBaseNames.insert(baseName)
+        }
+
         // Create a CachedVideo from the loaded video information
         return CachedVideo(
             identifier: identifier.identifier,
@@ -208,7 +226,8 @@ extension SearchViewModel {
             asset: urlAsset,
             playerItem: AVPlayerItem(asset: urlAsset),
             startPosition: videoInfo.startPosition,
-            addedToFavoritesAt: nil
+            addedToFavoritesAt: nil,
+            totalFiles: uniqueBaseNames.count
         )
     }
 }

@@ -42,7 +42,8 @@ struct FavoritesManagerTests {
             asset: asset,
             playerItem: playerItem,
             startPosition: 0.0,
-            addedToFavoritesAt: nil
+            addedToFavoritesAt: nil,
+            totalFiles: 1
         )
     }
     

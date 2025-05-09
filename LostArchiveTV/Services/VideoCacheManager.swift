@@ -118,6 +118,21 @@ actor VideoCacheManager {
         // Start preloading the asset by requesting its duration (which loads data)
         _ = try await asset.load(.duration)
         
+        // Count unique video files
+        let allVideoFiles = metadata.files.filter {
+            $0.name.hasSuffix(".mp4") ||
+            $0.format == "h.264 IA" ||
+            $0.format == "h.264" ||
+            $0.format == "MPEG4"
+        }
+
+        // Count unique file base names
+        var uniqueBaseNames = Set<String>()
+        for file in allVideoFiles {
+            let baseName = file.name.replacingOccurrences(of: "\\.mp4$", with: "", options: .regularExpression)
+            uniqueBaseNames.insert(baseName)
+        }
+
         // Create and store the cached video
         let cachedVideo = CachedVideo(
             identifier: identifier.identifier,
@@ -128,7 +143,8 @@ actor VideoCacheManager {
             asset: asset,
             playerItem: playerItem,
             startPosition: randomStart,
-            addedToFavoritesAt: nil
+            addedToFavoritesAt: nil,
+            totalFiles: uniqueBaseNames.count
         )
         
         // Store in the cache

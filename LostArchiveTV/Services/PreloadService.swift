@@ -197,6 +197,22 @@ actor PreloadService {
         // Start preloading the asset by requesting its duration (which loads data)
         _ = try await asset.load(.duration)
         
+        // Count unique video files by grouping files with the same base name
+        var uniqueBaseNames = Set<String>()
+        let videoFiles = metadata.files.filter {
+            $0.name.hasSuffix(".mp4") ||
+            $0.format == "h.264 IA" ||
+            $0.format == "h.264" ||
+            $0.format == "MPEG4"
+        }
+
+        for file in videoFiles {
+            let baseName = file.name.replacingOccurrences(of: "\\.mp4$", with: "", options: .regularExpression)
+            uniqueBaseNames.insert(baseName)
+        }
+
+        Logger.files.info("📊 PRELOAD: Found \(uniqueBaseNames.count) unique video files for \(identifier)")
+
         // Create and store the cached video
         let cachedVideo = CachedVideo(
             identifier: identifier,
@@ -207,7 +223,8 @@ actor PreloadService {
             asset: asset,
             playerItem: playerItem,
             startPosition: randomStart,
-            addedToFavoritesAt: nil
+            addedToFavoritesAt: nil,
+            totalFiles: uniqueBaseNames.count
         )
         
         // Store in the cache

@@ -21,6 +21,13 @@ extension VideoPlayerViewModel {
     // Method to update the current cached video reference
     func updateCurrentCachedVideo(_ video: CachedVideo?) {
         _currentCachedVideo = video
+
+        // Update the totalFiles property from the cached video
+        if let video = video {
+            self.totalFiles = video.totalFiles
+            Logger.files.info("📊 CACHING: Updated totalFiles to \(video.totalFiles) from CachedVideo")
+        }
+
         objectWillChange.send()
     }
 }

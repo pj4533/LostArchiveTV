@@ -157,6 +157,21 @@ actor VideoLoadingService {
         let startAtBeginning = PlaybackPreferences.alwaysStartAtBeginning
         let startPosition = startAtBeginning ? 0.0 : (safeMaxStartTime > 10 ? Double.random(in: 0..<safeMaxStartTime) : 0)
         
+        // Count unique video files for this item
+        let allVideoFiles = metadata.files.filter {
+            $0.name.hasSuffix(".mp4") ||
+            $0.format == "h.264 IA" ||
+            $0.format == "h.264" ||
+            $0.format == "MPEG4"
+        }
+
+        // Count unique file base names
+        var uniqueBaseNames = Set<String>()
+        for file in allVideoFiles {
+            let baseName = file.name.replacingOccurrences(of: "\\.mp4$", with: "", options: .regularExpression)
+            uniqueBaseNames.insert(baseName)
+        }
+
         // Create and return the cached video
         let cachedVideo = CachedVideo(
             identifier: identifier.identifier,
@@ -167,7 +182,8 @@ actor VideoLoadingService {
             asset: asset,
             playerItem: playerItem,
             startPosition: startPosition,
-            addedToFavoritesAt: nil
+            addedToFavoritesAt: nil,
+            totalFiles: uniqueBaseNames.count
         )
         
         Logger.caching.info("Successfully created CachedVideo for \(identifier.identifier)")

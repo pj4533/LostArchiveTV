@@ -250,7 +250,7 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider
         // Get the current position
         let currentTime = playbackManager.player?.currentTime().seconds ?? 0
         
-        // Create cached video
+        // Create cached video with current totalFiles value
         let cachedVideo = CachedVideo(
             identifier: identifier,
             collection: collection,
@@ -260,7 +260,8 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider
             asset: asset,
             playerItem: playerItem,
             startPosition: currentTime,
-            addedToFavoritesAt: nil
+            addedToFavoritesAt: nil,
+            totalFiles: self.totalFiles
         )
         
         return cachedVideo

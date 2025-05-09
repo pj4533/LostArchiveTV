@@ -19,7 +19,8 @@ class TransitionPreloadManager {
     @Published var nextDescription: String = ""
     @Published var nextIdentifier: String = ""
     @Published var nextFilename: String = ""
-    
+    @Published var nextTotalFiles: Int = 0
+
     // Previous (up) video properties
     @Published var prevVideoReady = false
     @Published var prevPlayer: AVPlayer?
@@ -28,6 +29,7 @@ class TransitionPreloadManager {
     @Published var prevDescription: String = ""
     @Published var prevIdentifier: String = ""
     @Published var prevFilename: String = ""
+    @Published var prevTotalFiles: Int = 0
     
     // Preload the next video while current one is playing
     func preloadNextVideo(provider: VideoProvider) async {
@@ -62,10 +64,13 @@ class TransitionPreloadManager {
                 nextDescription = nextVideo.description
                 nextIdentifier = nextVideo.identifier
                 nextFilename = nextVideo.mp4File.name
-                
+                nextTotalFiles = nextVideo.totalFiles
+
+                Logger.files.info("📊 PRELOAD NEXT: Set nextTotalFiles to \(nextVideo.totalFiles) for \(nextVideo.identifier)")
+
                 // Store reference to next player
                 nextPlayer = player
-                
+
                 // Mark next video as ready
                 nextVideoReady = true
             }
@@ -106,10 +111,16 @@ class TransitionPreloadManager {
                     nextCollection = videoInfo.collection
                     nextDescription = videoInfo.description
                     nextIdentifier = videoInfo.identifier
-                    
+                    nextFilename = videoInfo.filename
+
+                    // Count total files - temporarily set to 1, we'll update this properly elsewhere
+                    nextTotalFiles = 1
+
+                    Logger.files.info("📊 PRELOAD RAND: Set nextTotalFiles to 1 for \(videoInfo.identifier) (will be updated during transition)")
+
                     // Store reference to next player
                     nextPlayer = player
-                    
+
                     // Mark next video as ready
                     nextVideoReady = true
                 }
@@ -208,10 +219,13 @@ class TransitionPreloadManager {
                 prevDescription = previousVideo.description
                 prevIdentifier = previousVideo.identifier
                 prevFilename = previousVideo.mp4File.name
-                
+                prevTotalFiles = previousVideo.totalFiles
+
+                Logger.files.info("📊 PRELOAD PREV: Set prevTotalFiles to \(previousVideo.totalFiles) for \(previousVideo.identifier)")
+
                 // Store reference to previous player
                 prevPlayer = player
-                
+
                 // Mark previous video as ready
                 prevVideoReady = true
             }

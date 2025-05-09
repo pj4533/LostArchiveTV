@@ -28,6 +28,9 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
     // Changed to internal with setter for extensions to access
     internal var currentIndex = 0
     @Published var currentResult: SearchResult?
+
+    // Current cached video reference
+    private var _currentCachedVideo: CachedVideo?
     
     // For video transition/swipe support
     var transitionManager: VideoTransitionManager? = VideoTransitionManager()
@@ -53,7 +56,8 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
             asset: AVURLAsset(url: URL(string: "about:blank")!),
             playerItem: AVPlayerItem(asset: AVURLAsset(url: URL(string: "about:blank")!)),
             startPosition: 0,
-            addedToFavoritesAt: nil
+            addedToFavoritesAt: nil,
+            totalFiles: 1
         )
         
         return favoritesManager.isFavorite(dummyVideo)
@@ -210,76 +214,42 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
     private func loadVideo(for identifier: ArchiveIdentifier) async {
         do {
             isLoading = true
-            
+
             Logger.caching.info("Loading video for identifier: \(identifier.identifier)")
-            
-            // Let's convert this to the format that ArchiveService would return
-            let videoInfo = try await self.loadFreshRandomVideo(for: identifier)
-            
+
+            // Create a CachedVideo from the search result
+            let cachedVideo = try await createCachedVideo(for: identifier)
+
+            // Store a reference to the cached video
+            _currentCachedVideo = cachedVideo
+
+            // Update totalFiles from cached video
+            self.totalFiles = cachedVideo.totalFiles
+            Logger.files.info("📊 SEARCH PLAYER: Updated totalFiles to \(cachedVideo.totalFiles) from CachedVideo")
+
             // Create player item and player
-            let playerItem = AVPlayerItem(asset: videoInfo.asset)
+            let playerItem = AVPlayerItem(asset: cachedVideo.asset)
             let newPlayer = AVPlayer(playerItem: playerItem)
-            
+
             // Set the player and seek to start position
             player = newPlayer
-            
+
             // Seek to the specified position
-            let startTime = CMTime(seconds: videoInfo.startPosition, preferredTimescale: 600)
+            let startTime = CMTime(seconds: cachedVideo.startPosition, preferredTimescale: 600)
             await newPlayer.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
-            
+
             // Start playback
             newPlayer.play()
-            
+
             // Update metadata properties
             currentIdentifier = identifier.identifier
-            currentFilename = videoInfo.filename
+            currentFilename = cachedVideo.mp4File.name
             if let result = searchResults.first(where: { $0.identifier.identifier == identifier.identifier }) {
                 currentTitle = result.title
                 currentDescription = result.description
                 currentCollection = identifier.collection
             }
 
-            // Update total files count
-            do {
-                let metadata = try await self.archiveService.fetchMetadata(for: identifier.identifier)
-
-                // Count all video files before prioritization (for UI display purposes)
-                let allVideoFiles = metadata.files.filter {
-                    $0.name.hasSuffix(".mp4") ||
-                    $0.format == "h.264 IA" ||
-                    $0.format == "h.264" ||
-                    $0.format == "MPEG4"
-                }
-
-                // Count unique file base names (for more accurate file count)
-                var uniqueBaseNames = Set<String>()
-                for file in allVideoFiles {
-                    let baseName = file.name.replacingOccurrences(of: "\\.mp4$", with: "", options: .regularExpression)
-                    uniqueBaseNames.insert(baseName)
-                }
-
-                self.totalFiles = uniqueBaseNames.count
-
-                Logger.files.info("📊 FILE COUNT: [\(identifier.identifier)] Total files in metadata: \(metadata.files.count)")
-                Logger.files.info("📊 FILE COUNT: [\(identifier.identifier)] Video files before grouping: \(allVideoFiles.count)")
-                Logger.files.info("📊 FILE COUNT: [\(identifier.identifier)] Unique video files: \(self.totalFiles)")
-
-                // Still get the actual playable files for detailed logging
-                let playableFiles = await self.archiveService.findPlayableFiles(in: metadata)
-                Logger.files.info("📊 FILE COUNT: [\(identifier.identifier)] Playable files after format prioritization: \(playableFiles.count)")
-
-                // Extra verification that we're setting the right value in the view model
-                Logger.files.info("🔍 SEARCH UI VALUE: [\(identifier.identifier)] Setting SearchViewModel.totalFiles to: \(self.totalFiles)")
-                if self.totalFiles <= 1 && uniqueBaseNames.count > 1 {
-                    Logger.files.warning("⚠️ SEARCH UI MISMATCH: Unique video count (\(uniqueBaseNames.count)) doesn't match totalFiles (\(self.totalFiles))")
-                    for baseName in uniqueBaseNames {
-                        Logger.files.debug("🔖 SEARCH UNIQUE NAME: [\(identifier.identifier)] \(baseName)")
-                    }
-                }
-            } catch {
-                Logger.files.error("❌ FILE COUNT: [\(identifier.identifier)] Failed to get file count: \(error.localizedDescription)")
-                self.totalFiles = 0
-            }
             
             isLoading = false
         } catch {

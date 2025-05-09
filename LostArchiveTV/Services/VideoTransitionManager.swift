@@ -30,7 +30,8 @@ class VideoTransitionManager: ObservableObject {
     var nextDescription: String { preloadManager.nextDescription }
     var nextIdentifier: String { preloadManager.nextIdentifier }
     var nextFilename: String { preloadManager.nextFilename }
-    
+    var nextTotalFiles: Int { preloadManager.nextTotalFiles }
+
     var prevVideoReady: Bool { preloadManager.prevVideoReady }
     var prevPlayer: AVPlayer? { preloadManager.prevPlayer }
     var prevTitle: String { preloadManager.prevTitle }
@@ -38,6 +39,7 @@ class VideoTransitionManager: ObservableObject {
     var prevDescription: String { preloadManager.prevDescription }
     var prevIdentifier: String { preloadManager.prevIdentifier }
     var prevFilename: String { preloadManager.prevFilename }
+    var prevTotalFiles: Int { preloadManager.prevTotalFiles }
     
     // MARK: - Preloading Methods
     
@@ -162,7 +164,7 @@ class VideoTransitionManager: ObservableObject {
                                 )
                             ),
                             mp4File: ArchiveFile(
-                                name: self.nextIdentifier,
+                                name: self.nextFilename,
                                 format: "h.264",
                                 size: "",
                                 length: nil
@@ -171,8 +173,11 @@ class VideoTransitionManager: ObservableObject {
                             asset: (nextPlayer.currentItem?.asset as? AVURLAsset) ?? AVURLAsset(url: URL(string: "about:blank")!),
                             playerItem: nextPlayer.currentItem ?? AVPlayerItem(asset: AVURLAsset(url: URL(string: "about:blank")!)),
                             startPosition: 0,
-                            addedToFavoritesAt: nil
+                            addedToFavoritesAt: nil,
+                            totalFiles: self.nextTotalFiles
                         )
+
+                        Logger.files.info("📊 TRANSITION: Creating new CachedVideo with totalFiles: \(self.nextTotalFiles) for \(self.nextIdentifier)")
                         
                         // Add the new video to history
                         provider.addVideoToHistory(nextVideo)
@@ -219,6 +224,12 @@ class VideoTransitionManager: ObservableObject {
             provider.currentDescription = self.nextDescription
             provider.currentIdentifier = self.nextIdentifier
             provider.currentFilename = self.nextFilename
+
+            // Also update totalFiles if supported by provider
+            if let videoViewModel = provider as? BaseVideoViewModel {
+                videoViewModel.totalFiles = self.nextTotalFiles
+                Logger.files.info("📊 TRANSITION UP: Set provider.totalFiles to \(self.nextTotalFiles) for \(self.nextIdentifier)")
+            }
             
             // Unmute the new player and play it
             nextPlayer.isMuted = false
@@ -318,6 +329,12 @@ class VideoTransitionManager: ObservableObject {
             provider.currentDescription = self.prevDescription
             provider.currentIdentifier = self.prevIdentifier
             provider.currentFilename = self.prevFilename
+
+            // Also update totalFiles if supported by provider
+            if let videoViewModel = provider as? BaseVideoViewModel {
+                videoViewModel.totalFiles = self.prevTotalFiles
+                Logger.files.info("📊 TRANSITION DOWN: Set provider.totalFiles to \(self.prevTotalFiles) for \(self.prevIdentifier)")
+            }
             
             // Unmute the previous player and play it
             prevPlayer.isMuted = false

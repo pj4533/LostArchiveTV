@@ -48,7 +48,8 @@ struct CachedVideoTests {
             asset: asset,
             playerItem: playerItem,
             startPosition: 0.0,
-            addedToFavoritesAt: timestamp
+            addedToFavoritesAt: timestamp,
+            totalFiles: 1
         )
     }
     

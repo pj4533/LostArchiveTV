@@ -56,6 +56,7 @@ struct VideoMetadataView: View {
                                 Logger.files.debug("📄 FILES LABEL: [\(identifier)] Multiple files displayed: \(totalFiles) Files: \(filename)")
                             }
                         }
+                        .id("\(totalFiles)_\(filename)") // Force refresh when either totalFiles or filename changes
                 } else {
                     Text("File: \(filename)")
                         .font(.footnote)
@@ -66,6 +67,7 @@ struct VideoMetadataView: View {
                                 Logger.files.debug("📄 FILES LABEL: [\(identifier)] Single file displayed. totalFiles = \(totalFiles), showing: File: \(filename)")
                             }
                         }
+                        .id("\(totalFiles ?? 0)_\(filename)") // Force refresh when either totalFiles or filename changes
                 }
             }
             

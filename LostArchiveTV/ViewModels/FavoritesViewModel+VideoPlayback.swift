@@ -43,11 +43,52 @@ extension FavoritesViewModel {
     }
     
     func setCurrentVideo(_ video: CachedVideo) {
-        self.currentVideo = video
-        
-        // Update base class properties
-        updateBasePropertiesFromCurrentVideo()
-        
+        // If needed, fetch most recent metadata for file info
+        Task {
+            do {
+                // Fetch metadata for accurate file count if not already loaded
+                let metadata = try await self.archiveService.fetchMetadata(for: video.identifier)
+                let playableFiles = await self.archiveService.findPlayableFiles(in: metadata)
+
+                // Count unique files
+                let allVideoFiles = metadata.files.filter {
+                    $0.name.hasSuffix(".mp4") ||
+                    $0.format == "h.264 IA" ||
+                    $0.format == "h.264" ||
+                    $0.format == "MPEG4"
+                }
+                var uniqueBaseNames = Set<String>()
+                for file in allVideoFiles {
+                    let baseName = file.name.replacingOccurrences(of: "\\.mp4$", with: "", options: .regularExpression)
+                    uniqueBaseNames.insert(baseName)
+                }
+
+                // Create a new video with updated count
+                let updatedVideo = CachedVideo(
+                    identifier: video.identifier,
+                    collection: video.collection,
+                    metadata: video.metadata,
+                    mp4File: video.mp4File,
+                    videoURL: video.videoURL,
+                    asset: video.asset,
+                    playerItem: video.playerItem,
+                    startPosition: video.startPosition,
+                    addedToFavoritesAt: video.addedToFavoritesAt,
+                    totalFiles: uniqueBaseNames.count
+                )
+
+                // Update current video
+                self.currentVideo = updatedVideo
+
+                // Update base class properties
+                updateBasePropertiesFromCurrentVideo()
+            } catch {
+                // Use original video if metadata update fails
+                self.currentVideo = video
+                updateBasePropertiesFromCurrentVideo()
+            }
+        }
+
         // Create a fresh player with a new AVPlayerItem
         createAndSetupPlayer(for: video)
     }
