@@ -88,17 +88,16 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider
                 Task {
                     // Show the first video as soon as it's loaded
                     await loadFirstVideoDirectly()
+
+                    // After first video is loaded and isFirstVideoReady is set to true,
+                    // explicitly start caching to fill the cache
+                    Logger.caching.info("First video loaded, now filling cache")
+                    await ensureVideosAreCached()
                 }
-                
+
                 // Start cache monitoring in parallel, but don't wait for it
                 Task {
                     monitorCacheProgress()
-                }
-                
-                // Start preloading in parallel, but don't block first video
-                Task {
-                    // This will now run in the background and not block first video
-                    await ensureVideosAreCached()
                 }
             } else {
                 Logger.caching.error("Cannot load: identifiers not loaded properly")

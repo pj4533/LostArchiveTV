@@ -86,10 +86,12 @@ actor PreloadService {
         let currentCount = await cacheManager.cacheCount()
         if currentCount < maxCache {
             // If first video isn't ready yet, don't start background task - wait for signal
-            if !isFirstVideoReady {
+            Logger.caching.info("PreloadService: Checking if first video is ready. isFirstVideoReady = \(self.isFirstVideoReady)")
+            if !self.isFirstVideoReady {
                 Logger.caching.info("PreloadService: First video not yet playing, delaying background cache filling")
                 return
             }
+            Logger.caching.info("PreloadService: First video is ready, proceeding with cache filling")
             
             Logger.caching.info("PreloadService: Starting background task to fill cache to \(maxCache) videos")
             
@@ -138,6 +140,7 @@ actor PreloadService {
     func setFirstVideoReady() {
         Logger.caching.info("PreloadService: First video is now playing, enabling background caching")
         isFirstVideoReady = true
+        Logger.caching.info("PreloadService: isFirstVideoReady set to \(self.isFirstVideoReady)")
     }
     
     func preloadRandomVideo(cacheManager: VideoCacheManager, archiveService: ArchiveService, identifiers: [ArchiveIdentifier]) async throws {

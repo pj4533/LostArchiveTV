@@ -113,9 +113,10 @@ extension VideoPlayerViewModel {
             // CRITICAL: Immediately exit initialization mode
             isInitializing = false
             
-            // Only now signal that first video is ready for preloading
+            // Signal that first video is ready for preloading
+            Logger.caching.info("🔄 FAST START: Signaling that first video is ready for preloading")
             await preloadService.setFirstVideoReady()
-            
+
             let totalTime = CFAbsoluteTimeGetCurrent() - startTime
             Logger.videoPlayback.info("🏁 FAST START: First video ready in \(totalTime.formatted(.number.precision(.fractionLength(4)))) seconds")
         } catch {
