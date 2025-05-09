@@ -10,9 +10,27 @@ import AVKit
 import OSLog
 import Foundation
 
-class TransitionPreloadManager {
+class TransitionPreloadManager: ObservableObject {
     // Next (down) video properties
-    @Published var nextVideoReady = false
+    @Published var nextVideoReady = false {
+        didSet {
+            // Log when the next video ready state changes
+            if oldValue != self.nextVideoReady {
+                Logger.caching.info("🚦 TRANSITION STATUS: Next video ready changed to \(self.nextVideoReady ? "true" : "false") on manager \(String(describing: ObjectIdentifier(self)))")
+
+                // Debug - log the stack trace to see where this is being set
+                let symbols = Thread.callStackSymbols.prefix(5).joined(separator: "\n")
+                Logger.caching.info("🔍 CALL STACK: next state changed from \(oldValue) to \(self.nextVideoReady):\n\(symbols)")
+
+                // Always post notification when nextVideoReady changes to ensure UI updates
+                // This helps prevent mismatch between UI and actual swipe availability
+                DispatchQueue.main.async {
+                    Logger.caching.info("🚨 AUTO NOTIFICATION: Publishing CacheStatusChanged due to nextVideoReady change")
+                    NotificationCenter.default.post(name: Notification.Name("CacheStatusChanged"), object: nil)
+                }
+            }
+        }
+    }
     @Published var nextPlayer: AVPlayer?
     @Published var nextTitle: String = ""
     @Published var nextCollection: String = ""
@@ -22,7 +40,21 @@ class TransitionPreloadManager {
     @Published var nextTotalFiles: Int = 0
 
     // Previous (up) video properties
-    @Published var prevVideoReady = false
+    @Published var prevVideoReady = false {
+        didSet {
+            // Log when the previous video ready state changes
+            if oldValue != self.prevVideoReady {
+                Logger.caching.info("🚦 TRANSITION STATUS: Previous video ready changed to \(self.prevVideoReady ? "true" : "false") on manager \(String(describing: ObjectIdentifier(self)))")
+
+                // Always post notification when prevVideoReady changes to ensure UI updates
+                // This helps prevent mismatch between UI and actual swipe availability
+                DispatchQueue.main.async {
+                    Logger.caching.info("🚨 AUTO NOTIFICATION: Publishing CacheStatusChanged due to prevVideoReady change")
+                    NotificationCenter.default.post(name: Notification.Name("CacheStatusChanged"), object: nil)
+                }
+            }
+        }
+    }
     @Published var prevPlayer: AVPlayer?
     @Published var prevTitle: String = ""
     @Published var prevCollection: String = ""
@@ -196,7 +228,7 @@ class TransitionPreloadManager {
                     await MainActor.run {
                         // Update next video metadata
                         nextTitle = nextVideo.title
-                        nextCollection = nextVideo.collection ?? ""
+                        nextCollection = nextVideo.collection
                         nextDescription = nextVideo.description
                         nextIdentifier = nextVideo.identifier
                         nextFilename = nextVideo.mp4File.name

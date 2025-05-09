@@ -38,6 +38,22 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
         setupAudioSession()
         setupDurationObserver()
         startCacheStatusUpdates()
+
+        // Listen for cache status change notifications
+        NotificationCenter.default.addObserver(
+            forName: Notification.Name("CacheStatusChanged"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            // Log that we received the notification
+            Logger.caching.info("📱 RECEIVED NOTIFICATION: CacheStatusChanged in \(String(describing: type(of: self)))")
+
+            // Update cache status immediately when notification received
+            Task {
+                Logger.caching.info("🔄 UPDATING UI: updateCacheStatuses called due to notification")
+                await self?.updateCacheStatuses()
+            }
+        }
     }
 
     private func startCacheStatusUpdates() {
@@ -132,6 +148,9 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
         // Cancel the cache status update task
         cacheStatusTask?.cancel()
         cacheStatusTask = nil
+
+        // Remove notification observer
+        NotificationCenter.default.removeObserver(self, name: Notification.Name("CacheStatusChanged"), object: nil)
 
         // Other async cleanup can be done in a Task
         Task {
@@ -230,8 +249,24 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
         }
 
         if let cacheableProvider = self as? CacheableProvider {
-            // Get cache statuses from the cache manager
-            let statuses = await cacheableProvider.cacheManager.getCacheStatuses(currentVideoIdentifier: identifier)
+            // Get transition manager if provider conforms to VideoProvider
+            var transitionManager: VideoTransitionManager? = nil
+            if let videoProvider = self as? VideoProvider {
+                transitionManager = videoProvider.transitionManager
+
+                // DEBUG: Log the transition manager identity to help debug issues
+                if let manager = transitionManager {
+                    Logger.caching.info("🔍 USING TRANSITION MANAGER: \(String(describing: ObjectIdentifier(manager))), nextReady=\(manager.nextVideoReady), prevReady=\(manager.prevVideoReady)")
+                }
+            }
+
+            // Get cache statuses from the cache manager with transition manager context
+            // The VideoCacheManager.getCacheStatuses implementation now directly uses
+            // transition manager's nextVideoReady state for the UI indicators
+            let statuses = await cacheableProvider.cacheManager.getCacheStatuses(
+                currentVideoIdentifier: identifier,
+                transitionManager: transitionManager
+            )
 
             // Update on the main thread since we're modifying @Published properties
             await MainActor.run {

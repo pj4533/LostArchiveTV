@@ -81,11 +81,16 @@ struct VideoGestureHandler: ViewModifier {
                 // Allow both upward and downward swipes
                 if translation < 0 {
                     // Upward swipe (for next video) - only if next video is ready
-                    if transitionManager.nextVideoReady {
+                    let isNextReady = transitionManager.nextVideoReady
+                    Logger.caching.info("🔍 GESTURE CHECK: nextVideoReady=\(isNextReady), isPrevReady=\(transitionManager.prevVideoReady), transitionManager=\(String(describing: ObjectIdentifier(transitionManager)))")
+
+                    if isNextReady {
                         dragOffset = max(translation, -geometry.size.height)
                         Logger.caching.debug("Dragging UP (next): nextVideoReady=true, dragOffset=\(dragOffset)")
                     } else {
-                        Logger.caching.debug("⚠️ BLOCKED Dragging UP: nextVideoReady=false")
+                        // Log detailed information about the current state to help debug the issue
+                        Logger.caching.info("⚠️ BLOCKED Dragging UP: nextVideoReady=false, dragOffset=\(dragOffset), isDragging=\(isDragging), isTransitioning=\(transitionManager.isTransitioning)")
+                        Logger.caching.info("⚠️ TRANSITION STATE: nextPlayer=\(transitionManager.nextPlayer != nil ? "exists" : "nil"), prevPlayer=\(transitionManager.prevPlayer != nil ? "exists" : "nil")")
                     }
                 } else {
                     // Downward swipe (for previous video) - only if previous video is ready
@@ -97,7 +102,7 @@ struct VideoGestureHandler: ViewModifier {
                     }
                 }
             }
-            .onEnded { value in
+            .onEnded { (value: DragGesture.Value) in
                 guard !transitionManager.isTransitioning else { return }
                 
                 let translation = value.translation.height

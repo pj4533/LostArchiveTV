@@ -250,6 +250,10 @@ class VideoTransitionManager: ObservableObject {
                 // Reset the preload manager state
                 self.preloadManager.nextVideoReady = false
                 self.preloadManager.nextPlayer = nil
+
+                // Post a notification to update UI cache status immediately
+                Logger.caching.info("🔔 POSTING NOTIFICATION: CacheStatusChanged - nextVideoReady is now \(self.preloadManager.nextVideoReady)")
+                NotificationCenter.default.post(name: Notification.Name("CacheStatusChanged"), object: nil)
             }
             
             // Preload the next videos in both directions and advance cache window
@@ -378,6 +382,10 @@ class VideoTransitionManager: ObservableObject {
                 // Reset the preload manager state
                 self.preloadManager.prevVideoReady = false
                 self.preloadManager.prevPlayer = nil
+
+                // Post a notification to update UI cache status immediately
+                Logger.caching.info("🔔 POSTING NOTIFICATION: CacheStatusChanged - nextVideoReady is now \(self.preloadManager.nextVideoReady)")
+                NotificationCenter.default.post(name: Notification.Name("CacheStatusChanged"), object: nil)
             }
             
             // Preload in both directions and advance cache window

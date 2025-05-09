@@ -78,7 +78,11 @@ class NotificationObserver: ObservableObject {
 
 struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
     @ObservedObject var provider: Provider
-    @StateObject private var transitionManager = VideoTransitionManager()
+    // Use the provider's transition manager instead of creating a new one
+    private var transitionManager: VideoTransitionManager {
+        // Return the provider's transition manager if it exists
+        return provider.transitionManager ?? VideoTransitionManager()
+    }
     @StateObject private var notificationObserver = NotificationObserver()
 
     // Make the transitionManager accessible to the provider for direct preloading
@@ -217,16 +221,11 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
         }
     }
     
-    // Configure the provider with the transition manager
+    // Configure any additional provider setup if needed
     private func configureProvider(_ provider: Provider) {
-        if let favProvider = provider as? FavoritesViewModel {
-            Logger.caching.info("Configuring FavoritesViewModel with transition manager")
-            favProvider.transitionManager = transitionManager
-        } else if let searchViewModel = provider as? SearchViewModel {
-            Logger.caching.info("Configuring SearchViewModel with transition manager")
-            searchViewModel.transitionManager = transitionManager
-        }
-        
+        // Log the transition manager we're using
+        Logger.caching.info("Using provider's transition manager: \(String(describing: ObjectIdentifier(transitionManager)))")
+
         // Use the callback if provided (for custom provider types)
         onPreloadReady?(transitionManager)
     }

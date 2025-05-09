@@ -55,6 +55,20 @@ struct BottomInfoPanel: View {
                     Text("Swipe up for next video")
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.7))
+                        .onAppear {
+                            // Log what we're about to display to the user
+                            let readyStatus = cacheStatuses.count > 0 && cacheStatuses[0] == .preloaded
+                            let statusSymbols = cacheStatuses.map { status -> String in
+                                switch status {
+                                    case .preloaded: return "●" // solid circle
+                                    case .cached: return "○"    // outline
+                                    case .notCached: return "▢" // empty box
+                                }
+                            }
+                            let statusDisplay = statusSymbols.joined(separator: " ")
+
+                            Logger.caching.info("🖥️ UI DISPLAY: Cache indicators: [\(statusDisplay)], first indicator ready: \(readyStatus)")
+                        }
                     CacheStatusIndicator(cacheStatuses: cacheStatuses)
                     Spacer()
                 }
