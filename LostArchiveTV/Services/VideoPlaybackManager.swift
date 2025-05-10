@@ -11,7 +11,7 @@ import OSLog
 
 class VideoPlaybackManager: ObservableObject {
     // Use the centralized PlayerManager
-    private let playerManager = PlayerManager()
+    let playerManager = PlayerManager()
     
     // Published properties that mirror PlayerManager values
     @Published var isPlaying = false
@@ -86,14 +86,30 @@ class VideoPlaybackManager: ObservableObject {
     }
     
     func useExistingPlayer(_ player: AVPlayer) {
+        let playerPointer = String(describing: ObjectIdentifier(player))
+        Logger.videoPlayback.debug("🎮 VP_MANAGER: Delegating useExistingPlayer for player \(playerPointer)")
         playerManager.useExistingPlayer(player)
     }
-    
+
     func play() {
+        if let player = playerManager.player {
+            let playerPointer = String(describing: ObjectIdentifier(player))
+            let itemStatus = player.currentItem?.status.rawValue ?? -1
+            Logger.videoPlayback.debug("▶️ VP_MANAGER: Play requested for player \(playerPointer), item status: \(itemStatus)")
+        } else {
+            Logger.videoPlayback.warning("▶️ VP_MANAGER: Play requested but player is nil")
+        }
         playerManager.play()
     }
-    
+
     func pause() {
+        if let player = playerManager.player {
+            let playerPointer = String(describing: ObjectIdentifier(player))
+            let itemStatus = player.currentItem?.status.rawValue ?? -1
+            Logger.videoPlayback.debug("⏸️ VP_MANAGER: Pause requested for player \(playerPointer), item status: \(itemStatus)")
+        } else {
+            Logger.videoPlayback.warning("⏸️ VP_MANAGER: Pause requested but player is nil")
+        }
         playerManager.pause()
     }
     
@@ -110,6 +126,13 @@ class VideoPlaybackManager: ObservableObject {
     }
     
     func cleanupPlayer() {
+        if let player = playerManager.player {
+            let playerPointer = String(describing: ObjectIdentifier(player))
+            let itemStatus = player.currentItem?.status.rawValue ?? -1
+            Logger.videoPlayback.debug("🧹 VP_MANAGER: Delegating cleanupPlayer for player \(playerPointer), item status: \(itemStatus)")
+        } else {
+            Logger.videoPlayback.debug("🧹 VP_MANAGER: Delegating cleanupPlayer but player is already nil")
+        }
         playerManager.cleanupPlayer()
     }
     

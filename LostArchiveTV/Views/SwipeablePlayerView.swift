@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AVKit
+import AVFoundation
 import OSLog
 
 // Helper class to manage notification observing - using a class allows us to properly handle deallocation
@@ -144,36 +145,99 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                                     let currentTimeSeconds = baseViewModel.player?.currentTime().seconds ?? 0
                                     let durationSeconds = baseViewModel.videoDuration
 
-                                    // Convert to CMTime for VideoTrimViewModel
+                                    // Convert to CMTime for SimpleTrimView
                                     let currentTime = CMTime(seconds: currentTimeSeconds, preferredTimescale: 600)
                                     let duration = CMTime(seconds: durationSeconds, preferredTimescale: 600)
 
-                                    // Pause background operations while trim view is active
-                                    ZStack {
-                                        VideoTrimView(
-                                            videoURL: downloadedURL,
-                                            currentTime: currentTime,
-                                            duration: duration
-                                        )
-                                    }
+                                    // Show the new simplified trim view
+                                    SimpleTrimView(
+                                        videoURL: downloadedURL,
+                                        initialPosition: currentTime,
+                                        videoDuration: duration
+                                    )
                                     .onAppear {
-                                        // IMPORTANT: Give the trim view time to initialize its player BEFORE pausing background operations
+                                        // IMPORTANT: Give the trim view a longer delay to initialize
                                         Task {
-                                            // Brief delay to allow trim view initialization to happen first
-                                            try? await Task.sleep(for: .milliseconds(300))
+                                            // First explicitly pause the current player to avoid conflicts
+                                            if let baseViewModel = provider as? BaseVideoViewModel, let player = baseViewModel.player {
+                                                let playerID = String(describing: ObjectIdentifier(player))
+                                                let isPlaying = player.rate > 0
+                                                Logger.caching.info("🛑 TRIM_PAUSE_PLAYER: Explicitly pausing base player \(playerID), was playing=\(isPlaying)")
+                                                player.pause()
+                                                player.rate = 0
+                                            }
+
+                                            // Get current audio session state for debugging
+                                            let audioSession = AVAudioSession.sharedInstance()
+                                            let category = audioSession.category.rawValue
+                                            let mode = audioSession.mode.rawValue
+                                            let isOtherPlaying = audioSession.isOtherAudioPlaying
+
+                                            Logger.caching.info("📊 TRIM_AUDIO_STATE: Before trim init: category=\(category), mode=\(mode), otherPlaying=\(isOtherPlaying)")
+
+                                            // Deactivate audio session to ensure clean state for trim view
+                                            do {
+                                                try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+                                                Logger.caching.info("📊 TRIM_AUDIO_RESET: Deactivated audio session to prepare for trim view")
+                                            } catch {
+                                                Logger.caching.error("📊 TRIM_AUDIO_ERROR: Failed to deactivate session: \(error.localizedDescription)")
+                                            }
+
+                                            // Longer delay to ensure trim view has time to fully initialize
+                                            Logger.caching.info("⏰ TRIM_DELAY: Waiting to allow trim view to fully initialize")
+                                            // Use a longer delay to ensure complete initialization and avoid resource contention
+                                            try? await Task.sleep(for: .milliseconds(2500))
+
+                                            // Log audio session state after delay
+                                            let afterAudioSession = AVAudioSession.sharedInstance()
+                                            let afterCategory = afterAudioSession.category.rawValue
+                                            let afterMode = afterAudioSession.mode.rawValue
+                                            let afterIsOtherPlaying = afterAudioSession.isOtherAudioPlaying
+
+                                            Logger.caching.info("📊 TRIM_AUDIO_STATE: After delay: category=\(afterCategory), mode=\(afterMode), otherPlaying=\(afterIsOtherPlaying)")
 
                                             Logger.caching.info("🛑 PAUSE_OPERATIONS: Pausing background operations for trim view")
                                             await provider.pauseBackgroundOperations()
 
-                                            // Log successful pause
+                                            // Log successful pause and final audio state
                                             Logger.caching.info("✅ BACKGROUND_OPERATIONS: Successfully paused")
+
+                                            // Log if there are any active AVPlayers in the provider
+                                            if let baseViewModel = provider as? BaseVideoViewModel {
+                                                if let player = baseViewModel.player {
+                                                    let playerID = String(describing: ObjectIdentifier(player))
+                                                    let isPlaying = player.rate > 0
+                                                    Logger.caching.info("🎮 TRIM_PLAYER_CHECK: Base player \(playerID) still exists, playing=\(isPlaying)")
+                                                } else {
+                                                    Logger.caching.info("🎮 TRIM_PLAYER_CHECK: Base player is nil")
+                                                }
+                                            }
                                         }
                                     }
                                     .onDisappear {
                                         // Resume all background operations when trim view is dismissed
                                         Task {
+                                            // First get current audio session state for debugging
+                                            let audioSession = AVAudioSession.sharedInstance()
+                                            let category = audioSession.category.rawValue
+                                            let mode = audioSession.mode.rawValue
+                                            let isOtherPlaying = audioSession.isOtherAudioPlaying
+
+                                            Logger.caching.info("📊 TRIM_AUDIO_STATE: On dismissal: category=\(category), mode=\(mode), otherPlaying=\(isOtherPlaying)")
+
                                             Logger.caching.info("▶️ RESUME_OPERATIONS: Resuming background operations after trim view")
                                             await provider.resumeBackgroundOperations()
+
+                                            // Log if there are any active AVPlayers in the provider after resuming
+                                            if let baseViewModel = provider as? BaseVideoViewModel {
+                                                if let player = baseViewModel.player {
+                                                    let playerID = String(describing: ObjectIdentifier(player))
+                                                    let isPlaying = player.rate > 0
+                                                    Logger.caching.info("🎮 TRIM_PLAYER_RESUME: Base player \(playerID) state after resume, playing=\(isPlaying)")
+                                                } else {
+                                                    Logger.caching.info("🎮 TRIM_PLAYER_RESUME: Base player is nil after resume")
+                                                }
+                                            }
                                         }
                                     }
                                 }

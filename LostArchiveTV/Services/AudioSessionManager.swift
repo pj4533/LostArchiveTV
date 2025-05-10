@@ -10,15 +10,36 @@ class AudioSessionManager {
     func configureForTrimming() {
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            
+
+            // Log current state for debugging
+            let currentState = describeCurrentState()
+            logger.debug("📊 AUDIO_TRIM_START: Current audio session before trim setup: \(currentState)")
+
+            // Check for any active players that might be using the session
+            let otherAudioActive = audioSession.isOtherAudioPlaying
+            logger.debug("📊 AUDIO_TRIM_CHECK: Other audio active before deactivation: \(otherAudioActive)")
+
             // First try to deactivate any existing session
-            try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
-            
+            do {
+                logger.debug("📊 AUDIO_TRIM_DEACTIVATE: Attempting to deactivate existing session")
+                try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+                logger.debug("📊 AUDIO_TRIM_DEACTIVATE: Successfully deactivated existing session")
+            } catch {
+                logger.error("📊 AUDIO_TRIM_DEACTIVATE: Failed to deactivate session: \(error.localizedDescription)")
+            }
+
+            // Set new category and activate
+            logger.debug("📊 AUDIO_TRIM_CONFIG: Setting category to playback with moviePlayback mode")
             try audioSession.setCategory(.playback, mode: .moviePlayback, options: .duckOthers)
+
+            logger.debug("📊 AUDIO_TRIM_ACTIVATE: Attempting to activate trim audio session")
             try audioSession.setActive(true)
-            logger.debug("📊 AUDIO_DIAG: Set up dedicated audio session for trim view, category=\(audioSession.category.rawValue)")
+
+            // Log final configuration
+            let finalState = describeCurrentState()
+            logger.debug("📊 AUDIO_TRIM_COMPLETE: Trim audio session successfully configured: \(finalState)")
         } catch {
-            logger.error("📊 AUDIO_DIAG: [ERROR] Failed to set up trim view audio session: \(error)")
+            logger.error("📊 AUDIO_TRIM_ERROR: Failed to set up trim view audio session: \(error.localizedDescription)")
         }
     }
     
@@ -27,14 +48,22 @@ class AudioSessionManager {
         do {
             // Get current state for debugging
             let audioSession = AVAudioSession.sharedInstance()
-            let currentCategory = audioSession.category.rawValue
-            let currentMode = audioSession.mode.rawValue
-            
+            let currentState = describeCurrentState()
+            logger.debug("📊 AUDIO_DEACTIVATE_START: Current audio session before deactivation: \(currentState)")
+
+            // Check if there's any other audio playing
+            let otherAudioActive = audioSession.isOtherAudioPlaying
+            logger.debug("📊 AUDIO_DEACTIVATE_CHECK: Other audio active before deactivation: \(otherAudioActive)")
+
             // Deactivate our audio session
+            logger.debug("📊 AUDIO_DEACTIVATE: Attempting to deactivate session with notification")
             try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
-            logger.debug("📊 AUDIO_DIAG: Deactivated audio session (was category=\(currentCategory), mode=\(currentMode))")
+
+            // Get state after deactivation
+            let afterState = describeCurrentState()
+            logger.debug("📊 AUDIO_DEACTIVATE_COMPLETE: Successfully deactivated audio session (before: \(currentState), after: \(afterState))")
         } catch {
-            logger.error("📊 AUDIO_DIAG: [ERROR] Failed to deactivate audio session: \(error)")
+            logger.error("📊 AUDIO_DEACTIVATE_ERROR: Failed to deactivate audio session: \(error.localizedDescription), current state: \(self.describeCurrentState())")
         }
     }
     
@@ -42,19 +71,36 @@ class AudioSessionManager {
     func configureForPlayback() {
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            
-            // Log current state
-            logger.debug("📊 AUDIO_DIAG: Audio session before configuring: category=\(audioSession.category.rawValue), mode=\(audioSession.mode.rawValue), other playing=\(audioSession.isOtherAudioPlaying)")
-            
+
+            // Log current state in detail
+            let currentState = describeCurrentState()
+            logger.debug("📊 AUDIO_PLAY_START: Current audio session before playback setup: \(currentState)")
+
+            // Check for any active players that might be using the session
+            let otherAudioActive = audioSession.isOtherAudioPlaying
+            logger.debug("📊 AUDIO_PLAY_CHECK: Other audio active before configuration: \(otherAudioActive)")
+
             // First try to deactivate any existing session
-            try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
-            
+            do {
+                logger.debug("📊 AUDIO_PLAY_DEACTIVATE: Attempting to deactivate existing session")
+                try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+                logger.debug("📊 AUDIO_PLAY_DEACTIVATE: Successfully deactivated existing session")
+            } catch {
+                logger.error("📊 AUDIO_PLAY_DEACTIVATE: Failed to deactivate session: \(error.localizedDescription)")
+            }
+
+            // Set new category and activate
+            logger.debug("📊 AUDIO_PLAY_CONFIG: Setting category to playback with moviePlayback mode")
             try audioSession.setCategory(.playback, mode: .moviePlayback)
+
+            logger.debug("📊 AUDIO_PLAY_ACTIVATE: Attempting to activate playback audio session")
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
-            
-            logger.info("📊 AUDIO_DIAG: Audio session configured for playback, result: category=\(audioSession.category.rawValue), other playing=\(audioSession.isOtherAudioPlaying)")
+
+            // Log final configuration
+            let finalState = describeCurrentState()
+            logger.info("📊 AUDIO_PLAY_COMPLETE: Playback audio session successfully configured: \(finalState)")
         } catch {
-            logger.error("📊 AUDIO_DIAG: [ERROR] Failed to configure audio session: \(error.localizedDescription)")
+            logger.error("📊 AUDIO_PLAY_ERROR: Failed to configure playback audio session: \(error.localizedDescription)")
         }
     }
     
@@ -64,6 +110,21 @@ class AudioSessionManager {
         let category = audioSession.category.rawValue
         let mode = audioSession.mode.rawValue
         let isOtherPlaying = audioSession.isOtherAudioPlaying
-        return "Category=\(category), Mode=\(mode), OtherPlaying=\(isOtherPlaying)"
+        let isActive = audioSession.isOtherAudioPlaying ? "Yes" : "No"
+
+        // Get additional detailed information
+        let outputVolume = audioSession.outputVolume
+        let inputAvailable = audioSession.isInputAvailable
+        let sampleRate = audioSession.sampleRate
+        let preferredSampleRate = audioSession.preferredSampleRate
+        let outputLatency = audioSession.outputLatency
+
+        return """
+        Category=\(category), Mode=\(mode), \
+        OtherPlaying=\(isOtherPlaying), Active=\(isActive), \
+        OutputVolume=\(outputVolume), InputAvailable=\(inputAvailable), \
+        SampleRate=\(sampleRate), PreferredRate=\(preferredSampleRate), \
+        OutputLatency=\(outputLatency)
+        """
     }
 }
