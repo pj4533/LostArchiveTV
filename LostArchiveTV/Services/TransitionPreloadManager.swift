@@ -94,8 +94,8 @@ class TransitionPreloadManager: ObservableObject {
             // Seek to the start position
             let startTime = CMTime(seconds: nextVideo.startPosition, preferredTimescale: 600)
             await player.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
-            
-            // Update UI on main thread
+
+            // Update UI on main thread immediately with metadata
             await MainActor.run {
                 // Update next video metadata
                 nextTitle = nextVideo.title
@@ -104,14 +104,35 @@ class TransitionPreloadManager: ObservableObject {
                 nextIdentifier = nextVideo.identifier
                 nextFilename = nextVideo.mp4File.name
                 nextTotalFiles = nextVideo.totalFiles
-
-                Logger.files.info("📊 PRELOAD NEXT: Set nextTotalFiles to \(nextVideo.totalFiles) for \(nextVideo.identifier)")
-
+                
                 // Store reference to next player
                 nextPlayer = player
 
-                // Mark next video as ready
-                nextVideoReady = true
+                Logger.files.info("📊 PRELOAD NEXT: Set nextTotalFiles to \(nextVideo.totalFiles) for \(nextVideo.identifier)")
+            }
+            
+            // Start asynchronous buffer monitoring task that will update UI status
+            // as soon as the video is actually ready to play
+            Task {
+                Logger.caching.info("🔄 PRELOAD NEXT: Starting buffer monitoring for \(nextVideo.identifier)")
+                let playerItem = player.currentItem
+                
+                // Start monitoring buffer status
+                while !Task.isCancelled && playerItem == player.currentItem {
+                    // Check if buffer is ready for smooth playback
+                    if player.currentItem?.isPlaybackLikelyToKeepUp == true {
+                        await MainActor.run {
+                            Logger.caching.info("✅ PRELOAD NEXT: Buffer ready for \(nextVideo.identifier)")
+                            // Update dot to be solid green by setting ready flag
+                            nextVideoReady = true
+                        }
+                        break
+                    }
+                    
+                    // If not ready yet, wait briefly and check again
+                    Logger.caching.debug("⏳ PRELOAD NEXT: Buffer not yet ready for \(nextVideo.identifier)")
+                    try? await Task.sleep(for: .seconds(0.5))
+                }
             }
             
             Logger.caching.info("✅ PRELOAD NEXT: Successfully prepared next video: \(nextVideo.identifier)")
@@ -159,8 +180,8 @@ class TransitionPreloadManager: ObservableObject {
                 // Seek to the start position
                 let startTime = CMTime(seconds: videoInfo.startPosition, preferredTimescale: 600)
                 await player.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
-                
-                // Update UI on main thread
+
+                // Update UI on main thread immediately with metadata
                 await MainActor.run {
                     // Update next video metadata
                     nextTitle = videoInfo.title
@@ -171,14 +192,35 @@ class TransitionPreloadManager: ObservableObject {
 
                     // Count total files - temporarily set to 1, we'll update this properly elsewhere
                     nextTotalFiles = 1
-
-                    Logger.files.info("📊 PRELOAD RAND: Set nextTotalFiles to 1 for \(videoInfo.identifier) (will be updated during transition)")
-
+                    
                     // Store reference to next player
                     nextPlayer = player
 
-                    // Mark next video as ready
-                    nextVideoReady = true
+                    Logger.files.info("📊 PRELOAD RAND: Set nextTotalFiles to 1 for \(videoInfo.identifier) (will be updated during transition)")
+                }
+                
+                // Start asynchronous buffer monitoring task that will update UI status
+                // as soon as the video is actually ready to play
+                Task {
+                    Logger.caching.info("🔄 PRELOAD RAND: Starting buffer monitoring for \(videoInfo.identifier)")
+                    let playerItem = player.currentItem
+                    
+                    // Start monitoring buffer status
+                    while !Task.isCancelled && playerItem == player.currentItem {
+                        // Check if buffer is ready for smooth playback
+                        if player.currentItem?.isPlaybackLikelyToKeepUp == true {
+                            await MainActor.run {
+                                Logger.caching.info("✅ PRELOAD RAND: Buffer ready for \(videoInfo.identifier)")
+                                // Update dot to be solid green by setting ready flag
+                                nextVideoReady = true
+                            }
+                            break
+                        }
+                        
+                        // If not ready yet, wait briefly and check again
+                        Logger.caching.debug("⏳ PRELOAD RAND: Buffer not yet ready for \(videoInfo.identifier)")
+                        try? await Task.sleep(for: .seconds(0.5))
+                    }
                 }
 
                 Logger.caching.info("Successfully preloaded new random video: \(videoInfo.identifier)")
@@ -223,8 +265,8 @@ class TransitionPreloadManager: ObservableObject {
                     // Seek to the start position
                     let startTime = CMTime(seconds: nextVideo.startPosition, preferredTimescale: 600)
                     await player.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
-                    
-                    // Update UI on main thread
+
+                    // Update UI on main thread immediately with metadata
                     await MainActor.run {
                         // Update next video metadata
                         nextTitle = nextVideo.title
@@ -235,9 +277,30 @@ class TransitionPreloadManager: ObservableObject {
                         
                         // Store reference to next player
                         nextPlayer = player
+                    }
+                    
+                    // Start asynchronous buffer monitoring task that will update UI status
+                    // as soon as the video is actually ready to play
+                    Task {
+                        Logger.caching.info("🔄 PRELOAD FAV: Starting buffer monitoring for \(nextVideo.identifier)")
+                        let playerItem = player.currentItem
                         
-                        // Mark next video as ready
-                        nextVideoReady = true
+                        // Start monitoring buffer status
+                        while !Task.isCancelled && playerItem == player.currentItem {
+                            // Check if buffer is ready for smooth playback
+                            if player.currentItem?.isPlaybackLikelyToKeepUp == true {
+                                await MainActor.run {
+                                    Logger.caching.info("✅ PRELOAD FAV: Buffer ready for \(nextVideo.identifier)")
+                                    // Update dot to be solid green by setting ready flag
+                                    nextVideoReady = true
+                                }
+                                break
+                            }
+                            
+                            // If not ready yet, wait briefly and check again
+                            Logger.caching.debug("⏳ PRELOAD FAV: Buffer not yet ready for \(nextVideo.identifier)")
+                            try? await Task.sleep(for: .seconds(0.5))
+                        }
                     }
                     
                     Logger.caching.info("✅ Successfully preloaded next favorite video: \(nextVideo.identifier)")
@@ -278,8 +341,8 @@ class TransitionPreloadManager: ObservableObject {
             // Seek to the start position
             let startTime = CMTime(seconds: previousVideo.startPosition, preferredTimescale: 600)
             await player.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
-            
-            // Update UI on main thread
+
+            // Update UI on main thread immediately with metadata
             await MainActor.run {
                 // Update previous video metadata
                 prevTitle = previousVideo.title
@@ -288,14 +351,35 @@ class TransitionPreloadManager: ObservableObject {
                 prevIdentifier = previousVideo.identifier
                 prevFilename = previousVideo.mp4File.name
                 prevTotalFiles = previousVideo.totalFiles
-
-                Logger.files.info("📊 PRELOAD PREV: Set prevTotalFiles to \(previousVideo.totalFiles) for \(previousVideo.identifier)")
-
+                
                 // Store reference to previous player
                 prevPlayer = player
 
-                // Mark previous video as ready
-                prevVideoReady = true
+                Logger.files.info("📊 PRELOAD PREV: Set prevTotalFiles to \(previousVideo.totalFiles) for \(previousVideo.identifier)")
+            }
+            
+            // Start asynchronous buffer monitoring task that will update UI status
+            // as soon as the video is actually ready to play
+            Task {
+                Logger.caching.info("🔄 PRELOAD PREV: Starting buffer monitoring for \(previousVideo.identifier)")
+                let playerItem = player.currentItem
+                
+                // Start monitoring buffer status
+                while !Task.isCancelled && playerItem == player.currentItem {
+                    // Check if buffer is ready for smooth playback
+                    if player.currentItem?.isPlaybackLikelyToKeepUp == true {
+                        await MainActor.run {
+                            Logger.caching.info("✅ PRELOAD PREV: Buffer ready for \(previousVideo.identifier)")
+                            // Update dot to be solid green by setting ready flag
+                            prevVideoReady = true
+                        }
+                        break
+                    }
+                    
+                    // If not ready yet, wait briefly and check again
+                    Logger.caching.debug("⏳ PRELOAD PREV: Buffer not yet ready for \(previousVideo.identifier)")
+                    try? await Task.sleep(for: .seconds(0.5))
+                }
             }
             
             Logger.caching.info("✅ PRELOAD PREV: Successfully prepared previous video: \(previousVideo.identifier)")
