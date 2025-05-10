@@ -63,18 +63,18 @@ class TimelineManager {
         let visibleStart = visibleWindow.start
         let visibleEnd = visibleWindow.end
         let visibleDuration = visibleEnd - visibleStart
-        
+
         // Protect against division by zero
         guard visibleDuration > 0 else { return 0 }
-        
-        // Calculate normalized position (0 to 1) within visible window
+
+        // Calculate normalized position (can be outside 0 to 1) within visible window
         let normalizedPosition = (timeInSeconds - visibleStart) / visibleDuration
-        
-        // Clamp to valid range
-        let clampedPosition = max(0, min(1, normalizedPosition))
-        
-        // Convert to UI position
-        return CGFloat(clampedPosition) * timelineWidth
+
+        // Don't clamp positions for handle dragging - this allows handles to move into margins
+        // Note: We still apply constraints on the actual time values in updateLeftHandleDrag/updateRightHandleDrag
+
+        // Convert to UI position (can be outside the timeline width)
+        return CGFloat(normalizedPosition) * timelineWidth
     }
     
     // Convert a position in the timeline to a time value
@@ -84,18 +84,22 @@ class TimelineManager {
         let visibleStart = visibleWindow.start
         let visibleEnd = visibleWindow.end
         let visibleDuration = visibleEnd - visibleStart
-        
+
         // Protect against division by zero
         guard timelineWidth > 0 else { return visibleStart }
-        
-        // Calculate normalized position (0 to 1)
+
+        // Calculate normalized position (can be outside 0 to 1)
         let normalizedPosition = Double(position) / Double(timelineWidth)
-        
-        // Clamp to valid range
-        let clampedPosition = max(0, min(1, normalizedPosition))
-        
-        // Convert to time value
-        return visibleStart + (clampedPosition * visibleDuration)
+
+        // Don't clamp the normalized position - this allows handles to be dragged into margins
+        // The actual time constraints are applied in updateLeftHandleDrag/updateRightHandleDrag
+
+        // Convert to time value (can be outside visible window)
+        let time = visibleStart + (normalizedPosition * visibleDuration)
+
+        // We don't clamp the result here to allow moving into margins
+        // Time constraints will be applied in the drag update methods
+        return time
     }
     
     // MARK: - Left Handle Dragging
