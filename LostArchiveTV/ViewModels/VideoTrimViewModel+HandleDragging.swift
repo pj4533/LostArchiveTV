@@ -14,7 +14,7 @@ extension VideoTrimViewModel {
     func startLeftHandleDrag(position: CGFloat) {
         // Pause playback if currently playing
         if isPlaying {
-            playerManager.pause()
+            directPlayer?.pause()
             isPlaying = false
         }
         
@@ -40,7 +40,7 @@ extension VideoTrimViewModel {
     func startRightHandleDrag(position: CGFloat) {
         // Pause playback if currently playing
         if isPlaying {
-            playerManager.pause()
+            directPlayer?.pause()
             isPlaying = false
         }
         
@@ -66,7 +66,7 @@ extension VideoTrimViewModel {
     func scrubTimeline(position: CGFloat, timelineWidth: CGFloat) {
         // Pause playback if currently playing
         if isPlaying {
-            playerManager.pause()
+            directPlayer?.pause()
             isPlaying = false
         }
         

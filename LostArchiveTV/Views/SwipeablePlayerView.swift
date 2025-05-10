@@ -148,12 +148,34 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                                     let currentTime = CMTime(seconds: currentTimeSeconds, preferredTimescale: 600)
                                     let duration = CMTime(seconds: durationSeconds, preferredTimescale: 600)
 
-                                    // Trim view
-                                    VideoTrimView(viewModel: VideoTrimViewModel(
-                                        assetURL: downloadedURL,
-                                        currentPlaybackTime: currentTime,
-                                        duration: duration
-                                    ))
+                                    // Pause background operations while trim view is active
+                                    ZStack {
+                                        VideoTrimView(
+                                            videoURL: downloadedURL,
+                                            currentTime: currentTime,
+                                            duration: duration
+                                        )
+                                    }
+                                    .onAppear {
+                                        // IMPORTANT: Give the trim view time to initialize its player BEFORE pausing background operations
+                                        Task {
+                                            // Brief delay to allow trim view initialization to happen first
+                                            try? await Task.sleep(for: .milliseconds(300))
+
+                                            Logger.caching.info("🛑 PAUSE_OPERATIONS: Pausing background operations for trim view")
+                                            await provider.pauseBackgroundOperations()
+
+                                            // Log successful pause
+                                            Logger.caching.info("✅ BACKGROUND_OPERATIONS: Successfully paused")
+                                        }
+                                    }
+                                    .onDisappear {
+                                        // Resume all background operations when trim view is dismissed
+                                        Task {
+                                            Logger.caching.info("▶️ RESUME_OPERATIONS: Resuming background operations after trim view")
+                                            await provider.resumeBackgroundOperations()
+                                        }
+                                    }
                                 }
                                 Spacer()
                             }

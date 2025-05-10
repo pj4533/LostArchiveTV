@@ -12,9 +12,12 @@ import OSLog
 class VideoTransitionManager: ObservableObject {
     // State tracking
     @Published var isTransitioning = false
-    
+
     // Preload manager handles all the preloading logic
     private let preloadManager = TransitionPreloadManager()
+
+    // Flag to track if preloading is paused
+    private var isPreloadingPaused = false
     
     // Direction for swiping
     enum SwipeDirection {
@@ -44,18 +47,48 @@ class VideoTransitionManager: ObservableObject {
     // MARK: - Preloading Methods
     
     func preloadNextVideo(provider: VideoProvider) async {
+        // Skip if preloading is paused
+        guard !isPreloadingPaused else {
+            Logger.caching.info("⏸️ SKIPPED: preloadNextVideo called while preloading is paused")
+            return
+        }
+
         await preloadManager.preloadNextVideo(provider: provider)
     }
-    
+
     func preloadPreviousVideo(provider: VideoProvider) async {
+        // Skip if preloading is paused
+        guard !isPreloadingPaused else {
+            Logger.caching.info("⏸️ SKIPPED: preloadPreviousVideo called while preloading is paused")
+            return
+        }
+
         await preloadManager.preloadPreviousVideo(provider: provider)
     }
     
     /// Ensures that both general video caching and transition-specific caching are performed
     /// - Parameter provider: The video provider that supplies videos
     func ensureAllVideosCached(provider: VideoProvider) async {
+        // Skip if preloading is paused
+        guard !isPreloadingPaused else {
+            Logger.caching.info("⏸️ SKIPPED: ensureAllVideosCached called while preloading is paused")
+            return
+        }
+
         // Delegate to the underlying preload manager for unified caching
         await preloadManager.ensureAllVideosCached(provider: provider)
+    }
+
+    /// Pauses all preloading and caching operations
+    func pausePreloading() {
+        Logger.caching.info("⏸️ PAUSE: Pausing all transition preloading operations")
+        isPreloadingPaused = true
+    }
+
+    /// Resumes all preloading and caching operations
+    func resumePreloading() {
+        Logger.caching.info("▶️ RESUME: Resuming all transition preloading operations")
+        isPreloadingPaused = false
     }
     
     // MARK: - Transition Methods

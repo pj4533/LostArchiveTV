@@ -13,18 +13,17 @@ import Photos
 
 // MARK: - Initialization and Cleanup
 extension VideoTrimViewModel {
-    /// Use the already downloaded file to initialize trim view
+    /// Initialize the player and prepare for video trimming
     func prepareForTrimming() async {
-        logger.debug("prepareForTrimming started")
-        isLoading = true
+        logger.debug("Preparing for trimming started")
+        self.isLoading = true
         
         do {
             // Verify the file exists and has content
             logger.debug("Checking file at path: \(self.assetURL.path)")
             if !FileManager.default.fileExists(atPath: self.assetURL.path) {
-                logger.error("File does not exist at path: \(self.assetURL.path)")
-                throw NSError(domain: "VideoTrimming", code: 5, userInfo: [
-                    NSLocalizedDescriptionKey: "Downloaded file not found at: \(self.assetURL.path)"
+                throw NSError(domain: "VideoTrimming", code: 1, userInfo: [
+                    NSLocalizedDescriptionKey: "Video file not found at: \(self.assetURL.path)"
                 ])
             }
             
@@ -33,8 +32,7 @@ extension VideoTrimViewModel {
             logger.info("Using local file for trimming. File size: \(fileSize) bytes")
             
             if fileSize == 0 {
-                logger.error("File is empty (0 bytes)")
-                throw NSError(domain: "VideoTrimming", code: 6, userInfo: [
+                throw NSError(domain: "VideoTrimming", code: 2, userInfo: [
                     NSLocalizedDescriptionKey: "Video file is empty (0 bytes)"
                 ])
             }
@@ -42,26 +40,92 @@ extension VideoTrimViewModel {
             // Save the URL for later use
             self.localVideoURL = self.assetURL
             
-            // Initialize player with the asset
-            logger.debug("Creating AVAsset from URL: \(self.assetURL.absoluteString)")
-            let asset = AVAsset(url: self.assetURL)
+            // Clean up any existing player
+            if self.directPlayer != nil {
+                logger.debug("Cleaning up existing player before creating a new one")
+                self.directPlayer?.pause()
+                self.directPlayer?.replaceCurrentItem(with: nil)
+                self.stopPlayheadUpdateTimer()
+                self.directPlayer = nil
+                try? await Task.sleep(for: .milliseconds(100))
+            }
             
-            // Create a new player with the asset
-            logger.debug("Creating player item and player")
-            playerManager.createNewPlayer(from: asset, url: self.assetURL)
+            // Create a new player instance with robust loading
+            logger.debug("Creating player for URL: \(self.assetURL.lastPathComponent)")
+            let asset = AVURLAsset(url: self.assetURL)
+
+            // Preload key asset attributes synchronously for reliable initialization
+            logger.debug("Loading asset values")
+            let keys = ["playable", "duration", "tracks"]
+            try await asset.loadValues(forKeys: keys)
+
+            // Verify asset is playable
+            if !asset.isPlayable {
+                logger.error("Asset is not playable")
+                throw NSError(domain: "VideoTrimming", code: 3, userInfo: [
+                    NSLocalizedDescriptionKey: "Video cannot be played - format may be unsupported"
+                ])
+            }
+
+            // Create player item with explicit loadedTimeRanges observation for better loading
+            let playerItem = AVPlayerItem(asset: asset)
+
+            // Create player and configure immediately
+            let player = AVPlayer(playerItem: playerItem)
+            player.actionAtItemEnd = .pause
+            player.volume = 1.0
+
+            // Force pre-buffering by requesting status
+            _ = try? await playerItem.asset.load(.isPlayable)
+
+            // Verify player item is ready for playback
+            if playerItem.status == .failed {
+                throw playerItem.error ?? NSError(domain: "VideoTrimming", code: 4, userInfo: [
+                    NSLocalizedDescriptionKey: "Failed to load video"
+                ])
+            }
+
+            // Assign player to model immediately to update UI
+            self.directPlayer = player
+
+            // Force the player to begin loading and buffer some content
+            logger.debug("Forcing player to begin buffering")
+            player.play()
+            try await Task.sleep(for: .milliseconds(300))
+            player.pause()
+
+            // Ensure the player is rendering the first frame correctly
+            let currentTime = player.currentTime()
+            await player.seek(to: currentTime)
+            try await Task.sleep(for: .milliseconds(200))
+
+            // Make a second attempt to ensure the player is ready
+            await player.seek(to: currentTime, toleranceBefore: .zero, toleranceAfter: .zero)
+
+            // Update loading state early to unblock UI
+            // This is critical - we must clear loading state before seeking
+            self.isLoading = false
+            self.shouldShowPlayButton = true
+            
+            // Setup notification for playback end
+            self.setupPlaybackEndNotification(for: playerItem)
             
             // Seek to the start trim time
             logger.debug("Seeking to start time: \(self.startTrimTime.seconds) seconds")
-            self.seekToTime(self.startTrimTime)
+            await player.seek(to: self.startTrimTime, toleranceBefore: .zero, toleranceAfter: .zero)
+
+            // Force a brief play and pause to ensure the frame is displayed
+            player.play()
+            try await Task.sleep(for: .milliseconds(50))
+            player.pause()
+
+            // Generate thumbnails in a background task to keep UI responsive
+            Task {
+                logger.debug("Starting thumbnail generation")
+                self.generateThumbnails(from: asset)
+            }
             
-            // Generate thumbnails
-            logger.debug("Starting thumbnail generation")
-            self.generateThumbnails(from: asset)
-            
-            // Update UI
-            logger.debug("Setting isLoading = false")
-            self.isLoading = false
-            // Reset play button visibility
+            // Show play button
             self.shouldShowPlayButton = true
             
         } catch {
@@ -71,34 +135,65 @@ extension VideoTrimViewModel {
         }
     }
     
+    /// Sets up notification for when playback reaches the end
+    private func setupPlaybackEndNotification(for playerItem: AVPlayerItem) {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(playerItemDidReachEnd),
+            name: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem
+        )
+    }
+    
+    /// Handler for when playback reaches the end
+    @objc private func playerItemDidReachEnd(notification: Notification) {
+        logger.info("Video playback reached end - restarting from beginning")
+        self.directPlayer?.seek(to: self.startTrimTime)
+        self.directPlayer?.play()
+        self.isPlaying = true
+    }
+    
     /// Call this before dismissing the view
     func prepareForDismissal() {
-        logger.debug("Preparing trim view for dismissal")
+        logger.debug("Preparing for dismissal")
         
-        // First make sure playback is stopped
-        if isPlaying {
-            playerManager.pause()
-            isPlaying = false
+        // Stop playback
+        if self.isPlaying {
+            self.directPlayer?.pause()
+            self.isPlaying = false
         }
         
-        // Stop the playhead update timer
-        stopPlayheadUpdateTimer()
+        // Stop timer and observers
+        self.stopPlayheadUpdateTimer()
+        NotificationCenter.default.removeObserver(
+            self,
+            name: .AVPlayerItemDidPlayToEndTime,
+            object: self.directPlayer?.currentItem
+        )
         
-        // Clean up player using PlayerManager
-        playerManager.cleanupPlayer()
+        // Clear thumbnails
+        self.thumbnails = []
+        
+        // Clean up player
+        self.directPlayer?.pause()
+        self.directPlayer?.replaceCurrentItem(with: nil)
+        self.directPlayer = nil
         
         // Reset audio session
-        playerManager.deactivateAudioSession()
+        self.audioSessionManager.deactivate()
         
-        // Clean up any downloaded temp files if not saved
-        if let localURL = localVideoURL, !isSaving {
-            // Only delete if it's in the temp directory
-            if localURL.absoluteString.contains(FileManager.default.temporaryDirectory.absoluteString) {
-                try? FileManager.default.removeItem(at: localURL)
-                logger.debug("Removed temporary video file: \(localURL)")
+        // Clean up temp files
+        if let localURL = self.localVideoURL,
+           !self.isSaving,
+           localURL.absoluteString.contains(FileManager.default.temporaryDirectory.absoluteString) {
+            do {
+                try FileManager.default.removeItem(at: localURL)
+                logger.debug("Removed temporary video file")
+            } catch {
+                logger.error("Failed to delete temp file: \(error.localizedDescription)")
             }
         }
         
-        logger.debug("Trim view clean-up complete")
+        logger.debug("Cleanup complete")
     }
 }

@@ -163,63 +163,103 @@ class VideoTrimManager {
         }
     }
     
-    
-    // Generate thumbnails for trim interface
+    // Generate thumbnails for trim interface (completion handler version for backward compatibility)
     func generateThumbnails(from asset: AVAsset, count: Int = 10, completion: @escaping ([UIImage]) -> Void) {
-        // Create image generator with better settings
-        let generator = AVAssetImageGenerator(asset: asset)
-        generator.appliesPreferredTrackTransform = true
-        generator.maximumSize = CGSize(width: 100, height: 100)
-        generator.requestedTimeToleranceBefore = .zero
-        generator.requestedTimeToleranceAfter = .zero
-        
-        // Use Swift Concurrency
+        // Delegate to our async version and handle the completion
         Task {
             do {
-                // Load duration modern way
-                let duration = try await asset.load(.duration)
-                let durationSeconds = CMTimeGetSeconds(duration)
-                
-                self.logger.debug("Generating \(count) thumbnails for video with duration \(durationSeconds) seconds")
-                
-                guard durationSeconds > 0 else {
-                    self.logger.error("Invalid duration for thumbnail generation")
-                    await MainActor.run {
-                        completion([])
-                    }
-                    return
-                }
-                
-                var thumbnails: [UIImage] = []
-                
-                // Generate thumbnails in parallel
-                for i in 0..<count {
-                    // Calculate time for this thumbnail
-                    let timeValue = durationSeconds * Double(i) / Double(count)
-                    let time = CMTime(seconds: timeValue, preferredTimescale: 600)
-                    
-                    do {
-                        // Generate thumbnail using modern API
-                        let cgImage = try await generator.image(at: time).image
-                        let thumbnail = UIImage(cgImage: cgImage)
-                        thumbnails.append(thumbnail)
-                    } catch {
-                        self.logger.error("Failed to generate thumbnail at time \(timeValue): \(error.localizedDescription)")
-                    }
-                }
-                
-                // Return thumbnails on main thread
+                let thumbnails = try await generateThumbnailsAsync(from: asset, count: count)
                 await MainActor.run {
-                    self.logger.debug("Generated \(thumbnails.count) thumbnails")
                     completion(thumbnails)
                 }
-                
             } catch {
-                self.logger.error("Failed to load asset duration: \(error.localizedDescription)")
+                self.logger.error("trim: failed to generate thumbnails: \(error.localizedDescription)")
                 await MainActor.run {
                     completion([])
                 }
             }
         }
+    }
+
+    // Modern async/await version of thumbnail generator
+    func generateThumbnailsAsync(from asset: AVAsset, count: Int = 10) async throws -> [UIImage] {
+        // Create image generator with optimized settings
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: 100, height: 100)  // Small thumbnails for efficiency
+        generator.requestedTimeToleranceBefore = .zero
+        generator.requestedTimeToleranceAfter = .zero
+
+        self.logger.debug("trim: starting async thumbnail generation with count=\(count)")
+
+        // Load video tracks to verify asset has visual content
+        let videoTracks = try await asset.loadTracks(withMediaType: .video)
+        guard !videoTracks.isEmpty else {
+            self.logger.error("trim: asset contains no video tracks")
+            throw NSError(domain: "VideoTrimManager", code: 10, userInfo: [
+                NSLocalizedDescriptionKey: "No video tracks found in asset"
+            ])
+        }
+
+        // Load duration
+        let duration = try await asset.load(.duration)
+        let durationSeconds = CMTimeGetSeconds(duration)
+
+        self.logger.debug("trim: generating thumbnails for \(durationSeconds)s video")
+
+        guard durationSeconds > 0 else {
+            self.logger.error("trim: invalid duration for thumbnail generation")
+            throw NSError(domain: "VideoTrimManager", code: 11, userInfo: [
+                NSLocalizedDescriptionKey: "Invalid video duration"
+            ])
+        }
+
+        var thumbnails: [UIImage] = []
+
+        // Get at least 2 thumbnails, cap at a reasonable number
+        let safeCount = min(max(2, count), 30)
+
+        // Generate thumbnails sequentially to avoid resource issues
+        for i in 0..<safeCount {
+            // Check if task has been cancelled
+            try Task.checkCancellation()
+
+            // Calculate time for this thumbnail
+            let progress = Double(i) / Double(safeCount - 1)
+            let timeValue = durationSeconds * progress
+            let time = CMTime(seconds: timeValue, preferredTimescale: 600)
+
+            do {
+                // Generate thumbnail
+                let imageResult = try await generator.image(at: time)
+                let cgImage = imageResult.image
+                let thumbnail = UIImage(cgImage: cgImage)
+                thumbnails.append(thumbnail)
+
+                // Log progress periodically
+                if i == 0 || i == safeCount - 1 || i % 5 == 0 {
+                    self.logger.debug("trim: generated thumbnail \(i+1)/\(safeCount)")
+                }
+            } catch {
+                // Continue with other thumbnails if one fails
+                self.logger.error("trim: failed to generate thumbnail \(i+1): \(error.localizedDescription)")
+            }
+
+            // Add small delay every few thumbnails to avoid overwhelming the system
+            if i % 3 == 0 && i > 0 {
+                try? await Task.sleep(for: .milliseconds(10))
+            }
+        }
+
+        self.logger.debug("trim: completed generation of \(thumbnails.count) thumbnails")
+
+        // If we couldn't generate any thumbnails, that's an error
+        if thumbnails.isEmpty {
+            throw NSError(domain: "VideoTrimManager", code: 12, userInfo: [
+                NSLocalizedDescriptionKey: "Failed to generate any thumbnails"
+            ])
+        }
+
+        return thumbnails
     }
 }

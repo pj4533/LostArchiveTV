@@ -8,12 +8,13 @@ import Photos
 class VideoTrimViewModel: ObservableObject {
     internal let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "trimming")
     
-    // Use PlayerManager instead of direct player
-    internal let playerManager = PlayerManager()
+    // Use direct player instead of shared PlayerManager to avoid conflicts
+    // with the app's caching and transition systems
+    @Published var directPlayer: AVPlayer?
     
     // Player accessor for view layer
     var player: AVPlayer {
-        return playerManager.player ?? AVPlayer()
+        return directPlayer ?? AVPlayer()
     }
     
     // Timer to update the playhead position
@@ -87,10 +88,7 @@ class VideoTrimViewModel: ObservableObject {
         
         // Only configure audio session here, player initialization happens in prepareForTrimming
         // Configure audio session for trimming
-        playerManager.setupAudioSession(forTrimming: true)
-        
-        // Set up player observation
-        setupPlayerObservation()
+        audioSessionManager.configureForPlayback()
         
         // Initialize timeline manager after properties are set
         self.timelineManager = TimelineManager(
@@ -114,27 +112,16 @@ class VideoTrimViewModel: ObservableObject {
         }
         
         // Don't seek here - we'll seek after player is created in prepareForTrimming
-        
-        // We will set up the time observer when playback starts, not here
-        // This avoids potential race conditions during initialization
-    }
-    
-    private func setupPlayerObservation() {
-        // Observe player isPlaying state
-        Task {
-            for await isPlaying in playerManager.$isPlaying.values {
-                self.isPlaying = isPlaying
-            }
-        }
     }
     
     deinit {
-        logger.debug("VideoTrimViewModel deinit called")
+        logger.debug("trim: VideoTrimViewModel deinit called - skipping auto-cleanup")
         
         // We must not use Task here - it can cause a race condition since deinit is synchronous
         // but the Task might run after object is deallocated
         
-        // NOTE: We're intentionally NOT cleaning up the player or observer here
-        // as that's handled explicitly by prepareForDismissal()
+        // We can't clean up the player here because the directPlayer property is @MainActor isolated
+        // This is why we need to explicitly call prepareForDismissal() from the UI layer
+        NotificationCenter.default.removeObserver(self)
     }
 }

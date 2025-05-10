@@ -32,6 +32,7 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
     
     // MARK: - Cache Status Update Timer
     private var cacheStatusTask: Task<Void, Never>?
+    private var cacheStatusPaused = false
 
     // MARK: - Initialization
     init() {
@@ -62,7 +63,10 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
         cacheStatusTask = Task {
             // Update every second - less frequently to reduce log noise
             while !Task.isCancelled {
-                await updateCacheStatuses()
+                // Only update if not paused
+                if !cacheStatusPaused {
+                    await updateCacheStatuses()
+                }
 
                 // Wait before checking again
                 do {
@@ -72,6 +76,21 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
                 }
             }
         }
+    }
+
+    /// Pauses background operations like cache status updates
+    func pauseBackgroundOperations() async {
+        Logger.caching.info("⏸️ PAUSE: BaseVideoViewModel pausing background operations")
+        cacheStatusPaused = true
+    }
+
+    /// Resumes background operations that were paused
+    func resumeBackgroundOperations() async {
+        Logger.caching.info("▶️ RESUME: BaseVideoViewModel resuming background operations")
+        cacheStatusPaused = false
+
+        // Immediately update cache status when resuming
+        await updateCacheStatuses()
     }
     
     // MARK: - Setup Functions

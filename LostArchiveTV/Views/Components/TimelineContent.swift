@@ -46,7 +46,7 @@ struct TimelineContent: View {
     }
     
     // MARK: - Helper Views
-    
+
     @ViewBuilder
     private func renderThumbnails(timeWindow: (start: Double, end: Double)) -> some View {
         Group {
@@ -55,6 +55,14 @@ struct TimelineContent: View {
                 Rectangle()
                     .fill(Color.gray.opacity(0.3))
                     .frame(height: thumbnailHeight)
+                    .overlay(
+                        Text("Loading thumbnails...")
+                            .foregroundColor(.white.opacity(0.7))
+                            .font(.caption)
+                    )
+                    .onAppear {
+                        // Log timeline loading state
+                    }
             } else {
                 ThumbnailsContainer(
                     viewModel: viewModel,
@@ -62,6 +70,9 @@ struct TimelineContent: View {
                     timelineWidth: timelineWidth,
                     thumbnailHeight: thumbnailHeight
                 )
+                .onAppear {
+                    // Log thumbnails ready
+                }
             }
         }
     }

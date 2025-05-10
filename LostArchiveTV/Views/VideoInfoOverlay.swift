@@ -63,33 +63,57 @@ struct VideoInfoOverlay: View {
                 }
             }
         }) {
-            Group {
-                if trimStep == .downloading {
-                    // Download sheet
-                    TrimDownloadView(provider: viewModel) { downloadedURL in
-                        if let url = downloadedURL {
-                            // Success - move to trim step
-                            logger.debug("Download successful, transitioning to trim step with URL: \(url.absoluteString)")
-                            self.downloadedVideoURL = url
-                            self.trimStep = .trimming
-                        } else {
-                            // Failed download - dismiss everything
-                            logger.debug("Download failed or was cancelled, dismissing workflow")
-                            self.downloadedVideoURL = nil
-                            self.trimStep = .none
-                        }
+            if trimStep == .downloading {
+                // Download sheet
+                TrimDownloadView(provider: viewModel) { downloadedURL in
+                    if let url = downloadedURL {
+                        // Success - move to trim step
+                        logger.debug("Download successful, transitioning to trim step with URL: \(url.absoluteString)")
+                        self.downloadedVideoURL = url
+                        self.trimStep = .trimming
+                    } else {
+                        // Failed download - dismiss everything
+                        logger.debug("Download failed or was cancelled, dismissing workflow")
+                        self.downloadedVideoURL = nil
+                        self.trimStep = .none
                     }
-                } else if trimStep == .trimming, 
-                          let downloadedURL = downloadedVideoURL,
-                          let currentTime = viewModel.currentVideoTime,
-                          let duration = viewModel.currentVideoDuration {
-                    // Trim view
-                    VideoTrimView(viewModel: VideoTrimViewModel(
-                        assetURL: downloadedURL,
-                        currentPlaybackTime: currentTime,
-                        duration: duration
-                    ))
                 }
+            } else if trimStep == .trimming,
+                      let downloadedURL = downloadedVideoURL,
+                      let currentTime = viewModel.currentVideoTime,
+                      let duration = viewModel.currentVideoDuration {
+                // Trim view - now using our new coordinator approach with pause/resume
+                ZStack {
+                    VideoTrimView(
+                        videoURL: downloadedURL,
+                        currentTime: currentTime,
+                        duration: duration
+                    )
+                }
+                .onAppear {
+                    // IMPORTANT: Give the trim view time to initialize its player BEFORE pausing background operations
+                    Task {
+                        // Brief delay to allow trim view initialization to happen first
+                        try? await Task.sleep(for: .milliseconds(300))
+
+                        Logger.caching.info("🛑 PAUSE_OPERATIONS: Pausing background operations for trim view")
+                        await viewModel.pauseBackgroundOperations()
+
+                        // Log successful pause
+                        Logger.caching.info("✅ BACKGROUND_OPERATIONS: Successfully paused")
+                    }
+                }
+                .onDisappear {
+                    // Resume all background operations when trim view is dismissed
+                    Task {
+                        Logger.caching.info("▶️ RESUME_OPERATIONS: Resuming background operations after trim view")
+                        await viewModel.resumeBackgroundOperations()
+                    }
+                }
+            } else {
+                // Fallback view (should never be seen)
+                Text("Preparing...")
+                    .foregroundColor(.white)
             }
         }
     }
