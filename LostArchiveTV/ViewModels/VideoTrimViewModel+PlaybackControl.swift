@@ -38,28 +38,30 @@ extension VideoTrimViewModel {
             // Start the playhead update timer immediately
             startPlayheadUpdateTimer()
 
-            // If right handle was the last one dragged, always start from the left handle
-            if lastDraggedRightHandle {
-                logger.debug("▶️ TRIM_PLAYBACK: Starting from left handle after right handle drag")
-                lastDraggedRightHandle = false // Reset flag once used
-
-                // Seek to start and play
-                seekToTime(startTrimTime)
-                playbackManager.player?.play()
-                logger.debug("▶️ TRIM_PLAYBACK: Started playback from start trim time: \(self.startTrimTime.seconds)s")
-                return
-            }
-
             // Get the player and verify it's in a valid state
             if let player = playbackManager.player, let playerItem = player.currentItem {
                 // Log player status for debugging
                 let itemStatus = playerItem.status.rawValue
                 logger.debug("🔍 TRIM_PLAYBACK: Player item status before playback: \(itemStatus)")
 
-                // Check if current time is within trim bounds
+                // Check if current time is at or near the end trim position
+                // This handles the case when the user drags the right handle and then presses play
                 let currentPlayerTime = player.currentTime()
-                logger.debug("🔍 TRIM_PLAYBACK: Current player time: \(currentPlayerTime.seconds)s")
+                let isAtEndPosition = abs(currentPlayerTime.seconds - endTrimTime.seconds) < 0.5
 
+                if isAtEndPosition || lastDraggedRightHandle {
+                    logger.debug("▶️ TRIM_PLAYBACK: Current position is at or near end position or last dragged right handle")
+                    lastDraggedRightHandle = false // Reset flag once used
+
+                    // Seek to start and play from beginning of trim range
+                    logger.debug("▶️ TRIM_PLAYBACK: Starting from left handle")
+                    seekToTime(startTrimTime)
+                    player.play()
+                    logger.debug("▶️ TRIM_PLAYBACK: Started playback from start trim time: \(self.startTrimTime.seconds)s")
+                    return
+                }
+
+                // Check if current time is outside trim bounds
                 if CMTimeCompare(currentPlayerTime, startTrimTime) < 0 ||
                    CMTimeCompare(currentPlayerTime, endTrimTime) > 0 {
                     // If outside trim bounds, seek to start and play from there
@@ -96,7 +98,7 @@ extension VideoTrimViewModel {
                 logger.error("⚠️ TRIM_PLAYBACK: Cannot pause - player is nil")
             }
         }
-        
+
         // Show the play button again when interacting with the timeline, dragging handles, or tapping the video
         // This is handled in the UI layer by setting shouldShowPlayButton = false when button is tapped
     }
@@ -150,7 +152,15 @@ extension VideoTrimViewModel {
         // Make sure the time is within bounds
         let validTime = validateTimeForSeeking(time)
 
-        // Perform the seek operation with more precise tolerances
+        // Use different seeking approaches based on the context
+        if fromHandleDrag {
+            // For handle dragging, use synchronous seek without completion handler
+            // This prevents overloading the player with too many concurrent seek requests
+            player.seek(to: validTime, toleranceBefore: .zero, toleranceAfter: .zero)
+            return
+        }
+
+        // For normal (non-drag) operations, use completion handler
         player.seek(to: validTime,
                    toleranceBefore: .zero,
                    toleranceAfter: .zero) { [weak self] completed in
@@ -160,7 +170,7 @@ extension VideoTrimViewModel {
 
             if !completed {
                 self.logger.error("trim: seek operation did not complete")
-                return
+                // Continue even if seek didn't complete
             }
 
             self.logger.debug("trim: seek completed to \(validTime.seconds) seconds")
@@ -168,8 +178,8 @@ extension VideoTrimViewModel {
             // Update UI to reflect the actual position after seeking
             self.currentTime = player.currentTime()
 
-            // Only restart playback if not from handle dragging and already in playing state
-            if self.isPlaying && !fromHandleDrag {
+            // Only restart playback if already in playing state
+            if self.isPlaying {
                 self.playbackManager.player?.play()
                 self.logger.debug("trim: playback resumed after seek")
             }
