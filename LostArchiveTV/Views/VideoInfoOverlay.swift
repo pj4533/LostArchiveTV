@@ -65,19 +65,23 @@ struct VideoInfoOverlay: View {
         }) {
             if trimStep == .downloading {
                 // Download sheet
-                TrimDownloadView(provider: viewModel) { downloadedURL in
-                    if let url = downloadedURL {
-                        // Success - move to trim step
-                        logger.debug("Download successful, transitioning to trim step with URL: \(url.absoluteString)")
-                        self.downloadedVideoURL = url
-                        self.trimStep = .trimming
-                    } else {
-                        // Failed download - dismiss everything
-                        logger.debug("Download failed or was cancelled, dismissing workflow")
-                        self.downloadedVideoURL = nil
-                        self.trimStep = .none
-                    }
-                }
+                TrimDownloadView(
+                    provider: viewModel,
+                    onDownloadComplete: { downloadedURL in
+                        if let url = downloadedURL {
+                            // Success - move to trim step
+                            logger.debug("Download successful, transitioning to trim step with URL: \(url.absoluteString)")
+                            self.downloadedVideoURL = url
+                            self.trimStep = .trimming
+                        } else {
+                            // Failed download - dismiss everything
+                            logger.debug("Download failed or was cancelled, dismissing workflow")
+                            self.downloadedVideoURL = nil
+                            self.trimStep = .none
+                        }
+                    },
+                    videoURL: viewModel.currentVideoURL
+                )
             } else if trimStep == .trimming,
                       let downloadedURL = downloadedVideoURL,
                       let currentTime = viewModel.currentVideoTime,
