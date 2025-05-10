@@ -4,9 +4,13 @@ import OSLog
 /// A service that manages access to API keys via environment variables
 class EnvironmentService {
     // MARK: - Properties
-    
+
     /// Shared singleton instance
     static let shared = EnvironmentService()
+
+    /// Flag that indicates whether the app is currently in trim mode
+    /// Services can check this flag to adjust behavior during video trimming
+    static var isInTrimMode: Bool = false
     
     /// Environment variable names
     struct EnvironmentVariables {

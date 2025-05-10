@@ -238,4 +238,17 @@ actor PreloadService {
     func cancelPreloading() {
         preloadTask?.cancel()
     }
+
+    /// Pauses the preloading process during trim mode
+    func pausePreloading() {
+        Logger.caching.info("PreloadService: Pausing preloading for trim mode")
+        preloadTask?.cancel()
+        preloadTask = nil
+    }
+
+    /// Resumes the preloading process after trim mode ends
+    func resumePreloading() {
+        Logger.caching.info("PreloadService: Resuming preloading after trim mode")
+        // The next call to ensureVideosAreCached will restart preloading
+    }
 }

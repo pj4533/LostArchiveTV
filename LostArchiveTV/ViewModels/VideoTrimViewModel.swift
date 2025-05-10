@@ -4,12 +4,22 @@ import SwiftUI
 import OSLog
 import Photos
 
+// Structure to hold player settings so we can restore them after trim mode
+struct PlayerSettings {
+    let automaticallyWaitsToMinimizeStalling: Bool
+    let preventsDisplaySleepDuringVideoPlayback: Bool
+    let actionAtItemEnd: AVPlayer.ActionAtItemEnd
+}
+
 @MainActor
 class VideoTrimViewModel: ObservableObject {
     internal let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "trimming")
-    
+
     // Use the shared player system from VideoPlaybackManager passed in from parent
     let playbackManager: VideoPlaybackManager
+
+    // Store original player settings to restore when done
+    internal var originalPlayerSettings: PlayerSettings?
 
     // Player accessor for view layer
     var player: AVPlayer {

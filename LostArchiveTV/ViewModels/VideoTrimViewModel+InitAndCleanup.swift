@@ -17,7 +17,21 @@ extension VideoTrimViewModel {
     func prepareForTrimming() async {
         logger.debug("Preparing for trimming started")
         self.isLoading = true
-        
+
+        // Set global trim mode flag to optimize performance
+        EnvironmentService.isInTrimMode = true
+
+        // Pause background processes that could affect performance
+        Task {
+            let preloadService = PreloadService()
+            await preloadService.pausePreloading()
+            logger.debug("🧹 TRIM: Paused PreloadService")
+        }
+
+        // Disable transition manager to prevent background operations
+        VideoTransitionManager().disableForTrimming()
+        logger.debug("🧹 TRIM: Disabled VideoTransitionManager")
+
         do {
             // Verify the file exists and has content
             logger.debug("Checking file at path: \(self.assetURL.path)")
@@ -26,20 +40,20 @@ extension VideoTrimViewModel {
                     NSLocalizedDescriptionKey: "Video file not found at: \(self.assetURL.path)"
                 ])
             }
-            
+
             let attributes = try FileManager.default.attributesOfItem(atPath: self.assetURL.path)
             let fileSize = attributes[.size] as? UInt64 ?? 0
             logger.info("Using local file for trimming. File size: \(fileSize) bytes")
-            
+
             if fileSize == 0 {
                 throw NSError(domain: "VideoTrimming", code: 2, userInfo: [
                     NSLocalizedDescriptionKey: "Video file is empty (0 bytes)"
                 ])
             }
-            
+
             // Save the URL for later use
             self.localVideoURL = self.assetURL
-            
+
             // Configure audio session for trimming
             logger.debug("Configuring audio session for trimming")
             self.audioSessionManager.configureForTrimming()
@@ -64,8 +78,17 @@ extension VideoTrimViewModel {
                 // Stop any ongoing playback timer
                 self.stopPlayheadUpdateTimer()
 
-                // Configure the player for trimming
+                // Store original player settings to restore later
+                self.originalPlayerSettings = PlayerSettings(
+                    automaticallyWaitsToMinimizeStalling: existingPlayer.automaticallyWaitsToMinimizeStalling,
+                    preventsDisplaySleepDuringVideoPlayback: existingPlayer.preventsDisplaySleepDuringVideoPlayback,
+                    actionAtItemEnd: existingPlayer.actionAtItemEnd
+                )
+
+                // Optimize player for trimming
                 existingPlayer.pause()
+                existingPlayer.automaticallyWaitsToMinimizeStalling = false
+                existingPlayer.preventsDisplaySleepDuringVideoPlayback = true
                 existingPlayer.actionAtItemEnd = .pause
 
                 // Force current item status check
@@ -125,10 +148,10 @@ extension VideoTrimViewModel {
                     self.generateThumbnails(from: asset)
                 }
             }
-            
+
             // Show play button
             self.shouldShowPlayButton = true
-            
+
         } catch {
             logger.error("Failed to prepare trim view: \(error.localizedDescription)")
             self.error = error
@@ -187,13 +210,41 @@ extension VideoTrimViewModel {
             // Pause playback
             player.pause()
 
-            // Reset action at end to default
-            player.actionAtItemEnd = .pause
+            // Restore original player settings if we saved them
+            if let originalSettings = self.originalPlayerSettings {
+                logger.debug("🧹 TRIM_DISMISS: Restoring original player settings")
+                player.automaticallyWaitsToMinimizeStalling = originalSettings.automaticallyWaitsToMinimizeStalling
+                player.preventsDisplaySleepDuringVideoPlayback = originalSettings.preventsDisplaySleepDuringVideoPlayback
+                player.actionAtItemEnd = originalSettings.actionAtItemEnd
+            } else {
+                // Fallback if we didn't save original settings
+                logger.debug("🧹 TRIM_DISMISS: No original settings found, using defaults")
+                player.automaticallyWaitsToMinimizeStalling = true
+                player.actionAtItemEnd = .pause
+            }
         }
 
         // Reset audio session - critically important
         logger.debug("🧹 TRIM_DISMISS: Deactivating audio session")
         self.audioSessionManager.deactivate()
+
+        // Re-enable background services
+        if Task.isCancelled == false {
+            // Resume preloading service
+            Task {
+                let preloadService = PreloadService()
+                await preloadService.resumePreloading()
+                logger.debug("🧹 TRIM_DISMISS: Resumed PreloadService")
+            }
+
+            // Re-enable transition manager
+            VideoTransitionManager().enableAfterTrimming()
+            logger.debug("🧹 TRIM_DISMISS: Re-enabled VideoTransitionManager")
+
+            // Reset global trim mode flag
+            EnvironmentService.isInTrimMode = false
+            logger.debug("🧹 TRIM_DISMISS: Reset isInTrimMode flag")
+        }
 
         // Clean up temp files if they exist and are in temporary directory
         if let localURL = self.localVideoURL,

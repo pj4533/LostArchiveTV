@@ -90,6 +90,18 @@ class VideoTransitionManager: ObservableObject {
         Logger.caching.info("▶️ RESUME: Resuming all transition preloading operations")
         isPreloadingPaused = false
     }
+
+    /// Disables transition manager during trim mode
+    func disableForTrimming() {
+        Logger.caching.info("⏸️ TRIM: Disabling VideoTransitionManager for trim mode")
+        pausePreloading()
+    }
+
+    /// Restores transition manager after trim mode
+    func enableAfterTrimming() {
+        Logger.caching.info("▶️ TRIM: Re-enabling VideoTransitionManager after trim mode")
+        resumePreloading()
+    }
     
     // MARK: - Transition Methods
     
