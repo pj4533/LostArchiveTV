@@ -188,14 +188,49 @@ class VideoTransitionManager: ObservableObject {
             
             // Handle forward navigation
             Task {
-                // First, save current video to history if we're adding a new video
-                // This only happens when we're at the end of history
-                if provider.isAtEndOfHistory() {
+                // CRITICAL FIX: First check if we have a next video in history
+                // using peekNextVideo to not change the current index
+                if let existingNextVideo = await provider.peekNextVideo() {
+                    Logger.caching.info("📊 TRANSITION: Found existing next video in history: \(existingNextVideo.identifier)")
+
+                    // Handle index updating and cached video tracking
+                    if let viewModel = provider as? VideoPlayerViewModel {
+                        // For VideoPlayerViewModel, history navigation updates the index
+                        let nextVideo = await provider.getNextVideo()
+
+                        // Update the current cached video reference
+                        if let nextVideo = nextVideo {
+                            viewModel.updateCurrentCachedVideo(nextVideo)
+                            Logger.caching.info("📊 TRANSITION: Updated to existing video from history: \(nextVideo.identifier)")
+                        }
+                    } else if let favoritesViewModel = provider as? FavoritesViewModel {
+                        // For FavoritesViewModel, we update the index without changing the UI yet
+                        // (UI will be updated by the transition manager)
+                        await MainActor.run {
+                            favoritesViewModel.updateToNextVideo()
+
+                            // Update currentVideo to match the new index
+                            if favoritesViewModel.currentIndex < favoritesViewModel.favorites.count {
+                                let nextVideo = favoritesViewModel.favorites[favoritesViewModel.currentIndex]
+                                favoritesViewModel.setCurrentVideo(nextVideo)
+                            }
+                        }
+                    } else if let searchViewModel = provider as? SearchViewModel {
+                        // For SearchViewModel, update the index similarly to FavoritesViewModel
+                        await MainActor.run {
+                            searchViewModel.updateToNextVideo()
+                        }
+                    }
+                } else if provider.isAtEndOfHistory() {
+                    // We need to add a new video to history only if we're at the end
+                    // and don't have a next video yet
+                    Logger.caching.info("📊 TRANSITION: At end of history, adding new videos")
+
                     // Create a cached video from current state
                     if let currentVideo = await provider.createCachedVideoFromCurrentState() {
                         // Add to history first
                         provider.addVideoToHistory(currentVideo)
-                        
+
                         // Then create a new cached video for the next one
                         let nextVideo = CachedVideo(
                             identifier: self.nextIdentifier,
@@ -223,43 +258,20 @@ class VideoTransitionManager: ObservableObject {
                         )
 
                         Logger.files.info("📊 TRANSITION: Creating new CachedVideo with totalFiles: \(self.nextTotalFiles) for \(self.nextIdentifier)")
-                        
+
                         // Add the new video to history
                         provider.addVideoToHistory(nextVideo)
-                        
+
                         // Update the current cached video if provider is VideoPlayerViewModel
                         if let viewModel = provider as? VideoPlayerViewModel {
                             viewModel.updateCurrentCachedVideo(nextVideo)
+                            Logger.caching.info("📊 TRANSITION: Added brand new video to history: \(nextVideo.identifier)")
                         }
                     }
                 } else {
-                    // Handle index updating and cached video tracking
-                    if let viewModel = provider as? VideoPlayerViewModel {
-                        // For VideoPlayerViewModel, history navigation updates the index
-                        let nextVideo = await provider.getNextVideo()
-                        
-                        // Update the current cached video reference
-                        if let nextVideo = nextVideo {
-                            viewModel.updateCurrentCachedVideo(nextVideo)
-                        }
-                    } else if let favoritesViewModel = provider as? FavoritesViewModel {
-                        // For FavoritesViewModel, we update the index without changing the UI yet
-                        // (UI will be updated by the transition manager)
-                        await MainActor.run {
-                            favoritesViewModel.updateToNextVideo()
-                            
-                            // Update currentVideo to match the new index
-                            if favoritesViewModel.currentIndex < favoritesViewModel.favorites.count {
-                                let nextVideo = favoritesViewModel.favorites[favoritesViewModel.currentIndex]
-                                favoritesViewModel.setCurrentVideo(nextVideo)
-                            }
-                        }
-                    } else if let searchViewModel = provider as? SearchViewModel {
-                        // For SearchViewModel, update the index similarly to FavoritesViewModel
-                        await MainActor.run {
-                            searchViewModel.updateToNextVideo()
-                        }
-                    }
+                    // This is a fallback case that shouldn't normally happen
+                    // It means we're not at the end of history but also don't have a next video
+                    Logger.caching.error("⚠️ TRANSITION: Unexpected state - not at end of history but no next video found")
                 }
             }
             
