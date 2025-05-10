@@ -37,12 +37,7 @@ class TrimCoordinator: ObservableObject {
         logger.debug("🎬 TRIM_COORDINATOR: Starting view model preparation")
 
         do {
-            // Ensure audio session is properly configured before initializing player
-            logger.debug("🎬 TRIM_COORDINATOR: Configuring audio session for trim view")
-            viewModel.audioSessionManager.configureForTrimming()
-
-            // Allow a brief delay for audio session to take effect
-            try? await Task.sleep(for: .milliseconds(100))
+            // Audio session is handled by PlayerManager, not needed here
 
             // Prepare the view model (this initializes player and resources)
             logger.debug("🎬 TRIM_COORDINATOR: Calling view model prepareForTrimming")

@@ -54,9 +54,7 @@ extension VideoTrimViewModel {
             // Save the URL for later use
             self.localVideoURL = self.assetURL
 
-            // Configure audio session for trimming
-            logger.debug("Configuring audio session for trimming")
-            self.audioSessionManager.configureForTrimming()
+            // Audio session is configured by PlayerManager, not needed here
 
             // Verify that we have an incoming player with a valid item from the main app
             if let existingPlayer = playbackManager.player,
@@ -224,9 +222,7 @@ extension VideoTrimViewModel {
             }
         }
 
-        // Reset audio session - critically important
-        logger.debug("🧹 TRIM_DISMISS: Deactivating audio session")
-        self.audioSessionManager.deactivate()
+        // Audio session is managed by PlayerManager, not needed here
 
         // Re-enable background services
         if Task.isCancelled == false {
