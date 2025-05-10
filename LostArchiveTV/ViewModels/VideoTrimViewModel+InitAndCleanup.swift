@@ -103,21 +103,7 @@ extension VideoTrimViewModel {
                 ])
             }
 
-            // Force the player to begin loading and buffer some content
-            logger.debug("Forcing player to begin buffering")
-            playbackManager.player?.play()
-            try await Task.sleep(for: .milliseconds(300))
-            playbackManager.player?.pause()
-
-            // Ensure the player is rendering the first frame correctly
-            if let player = playbackManager.player {
-                let currentTime = player.currentTime()
-                await player.seek(to: currentTime)
-                try await Task.sleep(for: .milliseconds(200))
-
-                // Make a second attempt to ensure the player is ready
-                await player.seek(to: currentTime, toleranceBefore: .zero, toleranceAfter: .zero)
-            }
+            // No need to force buffering or frame rendering since we're using an already-initialized shared player
 
             // Ensure all setup is complete before marking as loaded
             // Only mark loading as complete after successful player initialization
@@ -134,10 +120,7 @@ extension VideoTrimViewModel {
             logger.debug("Seeking to start time: \(self.startTrimTime.seconds) seconds")
             await playbackManager.player?.seek(to: self.startTrimTime, toleranceBefore: .zero, toleranceAfter: .zero)
 
-            // Force a brief play and pause to ensure the frame is displayed
-            playbackManager.player?.play()
-            try await Task.sleep(for: .milliseconds(50))
-            playbackManager.player?.pause()
+            // No need to force-display frame as the player is already displaying correctly
 
             // Generate thumbnails in a background task to keep UI responsive
             Task {
