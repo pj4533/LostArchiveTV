@@ -22,71 +22,13 @@ extension VideoTrimViewModel {
         logger.debug("▶️ TRIM_PLAYBACK: Toggling playback from \(wasPlaying) to \(self.isPlaying)")
 
         if isPlaying {
-            // Verify we have a valid player - if not, attempt to recreate with proper resource management
-            if directPlayer == nil {
-                logger.error("⚠️ TRIM_PLAYBACK: Player is nil! Performing emergency player recovery")
+            // Verify we have a valid player - if not, log an error
+            if playbackManager.player == nil {
+                logger.error("⚠️ TRIM_PLAYBACK: Player is nil! Cannot continue with playback")
 
-                // Reset playback state temporarily
+                // Reset playback state
                 isPlaying = false
-
-                // First ensure audio session is properly configured before recovery
-                logger.debug("🔊 TRIM_PLAYBACK: Configuring audio session for emergency player")
-                audioSessionManager.configureForTrimming()
-
-                // Emergency attempt to create a player with proper initialization
-                let fileURL = URL(fileURLWithPath: self.assetURL.path)
-
-                // Check if file exists
-                if !FileManager.default.fileExists(atPath: fileURL.path) {
-                    logger.error("❌ TRIM_PLAYBACK: Emergency player creation failed - file not found at \(fileURL.path)")
-                    return
-                }
-
-                // Create a proper AVURLAsset first
-                logger.debug("🔄 TRIM_PLAYBACK: Creating replacement asset for emergency player")
-                let asset = AVURLAsset(url: fileURL)
-                let playerItem = AVPlayerItem(asset: asset)
-
-                // Create a properly configured emergency player
-                let emergencyPlayer = AVPlayer(playerItem: playerItem)
-                emergencyPlayer.volume = 1.0
-                emergencyPlayer.isMuted = false
-                emergencyPlayer.automaticallyWaitsToMinimizeStalling = false
-                emergencyPlayer.actionAtItemEnd = .pause
-
-                // Log the new player creation
-                let playerID = String(describing: ObjectIdentifier(emergencyPlayer))
-                logger.debug("✅ TRIM_PLAYBACK: Created emergency player with ID: \(playerID)")
-
-                // Assign it
-                self.directPlayer = emergencyPlayer
-
-                if self.directPlayer == nil {
-                    logger.error("❌ TRIM_PLAYBACK: Emergency player creation failed, giving up")
-                    return
-                } else {
-                    logger.debug("✅ TRIM_PLAYBACK: Emergency player creation succeeded, continuing")
-                    isPlaying = true
-
-                    // Set up observers for this emergency player - directly here to avoid private access
-                    NotificationCenter.default.addObserver(
-                        self,
-                        selector: #selector(playerItemDidReachEnd),
-                        name: .AVPlayerItemDidPlayToEndTime,
-                        object: playerItem
-                    )
-
-                    // Start update timer
-                    startPlayheadUpdateTimer()
-
-                    // Seek to start time and force a play immediately to ensure it's working
-                    emergencyPlayer.seek(to: startTrimTime)
-                    emergencyPlayer.play()
-                    logger.debug("▶️ TRIM_PLAYBACK: Started playback with emergency player")
-
-                    // Nothing more to do - we've already started playing
-                    return
-                }
+                return
             }
 
             // CRITICAL: Configure audio session before playing
@@ -103,13 +45,13 @@ extension VideoTrimViewModel {
 
                 // Seek to start and play
                 seekToTime(startTrimTime)
-                directPlayer?.play()
+                playbackManager.player?.play()
                 logger.debug("▶️ TRIM_PLAYBACK: Started playback from start trim time: \(self.startTrimTime.seconds)s")
                 return
             }
 
             // Get the player and verify it's in a valid state
-            if let player = directPlayer, let playerItem = player.currentItem {
+            if let player = playbackManager.player, let playerItem = player.currentItem {
                 // Log player status for debugging
                 let itemStatus = playerItem.status.rawValue
                 logger.debug("🔍 TRIM_PLAYBACK: Player item status before playback: \(itemStatus)")
@@ -138,19 +80,6 @@ extension VideoTrimViewModel {
 
                 // Reset playback state
                 isPlaying = false
-
-                // Try one last recovery attempt
-                if let player = directPlayer {
-                    logger.debug("🔄 TRIM_PLAYBACK: Attempting last-chance recovery with existing player")
-
-                    // Try seeking to start time and playing
-                    player.seek(to: startTrimTime)
-                    player.play()
-
-                    // Reset playback state to true if we got this far
-                    isPlaying = true
-                    logger.debug("✅ TRIM_PLAYBACK: Last-chance recovery succeeded")
-                }
             }
         } else {
             // Stop the timer when paused
@@ -158,7 +87,7 @@ extension VideoTrimViewModel {
             stopPlayheadUpdateTimer()
 
             // Make sure to use the actual player instance if available
-            if let player = directPlayer {
+            if let player = playbackManager.player {
                 player.pause()
                 player.rate = 0 // Explicitly set rate to 0 to ensure it's really paused
                 let playerID = String(describing: ObjectIdentifier(player))
@@ -183,7 +112,7 @@ extension VideoTrimViewModel {
 
             // Capture the current state inside timer callback to avoid Sendable warnings
             let isCurrentlyPlaying = self.isPlaying
-            guard isCurrentlyPlaying, let player = self.directPlayer else { return }
+            guard isCurrentlyPlaying, let player = self.playbackManager.player else { return }
 
             // Update our currentTime property with the player's current time
             let time = player.currentTime()
@@ -209,39 +138,39 @@ extension VideoTrimViewModel {
     func seekToTime(_ time: CMTime, fromHandleDrag: Bool = false) {
         // Log seek operation
         logger.debug("trim: seeking to \(time.seconds) seconds, fromHandleDrag=\(fromHandleDrag)")
-        
+
         // Update currentTime immediately so the playhead updates right away
         self.currentTime = time
 
-        guard let player = directPlayer else {
+        guard let player = playbackManager.player else {
             logger.error("trim: seekToTime failed - player is nil")
             return
         }
-        
+
         // Make sure the time is within bounds
         let validTime = validateTimeForSeeking(time)
 
         // Perform the seek operation with more precise tolerances
-        player.seek(to: validTime, 
+        player.seek(to: validTime,
                    toleranceBefore: .zero,
                    toleranceAfter: .zero) { [weak self] completed in
-            guard let self = self else { 
-                return 
+            guard let self = self else {
+                return
             }
-            
+
             if !completed {
                 self.logger.error("trim: seek operation did not complete")
                 return
             }
-            
+
             self.logger.debug("trim: seek completed to \(validTime.seconds) seconds")
-            
+
             // Update UI to reflect the actual position after seeking
             self.currentTime = player.currentTime()
 
             // Only restart playback if not from handle dragging and already in playing state
             if self.isPlaying && !fromHandleDrag {
-                self.directPlayer?.play()
+                self.playbackManager.player?.play()
                 self.logger.debug("trim: playback resumed after seek")
             }
         }

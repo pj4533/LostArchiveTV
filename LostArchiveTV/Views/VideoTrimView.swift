@@ -13,9 +13,14 @@ class TrimCoordinator: ObservableObject {
     private var hasBeenDismissed = false
     private var initializationInProgress = false
 
-    init(videoURL: URL, currentTime: CMTime, duration: CMTime) {
-        self.viewModel = VideoTrimViewModel(assetURL: videoURL, currentPlaybackTime: currentTime, duration: duration)
-        logger.debug("🎬 TRIM_COORDINATOR: Initialized for asset: \(videoURL.lastPathComponent)")
+    init(videoURL: URL, currentTime: CMTime, duration: CMTime, playbackManager: VideoPlaybackManager) {
+        self.viewModel = VideoTrimViewModel(
+            assetURL: videoURL,
+            currentPlaybackTime: currentTime,
+            duration: duration,
+            playbackManager: playbackManager
+        )
+        logger.debug("🎬 TRIM_COORDINATOR: Initialized for asset: \(videoURL.lastPathComponent), using existing player")
 
         // Log important parameters for debugging
         logger.debug("🎬 TRIM_COORDINATOR: Current time: \(currentTime.seconds)s, duration: \(duration.seconds)s")
@@ -81,15 +86,15 @@ struct VideoTrimView: View {
     @StateObject var coordinator: TrimCoordinator
     @Environment(\.dismiss) private var dismiss
     private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "trimview")
-    
-    @State private var hideLoadingAfterDelay = false
+
     @State private var showSuccessAlert = false
     
-    init(videoURL: URL, currentTime: CMTime, duration: CMTime) {
+    init(videoURL: URL, currentTime: CMTime, duration: CMTime, playbackManager: VideoPlaybackManager) {
         _coordinator = StateObject(wrappedValue: TrimCoordinator(
-            videoURL: videoURL, 
-            currentTime: currentTime, 
-            duration: duration
+            videoURL: videoURL,
+            currentTime: currentTime,
+            duration: duration,
+            playbackManager: playbackManager
         ))
     }
     
@@ -121,28 +126,22 @@ struct VideoTrimView: View {
                             .foregroundColor(.white.opacity(0.7))
                             .font(.caption)
                     }
-                } else if viewModel.isLoading && !hideLoadingAfterDelay {
+                } else if viewModel.isLoading {
                     // Loading progress view
                     VStack {
                         Text("Preparing video for trimming")
                             .foregroundColor(.white)
                             .font(.headline)
                             .padding(.bottom, 10)
-                        
+
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                             .scaleEffect(1.5)
                             .padding(.bottom, 20)
-                        
+
                         Text("This will only take a moment")
                             .foregroundColor(.white.opacity(0.7))
                             .font(.caption)
-                    }
-                    .onAppear {
-                        // Force advance past loading screen after 4 seconds 
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
-                            hideLoadingAfterDelay = true
-                        }
                     }
                 } else {
                     VStack(spacing: 0) {
@@ -180,10 +179,10 @@ struct VideoTrimView: View {
                         Spacer()
                         
                         // Simple video player - using same approach as main app
-                        if let player = viewModel.directPlayer {
+                        if let player = viewModel.playbackManager.player {
                             VideoPlayer(player: player)
                                 .aspectRatio(contentMode: .fit)
-                                
+
                             // Play button overlay
                             if viewModel.shouldShowPlayButton {
                                 Button(action: {
@@ -269,12 +268,7 @@ struct VideoTrimView: View {
         .onAppear {
             Task(priority: .userInitiated) {
                 await coordinator.prepareIfNeeded()
-                
-                // Force advancement past loading screen after a short delay
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    hideLoadingAfterDelay = true
-                    coordinator.viewModel.shouldShowPlayButton = true
-                }
+                // Play button will be shown by the prepareForTrimming method when loading is complete
             }
         }
     }

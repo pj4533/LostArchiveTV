@@ -17,7 +17,7 @@ extension VideoTrimViewModel {
         
         // Stop playback
         if isPlaying {
-            directPlayer?.pause()
+            playbackManager.player?.pause()
             isPlaying = false
         }
         

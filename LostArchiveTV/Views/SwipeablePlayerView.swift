@@ -153,7 +153,8 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                                     VideoTrimView(
                                         videoURL: downloadedURL,
                                         currentTime: currentTime,
-                                        duration: duration
+                                        duration: duration,
+                                        playbackManager: (baseViewModel as? VideoPlayerViewModel)?.playbackManager ?? VideoPlaybackManager()
                                     )
                                     .onAppear {
                                         // IMPORTANT: Give the trim view a longer delay to initialize

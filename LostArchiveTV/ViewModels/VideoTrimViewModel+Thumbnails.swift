@@ -41,7 +41,7 @@ extension VideoTrimViewModel {
                 }
 
                 // Verify we're still active before updating UI
-                guard self.directPlayer != nil else {
+                guard self.playbackManager.player != nil else {
                     logger.debug("trim: thumbnail generation completed but view model is no longer active")
                     return
                 }

@@ -8,13 +8,12 @@ import Photos
 class VideoTrimViewModel: ObservableObject {
     internal let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "trimming")
     
-    // Use direct player instead of shared PlayerManager to avoid conflicts
-    // with the app's caching and transition systems
-    @Published var directPlayer: AVPlayer?
-    
+    // Use the shared player system from VideoPlaybackManager passed in from parent
+    let playbackManager: VideoPlaybackManager
+
     // Player accessor for view layer
     var player: AVPlayer {
-        return directPlayer ?? AVPlayer()
+        return playbackManager.player ?? AVPlayer()
     }
     
     // Timer to update the playhead position
@@ -58,10 +57,11 @@ class VideoTrimViewModel: ObservableObject {
     internal let audioSessionManager = AudioSessionManager()
     internal let exportService = VideoExportService()
     
-    init(assetURL: URL, currentPlaybackTime: CMTime, duration: CMTime) {
+    init(assetURL: URL, currentPlaybackTime: CMTime, duration: CMTime, playbackManager: VideoPlaybackManager) {
         self.assetURL = assetURL
         self.assetDuration = duration
         self.startOffsetTime = currentPlaybackTime
+        self.playbackManager = playbackManager
         
         // Initialize logging
         logger.debug("VideoTrimViewModel initializing with URL: \(assetURL.absoluteString)")

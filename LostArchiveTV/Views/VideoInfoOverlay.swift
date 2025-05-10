@@ -87,7 +87,8 @@ struct VideoInfoOverlay: View {
                     VideoTrimView(
                         videoURL: downloadedURL,
                         currentTime: currentTime,
-                        duration: duration
+                        duration: duration,
+                        playbackManager: viewModel.playbackManager
                     )
                 }
                 .onAppear {
