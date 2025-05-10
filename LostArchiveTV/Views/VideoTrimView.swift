@@ -178,13 +178,13 @@ struct VideoTrimView: View {
                         
                         Spacer()
                         
-                        // Simple video player - using same approach as main app
+                        // Simple video player with ZStack for stable layout
                         if let player = viewModel.playbackManager.player {
-                            VideoPlayer(player: player)
-                                .aspectRatio(contentMode: .fit)
+                            ZStack {
+                                VideoPlayer(player: player)
+                                    .aspectRatio(contentMode: .fit)
 
-                            // Play button overlay
-                            if viewModel.shouldShowPlayButton {
+                                // Play button overlay with opacity change to prevent layout shifts
                                 Button(action: {
                                     viewModel.togglePlayback()
                                     viewModel.shouldShowPlayButton = false
@@ -193,13 +193,15 @@ struct VideoTrimView: View {
                                         Circle()
                                             .fill(Color.black.opacity(0.3))
                                             .frame(width: 80, height: 80)
-                                            
+
                                         Image(systemName: viewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                                             .font(.system(size: 50))
                                             .foregroundColor(.white)
                                             .shadow(radius: 3)
                                     }
                                 }
+                                .opacity(viewModel.shouldShowPlayButton ? 1.0 : 0.0)
+                                .animation(.easeInOut(duration: 0.2), value: viewModel.shouldShowPlayButton)
                             }
                         }
                         
