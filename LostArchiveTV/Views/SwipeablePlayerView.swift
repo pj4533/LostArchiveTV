@@ -145,15 +145,15 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                                     let currentTimeSeconds = baseViewModel.player?.currentTime().seconds ?? 0
                                     let durationSeconds = baseViewModel.videoDuration
 
-                                    // Convert to CMTime for SimpleTrimView
+                                    // Convert to CMTime for VideoTrimView
                                     let currentTime = CMTime(seconds: currentTimeSeconds, preferredTimescale: 600)
                                     let duration = CMTime(seconds: durationSeconds, preferredTimescale: 600)
 
-                                    // Show the new simplified trim view
-                                    SimpleTrimView(
+                                    // Show the visual timeline-based trim view
+                                    VideoTrimView(
                                         videoURL: downloadedURL,
-                                        initialPosition: currentTime,
-                                        videoDuration: duration
+                                        currentTime: currentTime,
+                                        duration: duration
                                     )
                                     .onAppear {
                                         // IMPORTANT: Give the trim view a longer delay to initialize

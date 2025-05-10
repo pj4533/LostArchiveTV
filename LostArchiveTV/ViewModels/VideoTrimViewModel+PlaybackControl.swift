@@ -16,102 +16,156 @@ extension VideoTrimViewModel {
     func togglePlayback() {
         // Get the current state for logging
         let wasPlaying = isPlaying
-        
-        // Toggle the state
+
+        // Toggle the state, but do it properly based on player actions
         isPlaying.toggle()
-        logger.debug("trim: togglePlayback called, changing from \(wasPlaying) to \(self.isPlaying)")
+        logger.debug("▶️ TRIM_PLAYBACK: Toggling playback from \(wasPlaying) to \(self.isPlaying)")
 
         if isPlaying {
-            // Verify we have a valid player - if not, attempt to recreate
+            // Verify we have a valid player - if not, attempt to recreate with proper resource management
             if directPlayer == nil {
-                logger.error("trim: attempted to play but player is nil, attempting emergency recreation")
-                
-                // Reset state temporarily
+                logger.error("⚠️ TRIM_PLAYBACK: Player is nil! Performing emergency player recovery")
+
+                // Reset playback state temporarily
                 isPlaying = false
-                
-                // Emergency attempt to create a player directly with the simplest approach
+
+                // First ensure audio session is properly configured before recovery
+                logger.debug("🔊 TRIM_PLAYBACK: Configuring audio session for emergency player")
+                audioSessionManager.configureForTrimming()
+
+                // Emergency attempt to create a player with proper initialization
                 let fileURL = URL(fileURLWithPath: self.assetURL.path)
-                
+
                 // Check if file exists
                 if !FileManager.default.fileExists(atPath: fileURL.path) {
-                    logger.error("trim: emergency player creation failed - file not found")
+                    logger.error("❌ TRIM_PLAYBACK: Emergency player creation failed - file not found at \(fileURL.path)")
                     return
                 }
-                
-                // Create a very simple player
-                let emergencyPlayer = AVPlayer(url: fileURL)
+
+                // Create a proper AVURLAsset first
+                logger.debug("🔄 TRIM_PLAYBACK: Creating replacement asset for emergency player")
+                let asset = AVURLAsset(url: fileURL)
+                let playerItem = AVPlayerItem(asset: asset)
+
+                // Create a properly configured emergency player
+                let emergencyPlayer = AVPlayer(playerItem: playerItem)
                 emergencyPlayer.volume = 1.0
                 emergencyPlayer.isMuted = false
-                
+                emergencyPlayer.automaticallyWaitsToMinimizeStalling = false
+                emergencyPlayer.actionAtItemEnd = .pause
+
+                // Log the new player creation
+                let playerID = String(describing: ObjectIdentifier(emergencyPlayer))
+                logger.debug("✅ TRIM_PLAYBACK: Created emergency player with ID: \(playerID)")
+
                 // Assign it
                 self.directPlayer = emergencyPlayer
-                
+
                 if self.directPlayer == nil {
-                    logger.error("trim: emergency player creation failed, giving up")
+                    logger.error("❌ TRIM_PLAYBACK: Emergency player creation failed, giving up")
                     return
                 } else {
-                    logger.debug("trim: emergency player creation succeeded, continuing")
+                    logger.debug("✅ TRIM_PLAYBACK: Emergency player creation succeeded, continuing")
                     isPlaying = true
-                    
-                    // Force a play immediately to ensure it's working
-                    emergencyPlayer.play()
-                    
+
+                    // Set up observers for this emergency player - directly here to avoid private access
+                    NotificationCenter.default.addObserver(
+                        self,
+                        selector: #selector(playerItemDidReachEnd),
+                        name: .AVPlayerItemDidPlayToEndTime,
+                        object: playerItem
+                    )
+
                     // Start update timer
                     startPlayheadUpdateTimer()
-                    
+
+                    // Seek to start time and force a play immediately to ensure it's working
+                    emergencyPlayer.seek(to: startTrimTime)
+                    emergencyPlayer.play()
+                    logger.debug("▶️ TRIM_PLAYBACK: Started playback with emergency player")
+
                     // Nothing more to do - we've already started playing
                     return
                 }
             }
 
             // CRITICAL: Configure audio session before playing
-            logger.debug("trim: configuring audio session for playback")
+            logger.debug("🔊 TRIM_PLAYBACK: Configuring audio session for playback")
             audioSessionManager.configureForPlayback()
-            
+
             // Start the playhead update timer immediately
             startPlayheadUpdateTimer()
-            
+
             // If right handle was the last one dragged, always start from the left handle
             if lastDraggedRightHandle {
-                logger.debug("trim: starting from left handle (startTrimTime) after right handle drag")
+                logger.debug("▶️ TRIM_PLAYBACK: Starting from left handle after right handle drag")
                 lastDraggedRightHandle = false // Reset flag once used
+
+                // Seek to start and play
                 seekToTime(startTrimTime)
-                // Also explicitly start playback here instead of relying only on the seek completion handler
                 directPlayer?.play()
-                logger.debug("trim: started playback from startTrimTime: \(self.startTrimTime.seconds)s")
+                logger.debug("▶️ TRIM_PLAYBACK: Started playback from start trim time: \(self.startTrimTime.seconds)s")
                 return
             }
-            
-            // Otherwise, check if current time is within trim bounds
-            if let currentPlayerTime = directPlayer?.currentTime() {
-                logger.debug("trim: current player time: \(currentPlayerTime.seconds)s")
-                
-                if CMTimeCompare(currentPlayerTime, startTrimTime) < 0 || 
+
+            // Get the player and verify it's in a valid state
+            if let player = directPlayer, let playerItem = player.currentItem {
+                // Log player status for debugging
+                let itemStatus = playerItem.status.rawValue
+                logger.debug("🔍 TRIM_PLAYBACK: Player item status before playback: \(itemStatus)")
+
+                // Check if current time is within trim bounds
+                let currentPlayerTime = player.currentTime()
+                logger.debug("🔍 TRIM_PLAYBACK: Current player time: \(currentPlayerTime.seconds)s")
+
+                if CMTimeCompare(currentPlayerTime, startTrimTime) < 0 ||
                    CMTimeCompare(currentPlayerTime, endTrimTime) > 0 {
                     // If outside trim bounds, seek to start and play from there
-                    logger.debug("trim: current time outside trim bounds, seeking to startTrimTime: \(self.startTrimTime.seconds)s")
+                    logger.debug("⏱️ TRIM_PLAYBACK: Current time outside trim bounds, seeking to start")
                     seekToTime(startTrimTime)
-                    // Also explicitly start playback here
-                    directPlayer?.play()
-                    logger.debug("trim: started playback after seeking to startTrimTime")
+
+                    // Explicitly start playback
+                    player.play()
+                    logger.debug("▶️ TRIM_PLAYBACK: Started playback after seeking to start trim time")
                 } else {
                     // Otherwise just play from current position
-                    logger.debug("trim: playing from current position: \(currentPlayerTime.seconds)s")
-                    directPlayer?.play()
+                    logger.debug("▶️ TRIM_PLAYBACK: Playing from current position: \(currentPlayerTime.seconds)s")
+                    player.play()
                 }
             } else {
-                // If no current time (player might be nil), start from beginning
-                logger.debug("trim: no current time available, seeking to startTrimTime: \(self.startTrimTime.seconds)s")
-                seekToTime(startTrimTime)
-                directPlayer?.play()
-                logger.debug("trim: started playback after seeking to startTrimTime")
+                // Log the issue
+                logger.error("⚠️ TRIM_PLAYBACK: Player or player item is nil, cannot start playback normally")
+
+                // Reset playback state
+                isPlaying = false
+
+                // Try one last recovery attempt
+                if let player = directPlayer {
+                    logger.debug("🔄 TRIM_PLAYBACK: Attempting last-chance recovery with existing player")
+
+                    // Try seeking to start time and playing
+                    player.seek(to: startTrimTime)
+                    player.play()
+
+                    // Reset playback state to true if we got this far
+                    isPlaying = true
+                    logger.debug("✅ TRIM_PLAYBACK: Last-chance recovery succeeded")
+                }
             }
         } else {
             // Stop the timer when paused
-            logger.debug("trim: pausing playback")
+            logger.debug("⏸️ TRIM_PLAYBACK: Pausing playback")
             stopPlayheadUpdateTimer()
-            directPlayer?.pause()
-            logger.debug("trim: playback paused")
+
+            // Make sure to use the actual player instance if available
+            if let player = directPlayer {
+                player.pause()
+                player.rate = 0 // Explicitly set rate to 0 to ensure it's really paused
+                let playerID = String(describing: ObjectIdentifier(player))
+                logger.debug("⏸️ TRIM_PLAYBACK: Playback paused, player ID: \(playerID)")
+            } else {
+                logger.error("⚠️ TRIM_PLAYBACK: Cannot pause - player is nil")
+            }
         }
         
         // Show the play button again when interacting with the timeline, dragging handles, or tapping the video
@@ -122,19 +176,27 @@ extension VideoTrimViewModel {
     func startPlayheadUpdateTimer() {
         // Stop any existing timer first
         stopPlayheadUpdateTimer()
-        
+
         // Create a timer that fires 10 times per second
         playheadUpdateTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            guard let self = self, self.isPlaying, let player = self.directPlayer else { return }
-            
+            guard let self = self else { return }
+
+            // Capture the current state inside timer callback to avoid Sendable warnings
+            let isCurrentlyPlaying = self.isPlaying
+            guard isCurrentlyPlaying, let player = self.directPlayer else { return }
+
             // Update our currentTime property with the player's current time
             let time = player.currentTime()
             self.currentTime = time
-            
+
+            // Capture endTrimTime locally to avoid Sendable issues
+            let endTime = self.endTrimTime
+
             // Check if we've reached the end of the trim range
-            if CMTimeCompare(time, self.endTrimTime) >= 0 {
-                self.logger.debug("Reached end of trim section, looping back")
-                self.seekToTime(self.startTrimTime)
+            if CMTimeCompare(time, endTime) >= 0 {
+                self.logger.debug("⏱️ TRIM_LOOP: Reached end of trim section, looping back")
+                let startTime = self.startTrimTime
+                self.seekToTime(startTime)
             }
         }
     }

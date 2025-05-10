@@ -212,7 +212,7 @@ class PlayerManager: ObservableObject {
                 }
             }
 
-            // No trim boundary handling needed anymore - SimpleTrimView handles this internally
+            // No trim boundary handling needed in main player - VideoTrimView handles this internally
         }
     }
     

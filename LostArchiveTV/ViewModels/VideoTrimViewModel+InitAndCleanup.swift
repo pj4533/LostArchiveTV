@@ -40,15 +40,31 @@ extension VideoTrimViewModel {
             // Save the URL for later use
             self.localVideoURL = self.assetURL
             
-            // Clean up any existing player
+            // Clean up any existing player thoroughly
             if self.directPlayer != nil {
                 logger.debug("Cleaning up existing player before creating a new one")
+                // First stop any ongoing playback and observers
                 self.directPlayer?.pause()
-                self.directPlayer?.replaceCurrentItem(with: nil)
+                self.directPlayer?.rate = 0
                 self.stopPlayheadUpdateTimer()
+
+                // Remove notification observers for this player
+                NotificationCenter.default.removeObserver(
+                    self,
+                    name: .AVPlayerItemDidPlayToEndTime,
+                    object: self.directPlayer?.currentItem
+                )
+
+                // Clear out the player item and player
+                self.directPlayer?.replaceCurrentItem(with: nil)
                 self.directPlayer = nil
-                try? await Task.sleep(for: .milliseconds(100))
+
+                // Give time for resources to be released
+                try? await Task.sleep(for: .milliseconds(200))
             }
+
+            // Ensure audio session is properly configured before creating new player
+            self.audioSessionManager.configureForTrimming()
             
             // Create a new player instance with robust loading
             logger.debug("Creating player for URL: \(self.assetURL.lastPathComponent)")
@@ -136,7 +152,7 @@ extension VideoTrimViewModel {
     }
     
     /// Sets up notification for when playback reaches the end
-    private func setupPlaybackEndNotification(for playerItem: AVPlayerItem) {
+    func setupPlaybackEndNotification(for playerItem: AVPlayerItem) {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(playerItemDidReachEnd),
@@ -146,7 +162,7 @@ extension VideoTrimViewModel {
     }
     
     /// Handler for when playback reaches the end
-    @objc private func playerItemDidReachEnd(notification: Notification) {
+    @objc func playerItemDidReachEnd(notification: Notification) {
         logger.info("Video playback reached end - restarting from beginning")
         self.directPlayer?.seek(to: self.startTrimTime)
         self.directPlayer?.play()
@@ -155,45 +171,73 @@ extension VideoTrimViewModel {
     
     /// Call this before dismissing the view
     func prepareForDismissal() {
-        logger.debug("Preparing for dismissal")
-        
-        // Stop playback
+        logger.debug("🧹 TRIM_DISMISS: Starting comprehensive cleanup for dismissal")
+
+        // Stop playback and update UI state immediately
         if self.isPlaying {
+            logger.debug("🧹 TRIM_DISMISS: Stopping active playback")
             self.directPlayer?.pause()
+            self.directPlayer?.rate = 0
             self.isPlaying = false
         }
-        
-        // Stop timer and observers
+
+        // Stop timer and ALL observers
+        logger.debug("🧹 TRIM_DISMISS: Removing timers and observers")
         self.stopPlayheadUpdateTimer()
-        NotificationCenter.default.removeObserver(
-            self,
-            name: .AVPlayerItemDidPlayToEndTime,
-            object: self.directPlayer?.currentItem
-        )
-        
-        // Clear thumbnails
+
+        // Remove all notification observations for this object
+        NotificationCenter.default.removeObserver(self)
+
+        // Clear thumbnails to release memory
+        logger.debug("🧹 TRIM_DISMISS: Clearing thumbnail images")
         self.thumbnails = []
-        
-        // Clean up player
-        self.directPlayer?.pause()
-        self.directPlayer?.replaceCurrentItem(with: nil)
-        self.directPlayer = nil
-        
-        // Reset audio session
+
+        // Perform comprehensive player cleanup
+        if let player = self.directPlayer {
+            let playerID = String(describing: ObjectIdentifier(player))
+            logger.debug("🧹 TRIM_DISMISS: Cleaning up player - ID: \(playerID)")
+
+            // Log player state before cleanup
+            let rate = player.rate
+            let currentItemStatus = player.currentItem?.status.rawValue
+            logger.debug("🧹 TRIM_DISMISS: Player state before cleanup - Rate: \(rate), Item status: \(String(describing: currentItemStatus))")
+
+            // First ensure playback is fully stopped
+            player.pause()
+            player.rate = 0
+
+            // Remove the player item to release resources
+            logger.debug("🧹 TRIM_DISMISS: Removing player item")
+            player.replaceCurrentItem(with: nil)
+
+            // Clear the reference
+            self.directPlayer = nil
+            logger.debug("🧹 TRIM_DISMISS: Player reference cleared")
+        } else {
+            logger.debug("🧹 TRIM_DISMISS: No player to clean up (already nil)")
+        }
+
+        // Reset audio session - critically important
+        logger.debug("🧹 TRIM_DISMISS: Deactivating audio session")
         self.audioSessionManager.deactivate()
-        
-        // Clean up temp files
+
+        // Clean up temp files if they exist and are in temporary directory
         if let localURL = self.localVideoURL,
            !self.isSaving,
            localURL.absoluteString.contains(FileManager.default.temporaryDirectory.absoluteString) {
             do {
+                logger.debug("🧹 TRIM_DISMISS: Removing temporary file at \(localURL.lastPathComponent)")
                 try FileManager.default.removeItem(at: localURL)
-                logger.debug("Removed temporary video file")
+                logger.debug("🧹 TRIM_DISMISS: Successfully removed temporary video file")
             } catch {
-                logger.error("Failed to delete temp file: \(error.localizedDescription)")
+                logger.error("🧹 TRIM_DISMISS: Failed to delete temp file: \(error.localizedDescription)")
             }
         }
-        
-        logger.debug("Cleanup complete")
+
+        // Release the URL reference
+        self.localVideoURL = nil
+
+        // Final cleanup report
+        logger.debug("🧹 TRIM_DISMISS: Comprehensive cleanup complete, all resources released")
     }
 }

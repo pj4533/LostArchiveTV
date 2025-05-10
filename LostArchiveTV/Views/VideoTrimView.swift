@@ -3,37 +3,76 @@ import AVFoundation
 import AVKit
 import OSLog
 
-// MARK: - Simple Coordinator for ViewModel Management
+// MARK: - Coordinator to Manage VideoTrimViewModel Lifecycle
 @MainActor
 class TrimCoordinator: ObservableObject {
     @Published private(set) var viewModel: VideoTrimViewModel
     private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "trimcoordinator")
-    
+
     private var isInitialized = false
     private var hasBeenDismissed = false
+    private var initializationInProgress = false
 
     init(videoURL: URL, currentTime: CMTime, duration: CMTime) {
         self.viewModel = VideoTrimViewModel(assetURL: videoURL, currentPlaybackTime: currentTime, duration: duration)
-        logger.debug("Coordinator initialized for asset: \(videoURL.lastPathComponent)")
+        logger.debug("🎬 TRIM_COORDINATOR: Initialized for asset: \(videoURL.lastPathComponent)")
+
+        // Log important parameters for debugging
+        logger.debug("🎬 TRIM_COORDINATOR: Current time: \(currentTime.seconds)s, duration: \(duration.seconds)s")
     }
 
     func prepareIfNeeded() async {
-        guard !isInitialized else { return }
-        
-        do {
-            viewModel.audioSessionManager.configureForPlayback()
-            await viewModel.prepareForTrimming()
-            isInitialized = true
-        } catch {
-            logger.error("Initialization failed: \(error.localizedDescription)")
+        // Prevent multiple concurrent initialization attempts
+        guard !isInitialized && !initializationInProgress else {
+            logger.debug("🎬 TRIM_COORDINATOR: Skipping duplicate initialization request")
+            return
         }
+
+        initializationInProgress = true
+        logger.debug("🎬 TRIM_COORDINATOR: Starting view model preparation")
+
+        do {
+            // Ensure audio session is properly configured before initializing player
+            logger.debug("🎬 TRIM_COORDINATOR: Configuring audio session for trim view")
+            viewModel.audioSessionManager.configureForTrimming()
+
+            // Allow a brief delay for audio session to take effect
+            try? await Task.sleep(for: .milliseconds(100))
+
+            // Prepare the view model (this initializes player and resources)
+            logger.debug("🎬 TRIM_COORDINATOR: Calling view model prepareForTrimming")
+            await viewModel.prepareForTrimming()
+
+            isInitialized = true
+            logger.debug("🎬 TRIM_COORDINATOR: View model successfully initialized")
+        } catch {
+            logger.error("❌ TRIM_COORDINATOR: Initialization failed: \(error.localizedDescription)")
+        }
+
+        // Reset in-progress flag regardless of outcome
+        initializationInProgress = false
     }
 
     func cleanup() async {
+        // Only clean up once and only if initialized
         if !hasBeenDismissed {
+            logger.debug("🧹 TRIM_COORDINATOR: Starting cleanup process")
+
+            // Perform cleanup in view model
             viewModel.prepareForDismissal()
+
+            // Mark as dismissed to prevent duplicate cleanup
             hasBeenDismissed = true
+            logger.debug("🧹 TRIM_COORDINATOR: Cleanup complete")
+        } else {
+            logger.debug("🧹 TRIM_COORDINATOR: Cleanup already performed, skipping")
         }
+    }
+
+    deinit {
+        logger.debug("♻️ TRIM_COORDINATOR: Coordinator being deinitialized")
+        // We don't need to call cleanup here as it must be called explicitly
+        // from the UI layer before dismissal
     }
 }
 
