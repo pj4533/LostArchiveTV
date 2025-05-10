@@ -3,99 +3,150 @@ import AVFoundation
 import AVKit
 import OSLog
 
+// MARK: - Simple Coordinator for ViewModel Management
+@MainActor
+class TrimCoordinator: ObservableObject {
+    @Published private(set) var viewModel: VideoTrimViewModel
+    private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "trimcoordinator")
+    
+    private var isInitialized = false
+    private var hasBeenDismissed = false
+
+    init(videoURL: URL, currentTime: CMTime, duration: CMTime) {
+        self.viewModel = VideoTrimViewModel(assetURL: videoURL, currentPlaybackTime: currentTime, duration: duration)
+        logger.debug("Coordinator initialized for asset: \(videoURL.lastPathComponent)")
+    }
+
+    func prepareIfNeeded() async {
+        guard !isInitialized else { return }
+        
+        do {
+            viewModel.audioSessionManager.configureForPlayback()
+            await viewModel.prepareForTrimming()
+            isInitialized = true
+        } catch {
+            logger.error("Initialization failed: \(error.localizedDescription)")
+        }
+    }
+
+    func cleanup() async {
+        if !hasBeenDismissed {
+            viewModel.prepareForDismissal()
+            hasBeenDismissed = true
+        }
+    }
+}
+
 // MARK: - Main VideoTrimView
 struct VideoTrimView: View {
-    @ObservedObject var viewModel: VideoTrimViewModel
+    @StateObject var coordinator: TrimCoordinator
     @Environment(\.dismiss) private var dismiss
     private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "trimview")
+    
+    @State private var hideLoadingAfterDelay = false
+    @State private var showSuccessAlert = false
+    
+    init(videoURL: URL, currentTime: CMTime, duration: CMTime) {
+        _coordinator = StateObject(wrappedValue: TrimCoordinator(
+            videoURL: videoURL, 
+            currentTime: currentTime, 
+            duration: duration
+        ))
+    }
     
     private let thumbnailHeight: CGFloat = 50
     
     var body: some View {
+        let viewModel = coordinator.viewModel
+        
         ZStack {
-            // Background color
+            // Background
             Color.black.edgesIgnoringSafeArea(.all)
             
             // Main content
             Group {
-                if viewModel.isLoading {
-                    // Download progress view
+                if viewModel.isSaving {
+                    // Saving progress view
                     VStack {
-                        Text("Downloading video for trimming")
+                        Text("Saving trimmed video")
                             .foregroundColor(.white)
                             .font(.headline)
                             .padding(.bottom, 10)
-                        
-                        Text("Please wait while the video is downloaded")
-                            .foregroundColor(.white.opacity(0.8))
-                            .font(.subheadline)
-                            .padding(.bottom, 20)
                         
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                             .scaleEffect(1.5)
                             .padding(.bottom, 20)
                         
-                        Text("This may take a few moments depending on the video size")
+                        Text("This will only take a moment")
                             .foregroundColor(.white.opacity(0.7))
                             .font(.caption)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 40)
+                    }
+                } else if viewModel.isLoading && !hideLoadingAfterDelay {
+                    // Loading progress view
+                    VStack {
+                        Text("Preparing video for trimming")
+                            .foregroundColor(.white)
+                            .font(.headline)
+                            .padding(.bottom, 10)
+                        
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .scaleEffect(1.5)
+                            .padding(.bottom, 20)
+                        
+                        Text("This will only take a moment")
+                            .foregroundColor(.white.opacity(0.7))
+                            .font(.caption)
+                    }
+                    .onAppear {
+                        // Force advance past loading screen after 4 seconds 
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+                            hideLoadingAfterDelay = true
+                        }
                     }
                 } else {
                     VStack(spacing: 0) {
-                    // Top toolbar
-                    HStack {
-                        Button("Cancel") {
-                            // Clean up resources
-                            viewModel.prepareForDismissal()
-                            dismiss()
-                        }
-                        .foregroundColor(.white)
-                        
-                        Spacer()
-                        
-                        Text("Adjust clip")
+                        // Top toolbar
+                        HStack {
+                            Button("Cancel") {
+                                Task {
+                                    await coordinator.cleanup()
+                                    dismiss()
+                                }
+                            }
                             .foregroundColor(.white)
-                            .fontWeight(.semibold)
+                            
+                            Spacer()
+                            
+                            Text("Adjust clip")
+                                .foregroundColor(.white)
+                                .fontWeight(.semibold)
+                            
+                            Spacer()
+                            
+                            Button("Save") {
+                                Task {
+                                    let success = await viewModel.saveTrimmmedVideo()
+                                    if success {
+                                        showSuccessAlert = true
+                                    }
+                                }
+                            }
+                            .foregroundColor(.white)
+                            .disabled(viewModel.isLoading || viewModel.isSaving)
+                        }
+                        .padding()
                         
                         Spacer()
                         
-                        Button("Save") {
-                            Task {
-                                // Reset any previous success message
-                                viewModel.successMessage = nil
+                        // Simple video player - using same approach as main app
+                        if let player = viewModel.directPlayer {
+                            VideoPlayer(player: player)
+                                .aspectRatio(contentMode: .fit)
                                 
-                                // Perform the save operation
-                                let success = await viewModel.saveTrimmmedVideo()
-                                
-                                // Handle success - alert will show
-                                // The view will be dismissed after user confirms the success alert
-                            }
-                        }
-                        .foregroundColor(.white)
-                        // Disable the Save button while loading or saving
-                        .disabled(viewModel.isLoading || viewModel.isSaving)
-                    }
-                    .padding()
-                    
-                    Spacer()
-                    
-                    // Video player
-                    ZStack {
-                        VideoPlayer(player: viewModel.player)
-                            .aspectRatio(9/16, contentMode: ContentMode.fit)
-                            .frame(maxWidth: .infinity)
-                            .background(Color.black)
-                            .onAppear {
-                                logger.debug("VideoPlayer appeared")
-                            }
-                            .onTapGesture {
-                                // Show play button when tapping the video area
-                                viewModel.shouldShowPlayButton = true
-                            }
-                            .overlay(
-                                // Play/pause button overlay that disappears after tapping
+                            // Play button overlay
+                            if viewModel.shouldShowPlayButton {
                                 Button(action: {
                                     viewModel.togglePlayback()
                                     viewModel.shouldShowPlayButton = false
@@ -104,49 +155,51 @@ struct VideoTrimView: View {
                                         Circle()
                                             .fill(Color.black.opacity(0.3))
                                             .frame(width: 80, height: 80)
-                                        
+                                            
                                         Image(systemName: viewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                                             .font(.system(size: 50))
                                             .foregroundColor(.white)
                                             .shadow(radius: 3)
                                     }
                                 }
-                                .opacity(viewModel.shouldShowPlayButton ? 1 : 0)
-                                .animation(.easeOut(duration: 0.3), value: viewModel.shouldShowPlayButton)
-                            )
-                    }
-                    
-                    Spacer()
-                    
-                    // Duration text
-                    HStack {
-                        Text(formatTime(viewModel.startTrimTime.seconds))
-                            .font(.caption)
-                            .foregroundColor(.white)
+                            }
+                        }
                         
                         Spacer()
                         
-                        Text("\(formatDuration(from: viewModel.startTrimTime, to: viewModel.endTrimTime)) selected")
-                            .font(.footnote)
-                            .foregroundColor(.white)
+                        // Duration text
+                        HStack {
+                            Text(formatTime(viewModel.startTrimTime.seconds))
+                                .font(.caption)
+                                .foregroundColor(.white)
+                            
+                            Spacer()
+                            
+                            Text("\(formatDuration(from: viewModel.startTrimTime, to: viewModel.endTrimTime)) selected")
+                                .font(.footnote)
+                                .foregroundColor(.white)
+                            
+                            Spacer()
+                            
+                            Text(formatTime(viewModel.endTrimTime.seconds))
+                                .font(.caption)
+                                .foregroundColor(.white)
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom, 4)
                         
-                        Spacer()
-                        
-                        Text(formatTime(viewModel.endTrimTime.seconds))
-                            .font(.caption)
-                            .foregroundColor(.white)
+                        // Timeline view
+                        GeometryReader { geo in
+                            TimelineView(viewModel: viewModel, timelineWidth: geo.size.width)
+                        }
+                        .frame(height: thumbnailHeight)
+                        .padding(.horizontal)
+                        .padding(.bottom, 30)
+                        .padding(.top, 10)
                     }
-                    .padding(.horizontal)
-                    .padding(.bottom, 4)
-                    
-                    // Timeline view using our new component
-                    GeometryReader { geo in
-                        TimelineView(viewModel: viewModel, timelineWidth: geo.size.width)
-                    }
-                    .frame(height: thumbnailHeight)
-                    .padding(.horizontal)
-                    .padding(.bottom, 30)
-                    .padding(.top, 10)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        viewModel.shouldShowPlayButton = true
                     }
                 }
             }
@@ -164,27 +217,25 @@ struct VideoTrimView: View {
         }
         
         // Success alert
-        .alert("Success", isPresented: Binding<Bool>(
-            get: { viewModel.successMessage != nil },
-            set: { if !$0 { viewModel.successMessage = nil } }
-        )) {
+        .alert("Video Saved", isPresented: $showSuccessAlert) {
             Button("OK") {
-                // On success confirmation, dismiss the view
-                viewModel.prepareForDismissal()
-                dismiss()
+                Task {
+                    await coordinator.cleanup()
+                    dismiss()
+                }
             }
         } message: {
-            Text(viewModel.successMessage ?? "Operation completed successfully")
+            Text("Your trimmed video has been successfully saved to Photos!")
         }
         .onAppear {
-            // Start downloading the video for trimming if needed
-            logger.debug("VideoTrimView appeared, viewModel.isLoading: \(viewModel.isLoading)")
-            logger.debug("VideoTrimView has player: \(viewModel.player)")
-            
-            Task {
-                logger.debug("Starting prepareForTrimming")
-                await viewModel.prepareForTrimming()
-                logger.debug("Completed prepareForTrimming, viewModel.isLoading: \(viewModel.isLoading)")
+            Task(priority: .userInitiated) {
+                await coordinator.prepareIfNeeded()
+                
+                // Force advancement past loading screen after a short delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    hideLoadingAfterDelay = true
+                    coordinator.viewModel.shouldShowPlayButton = true
+                }
             }
         }
     }
