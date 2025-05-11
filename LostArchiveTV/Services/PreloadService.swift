@@ -94,7 +94,10 @@ actor PreloadService {
             Logger.caching.info("PreloadService: First video is ready, proceeding with cache filling")
             
             Logger.caching.info("PreloadService: Starting background task to fill cache to \(maxCache) videos")
-            
+
+            // Notify that preloading is starting (ensure the indicator shows)
+            await notifyPreloadingStarted()
+
             // Use a new task for background filling
             preloadTask = Task {
                 Logger.caching.info("PreloadService background task started")
