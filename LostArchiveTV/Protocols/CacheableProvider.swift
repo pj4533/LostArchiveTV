@@ -9,10 +9,10 @@ import Foundation
 
 /// Protocol that extends VideoProvider to add caching capabilities
 protocol CacheableProvider: VideoProvider {
-    /// The preload service used for video caching
-    var preloadService: PreloadService { get }
+    /// The cache service used for video caching
+    var cacheService: VideoCacheService { get }
     
-    /// The cache manager for storing preloaded videos
+    /// The cache manager for storing cached videos
     var cacheManager: VideoCacheManager { get }
     
     /// The archive service for fetching video metadata and files

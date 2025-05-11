@@ -23,9 +23,9 @@ extension VideoTrimViewModel {
 
         // Pause background processes that could affect performance
         Task {
-            let preloadService = PreloadService()
-            await preloadService.pausePreloading()
-            logger.debug("🧹 TRIM: Paused PreloadService")
+            let cacheService = VideoCacheService()
+            await cacheService.pauseCaching()
+            logger.debug("🧹 TRIM: Paused VideoCacheService")
         }
 
         // Disable transition manager to prevent background operations
@@ -211,9 +211,9 @@ extension VideoTrimViewModel {
         if Task.isCancelled == false {
             // Resume preloading service
             Task {
-                let preloadService = PreloadService()
-                await preloadService.resumePreloading()
-                logger.debug("🧹 TRIM_DISMISS: Resumed PreloadService")
+                let cacheService = VideoCacheService()
+                await cacheService.resumeCaching()
+                logger.debug("🧹 TRIM_DISMISS: Resumed VideoCacheService")
             }
 
             // Re-enable transition manager

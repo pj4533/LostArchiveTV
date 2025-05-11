@@ -11,7 +11,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
     internal let videoLoadingService: VideoLoadingService
     let archiveService = ArchiveService()
     let cacheManager = VideoCacheManager()
-    let preloadService = PreloadService()
+    let cacheService = VideoCacheService()
     internal let favoritesManager: FavoritesManager
     
     // Search state

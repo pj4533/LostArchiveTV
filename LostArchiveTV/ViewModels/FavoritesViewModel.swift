@@ -15,7 +15,7 @@ class FavoritesViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
     // Services - required by CacheableProvider protocol
     let archiveService = ArchiveService()
     let cacheManager = VideoCacheManager()
-    let preloadService = PreloadService()
+    let cacheService = VideoCacheService()
     
     // Favorites manager
     internal let favoritesManager: FavoritesManager

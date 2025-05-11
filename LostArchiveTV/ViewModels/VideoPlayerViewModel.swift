@@ -15,7 +15,7 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider
     // Services
     let archiveService = ArchiveService()
     let cacheManager = VideoCacheManager()
-    internal let preloadService = PreloadService() // Changed to internal for extension access
+    internal let cacheService = VideoCacheService() // Changed from preloadService to cacheService
     internal lazy var videoLoadingService = VideoLoadingService(
         archiveService: archiveService,
         cacheManager: cacheManager
@@ -231,7 +231,7 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider
     
     deinit {
         Task {
-            await preloadService.cancelPreloading()
+            await cacheService.cancelCaching()
             await cacheManager.clearCache()
 
             // Player cleanup is handled by parent class

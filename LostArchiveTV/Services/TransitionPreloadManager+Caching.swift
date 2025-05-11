@@ -47,9 +47,9 @@ extension TransitionPreloadManager {
                     Logger.caching.info("🔄 CACHING: Need to add \(videosNeeded) videos to reach full cache")
 
                     if provider is VideoPlayerViewModel {
-                        // For the main player, use PreloadService which has the most robust implementation
-                        Logger.caching.info("🔄 CACHING: Using PreloadService for main player with \(identifiers.count) identifiers")
-                        await cacheableProvider.preloadService.ensureVideosAreCached(
+                        // For the main player, use VideoCacheService which has the most robust implementation
+                        Logger.caching.info("🔄 CACHING: Using VideoCacheService for main player with \(identifiers.count) identifiers")
+                        await cacheableProvider.cacheService.ensureVideosAreCached(
                             cacheManager: cacheableProvider.cacheManager,
                             archiveService: cacheableProvider.archiveService,
                             identifiers: identifiers

@@ -40,7 +40,7 @@ extension VideoPlayerViewModel {
         // Load identifiers with new preferences
         await loadIdentifiers()
 
-        // Start preloading new videos from the updated collection list
+        // Start caching new videos from the updated collection list
         Task {
             await ensureVideosAreCached()
         }
@@ -116,9 +116,9 @@ extension VideoPlayerViewModel {
             // CRITICAL: Immediately exit initialization mode
             isInitializing = false
             
-            // Signal that first video is ready for preloading
-            Logger.caching.info("🔄 FAST START: Signaling that first video is ready for preloading")
-            await preloadService.setFirstVideoReady()
+            // Signal that first video is ready for caching
+            Logger.caching.info("🔄 FAST START: Signaling that first video is ready for caching")
+            await cacheService.setFirstVideoReady()
 
             // Manually trigger the preloading indicator to show as we start loading next videos
             PreloadingIndicatorManager.shared.setPreloading()
@@ -221,9 +221,9 @@ extension VideoPlayerViewModel {
             }
             
             // Signal that the first video is ready to play, enabling additional caching
-            await preloadService.setFirstVideoReady()
+            await cacheService.setFirstVideoReady()
             
-            // Now that the first video is playing, start preloading next videos in background
+            // Now that the first video is playing, start caching next videos in background
             Task {
                 Logger.caching.info("🔄 LOADING: Starting background cache filling after first video is playing")
 
