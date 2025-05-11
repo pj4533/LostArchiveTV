@@ -15,4 +15,5 @@ extension Logger {
     static let metadata = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "metadata")
     static let caching = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "caching")
     static let files = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "files")
+    static let ui = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "ui")
 }
