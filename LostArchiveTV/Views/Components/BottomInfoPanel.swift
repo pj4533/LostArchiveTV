@@ -11,6 +11,10 @@ struct BottomInfoPanel: View {
     let duration: Double
     let totalFiles: Int?
     let cacheStatuses: [CacheStatus]
+    
+    // Animation state
+    @State private var animationTriggered = false
+    @State private var showShimmerEffect = false
 
     init(title: String?, collection: String?, description: String?, identifier: String?, filename: String? = nil, currentTime: Double?, duration: Double, totalFiles: Int? = nil, cacheStatuses: [CacheStatus] = [.notCached, .notCached, .notCached]) {
         self.title = title
@@ -46,7 +50,6 @@ struct BottomInfoPanel: View {
                     duration: duration,
                     totalFiles: totalFiles
                 )
-                // Removed logging that was generating too much noise
                 .id(duration) // Force view refresh when duration updates
 
                 // Swipe hint with cache status indicators
@@ -55,6 +58,7 @@ struct BottomInfoPanel: View {
                     Text("Swipe up for next video")
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.7))
+                        .shimmerEffect(active: showShimmerEffect)
                         .onAppear {
                             // Log what we're about to display to the user
                             let readyStatus = cacheStatuses.count > 0 && cacheStatuses[0] == .preloaded
@@ -82,6 +86,39 @@ struct BottomInfoPanel: View {
                     endPoint: .bottom
                 )
             )
+        }
+        // Direct binding to TransitionPreloadManager.nextVideoReady
+        .onAppear {
+            // Simple solution: Use a flag so animation only happens once per view appearance
+            animationTriggered = false
+            
+            // Get existing state on appear
+            if let sharedViewModel = SharedViewModelProvider.shared.videoPlayerViewModel,
+               let transitionManager = sharedViewModel.transitionManager,
+               transitionManager.nextVideoReady {
+                // If already ready when view appears, no animation
+                animationTriggered = true
+            }
+        }
+        // Watch for changes to CacheStatusChanged notification
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("CacheStatusChanged"))) { _ in
+            // Direct simple check when notification is received
+            if !animationTriggered,  // Only if animation hasn't been triggered yet
+               let sharedViewModel = SharedViewModelProvider.shared.videoPlayerViewModel,
+               let transitionManager = sharedViewModel.transitionManager,
+               transitionManager.nextVideoReady {  // Direct check of the flag
+                
+                Logger.ui.notice("🎉 Triggering one-time shimmer for next video")
+                animationTriggered = true  // Set flag so it only happens once
+                
+                // Show animation
+                showShimmerEffect = true
+                
+                // Remove after completion
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    showShimmerEffect = false
+                }
+            }
         }
     }
 }
