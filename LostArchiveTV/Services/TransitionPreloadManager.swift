@@ -119,18 +119,30 @@ class TransitionPreloadManager: ObservableObject {
                 
                 // Start monitoring buffer status
                 while !Task.isCancelled && playerItem == player.currentItem {
-                    // Check if buffer is ready for smooth playback
-                    if player.currentItem?.isPlaybackLikelyToKeepUp == true {
+                    // Get buffer ranges to check actual loaded time
+                    let loadedTimeRanges = playerItem?.loadedTimeRanges ?? []
+
+                    // Calculate buffered duration (only count the first range which is what we're playing)
+                    var bufferedSeconds = 0.0
+                    if !loadedTimeRanges.isEmpty {
+                        let firstRange = loadedTimeRanges[0].timeRangeValue
+                        bufferedSeconds = firstRange.duration.seconds
+                    }
+
+                    // Check if buffer is ready - requires both conditions:
+                    // 1. isPlaybackLikelyToKeepUp is true
+                    // 2. At least 1 second of video is actually buffered
+                    if playerItem?.isPlaybackLikelyToKeepUp == true && bufferedSeconds >= 1.0 {
                         await MainActor.run {
-                            Logger.caching.info("✅ PRELOAD NEXT: Buffer ready for \(nextVideo.identifier)")
+                            Logger.caching.info("✅ PRELOAD NEXT: Buffer ready for \(nextVideo.identifier) (buffered: \(bufferedSeconds)s)")
                             // Update dot to be solid green by setting ready flag
                             nextVideoReady = true
                         }
                         break
                     }
-                    
+
                     // If not ready yet, wait briefly and check again
-                    Logger.caching.debug("⏳ PRELOAD NEXT: Buffer not yet ready for \(nextVideo.identifier)")
+                    Logger.caching.debug("⏳ PRELOAD NEXT: Buffer not yet ready for \(nextVideo.identifier) (buffered: \(bufferedSeconds)s)")
                     try? await Task.sleep(for: .seconds(0.5))
                 }
             }
@@ -207,18 +219,30 @@ class TransitionPreloadManager: ObservableObject {
                     
                     // Start monitoring buffer status
                     while !Task.isCancelled && playerItem == player.currentItem {
-                        // Check if buffer is ready for smooth playback
-                        if player.currentItem?.isPlaybackLikelyToKeepUp == true {
+                        // Get buffer ranges to check actual loaded time
+                        let loadedTimeRanges = playerItem?.loadedTimeRanges ?? []
+
+                        // Calculate buffered duration (only count the first range which is what we're playing)
+                        var bufferedSeconds = 0.0
+                        if !loadedTimeRanges.isEmpty {
+                            let firstRange = loadedTimeRanges[0].timeRangeValue
+                            bufferedSeconds = firstRange.duration.seconds
+                        }
+
+                        // Check if buffer is ready - requires both conditions:
+                        // 1. isPlaybackLikelyToKeepUp is true
+                        // 2. At least 1 second of video is actually buffered
+                        if playerItem?.isPlaybackLikelyToKeepUp == true && bufferedSeconds >= 1.0 {
                             await MainActor.run {
-                                Logger.caching.info("✅ PRELOAD RAND: Buffer ready for \(videoInfo.identifier)")
+                                Logger.caching.info("✅ PRELOAD RAND: Buffer ready for \(videoInfo.identifier) (buffered: \(bufferedSeconds)s)")
                                 // Update dot to be solid green by setting ready flag
                                 nextVideoReady = true
                             }
                             break
                         }
-                        
+
                         // If not ready yet, wait briefly and check again
-                        Logger.caching.debug("⏳ PRELOAD RAND: Buffer not yet ready for \(videoInfo.identifier)")
+                        Logger.caching.debug("⏳ PRELOAD RAND: Buffer not yet ready for \(videoInfo.identifier) (buffered: \(bufferedSeconds)s)")
                         try? await Task.sleep(for: .seconds(0.5))
                     }
                 }
@@ -287,18 +311,30 @@ class TransitionPreloadManager: ObservableObject {
                         
                         // Start monitoring buffer status
                         while !Task.isCancelled && playerItem == player.currentItem {
-                            // Check if buffer is ready for smooth playback
-                            if player.currentItem?.isPlaybackLikelyToKeepUp == true {
+                            // Get buffer ranges to check actual loaded time
+                            let loadedTimeRanges = playerItem?.loadedTimeRanges ?? []
+
+                            // Calculate buffered duration (only count the first range which is what we're playing)
+                            var bufferedSeconds = 0.0
+                            if !loadedTimeRanges.isEmpty {
+                                let firstRange = loadedTimeRanges[0].timeRangeValue
+                                bufferedSeconds = firstRange.duration.seconds
+                            }
+
+                            // Check if buffer is ready - requires both conditions:
+                            // 1. isPlaybackLikelyToKeepUp is true
+                            // 2. At least 1 second of video is actually buffered
+                            if playerItem?.isPlaybackLikelyToKeepUp == true && bufferedSeconds >= 1.0 {
                                 await MainActor.run {
-                                    Logger.caching.info("✅ PRELOAD FAV: Buffer ready for \(nextVideo.identifier)")
+                                    Logger.caching.info("✅ PRELOAD FAV: Buffer ready for \(nextVideo.identifier) (buffered: \(bufferedSeconds)s)")
                                     // Update dot to be solid green by setting ready flag
                                     nextVideoReady = true
                                 }
                                 break
                             }
-                            
+
                             // If not ready yet, wait briefly and check again
-                            Logger.caching.debug("⏳ PRELOAD FAV: Buffer not yet ready for \(nextVideo.identifier)")
+                            Logger.caching.debug("⏳ PRELOAD FAV: Buffer not yet ready for \(nextVideo.identifier) (buffered: \(bufferedSeconds)s)")
                             try? await Task.sleep(for: .seconds(0.5))
                         }
                     }
@@ -366,18 +402,30 @@ class TransitionPreloadManager: ObservableObject {
                 
                 // Start monitoring buffer status
                 while !Task.isCancelled && playerItem == player.currentItem {
-                    // Check if buffer is ready for smooth playback
-                    if player.currentItem?.isPlaybackLikelyToKeepUp == true {
+                    // Get buffer ranges to check actual loaded time
+                    let loadedTimeRanges = playerItem?.loadedTimeRanges ?? []
+
+                    // Calculate buffered duration (only count the first range which is what we're playing)
+                    var bufferedSeconds = 0.0
+                    if !loadedTimeRanges.isEmpty {
+                        let firstRange = loadedTimeRanges[0].timeRangeValue
+                        bufferedSeconds = firstRange.duration.seconds
+                    }
+
+                    // Check if buffer is ready - requires both conditions:
+                    // 1. isPlaybackLikelyToKeepUp is true
+                    // 2. At least 1 second of video is actually buffered
+                    if playerItem?.isPlaybackLikelyToKeepUp == true && bufferedSeconds >= 1.0 {
                         await MainActor.run {
-                            Logger.caching.info("✅ PRELOAD PREV: Buffer ready for \(previousVideo.identifier)")
+                            Logger.caching.info("✅ PRELOAD PREV: Buffer ready for \(previousVideo.identifier) (buffered: \(bufferedSeconds)s)")
                             // Update dot to be solid green by setting ready flag
                             prevVideoReady = true
                         }
                         break
                     }
-                    
+
                     // If not ready yet, wait briefly and check again
-                    Logger.caching.debug("⏳ PRELOAD PREV: Buffer not yet ready for \(previousVideo.identifier)")
+                    Logger.caching.debug("⏳ PRELOAD PREV: Buffer not yet ready for \(previousVideo.identifier) (buffered: \(bufferedSeconds)s)")
                     try? await Task.sleep(for: .seconds(0.5))
                 }
             }
