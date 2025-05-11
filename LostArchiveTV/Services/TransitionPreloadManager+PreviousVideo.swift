@@ -13,7 +13,17 @@ import Foundation
 extension TransitionPreloadManager {
     // Preload the previous video from history/sequence
     func preloadPreviousVideo(provider: VideoProvider) async {
-        Logger.caching.info("🔍 PRELOAD PREV: Starting for \(String(describing: type(of: provider)))")
+        // Log timestamp when preloading starts for performance tracking
+        let preloadStartTime = CFAbsoluteTimeGetCurrent()
+
+        Logger.caching.info("🔍 PHASE 1B: Preloading PREVIOUS video for \(String(describing: type(of: provider))) at time \(preloadStartTime)")
+
+        // Signal to the VideoCacheService that preloading has started
+        // This will halt ALL caching operations until preloading is complete
+        if let cacheableProvider = provider as? CacheableProvider {
+            // Explicitly signal preloading has started - this will block ALL caching
+            await cacheableProvider.cacheService.setPreloadingStarted()
+        }
         
         // Reset previous video ready flag
         await MainActor.run {
@@ -79,6 +89,16 @@ extension TransitionPreloadManager {
                             // Update dot to be solid green by setting ready flag
                             prevVideoReady = true
                         }
+
+                        // Calculate and log preloading completion time
+                        let preloadEndTime = CFAbsoluteTimeGetCurrent()
+                        let preloadDuration = preloadEndTime - preloadStartTime
+                        Logger.caching.info("⏱️ TIMING: Previous video preloading completed in \(preloadDuration.formatted(.number.precision(.fractionLength(3)))) seconds")
+
+                        // No need to signal preloading complete - our phased approach handles this
+                        // Phase 2 (general caching) automatically starts after this method completes
+                        Logger.caching.info("✅ PHASE 1B COMPLETE: Previous video successfully preloaded")
+
                         break
                     }
 

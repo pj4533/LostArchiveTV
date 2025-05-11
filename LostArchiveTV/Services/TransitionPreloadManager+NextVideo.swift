@@ -13,10 +13,17 @@ import Foundation
 extension TransitionPreloadManager {
     // Preload the next video while current one is playing
     func preloadNextVideo(provider: VideoProvider) async {
-        Logger.caching.info("🔍 PRELOAD NEXT: Starting for \(String(describing: type(of: provider)))")
+        // Log timestamp when preloading starts for performance tracking
+        let preloadStartTime = CFAbsoluteTimeGetCurrent()
 
-        // Log cache state for debugging
+        Logger.caching.info("🔍 PHASE 1A: Preloading NEXT video for \(String(describing: type(of: provider))) at time \(preloadStartTime)")
+
+        // Signal to the VideoCacheService that preloading has started
+        // This will halt ALL caching operations until preloading is complete
         if let cacheableProvider = provider as? CacheableProvider {
+            // Explicitly signal preloading has started - this will block ALL caching
+            await cacheableProvider.cacheService.setPreloadingStarted()
+
             let cacheCount = await cacheableProvider.cacheManager.cacheCount()
             let maxCache = await cacheableProvider.cacheManager.getMaxCacheSize()
             Logger.caching.info("⚙️ PRELOAD NEXT: Cache state: \(cacheCount)/\(maxCache) before preloading")
@@ -86,6 +93,16 @@ extension TransitionPreloadManager {
                             // Update dot to be solid green by setting ready flag
                             nextVideoReady = true
                         }
+
+                        // Calculate and log preloading completion time
+                        let preloadEndTime = CFAbsoluteTimeGetCurrent()
+                        let preloadDuration = preloadEndTime - preloadStartTime
+                        Logger.caching.info("⏱️ TIMING: Next video preloading completed in \(preloadDuration.formatted(.number.precision(.fractionLength(3)))) seconds")
+
+                        // No need to signal preloading complete - our phased approach handles this
+                        // Phase 2 (general caching) automatically starts after this method completes
+                        Logger.caching.info("✅ PHASE 1A COMPLETE: Next video successfully preloaded")
+
                         break
                     }
 
@@ -186,6 +203,16 @@ extension TransitionPreloadManager {
                                 // Update dot to be solid green by setting ready flag
                                 nextVideoReady = true
                             }
+
+                            // Calculate and log preloading completion time
+                            let preloadEndTime = CFAbsoluteTimeGetCurrent()
+                            let preloadDuration = preloadEndTime - preloadStartTime
+                            Logger.caching.info("⏱️ TIMING: Random next video preloading completed in \(preloadDuration.formatted(.number.precision(.fractionLength(3)))) seconds")
+
+                            // No need to signal preloading complete - our phased approach handles this
+                            // Phase 2 (general caching) automatically starts after this method completes
+                            Logger.caching.info("✅ PHASE 1A COMPLETE: Random next video successfully preloaded")
+
                             break
                         }
 
