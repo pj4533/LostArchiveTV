@@ -69,10 +69,13 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider
     
     init(favoritesManager: FavoritesManager) {
         self.favoritesManager = favoritesManager
-        
+
         // Call base class init
         super.init()
-        
+
+        // Register with shared provider for RetroEdgePreloadIndicator access
+        SharedViewModelProvider.shared.videoPlayerViewModel = self
+
         // Set initial state
         isInitializing = true
         

@@ -144,14 +144,17 @@ actor PreloadService {
     }
     
     func preloadRandomVideo(cacheManager: VideoCacheManager, archiveService: ArchiveService, identifiers: [ArchiveIdentifier]) async throws {
+        // Notify that preloading has started
+        await notifyPreloadingStarted()
+
         guard let randomArchiveIdentifier = await archiveService.getRandomIdentifier(from: identifiers) else {
             Logger.caching.error("No identifiers available for preloading")
             throw NSError(domain: "PreloadError", code: 1, userInfo: [NSLocalizedDescriptionKey: "No identifiers available"])
         }
-        
+
         let identifier = randomArchiveIdentifier.identifier
         let collection = randomArchiveIdentifier.collection
-        
+
         Logger.caching.info("Preloading random video: \(identifier) from collection: \(collection)")
         
         // Fetch metadata
@@ -233,6 +236,9 @@ actor PreloadService {
         // Store in the cache
         Logger.caching.info("Successfully preloaded video: \(identifier) from collection: \(collection), adding to cache")
         await cacheManager.addCachedVideo(cachedVideo)
+
+        // Notify that preloading has completed
+        await notifyPreloadingCompleted()
     }
     
     func cancelPreloading() {

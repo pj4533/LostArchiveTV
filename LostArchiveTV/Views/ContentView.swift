@@ -66,37 +66,39 @@ struct ContentView: View {
     @State var similarVideoIdentifier = ""
 
     var body: some View {
-        NavigationStack {
-            TabView(selection: $selectedTab) {
-                // Home Tab
-                homeTab
-                    .tabItem {
-                        Label("Home", systemImage: "house.fill")
-                    }
-                    .tag(0)
-                
-                // Search Tab
-                SearchFeedView(viewModel: searchFeedViewModel)
-                    .tabItem {
-                        Label("Search", systemImage: "magnifyingglass")
-                    }
-                    .tag(1)
-                
-                // Favorites Tab
-                FavoritesFeedView(viewModel: favoritesFeedViewModel)
-                    .tabItem {
-                        Label("Favorites", systemImage: "heart.fill")
-                    }
-                    .tag(2)
-            }
-            .accentColor(.white)
-            .preferredColorScheme(.dark)
-            .onChange(of: selectedTab) { oldValue, newValue in
-                handleTabChange(oldTab: oldValue, newTab: newValue)
-            }
-            .navigationDestination(isPresented: $showingSimilarVideos) {
-                // Pass the shared SearchViewModel instead of creating a new one
-                SimilarView(referenceIdentifier: similarVideoIdentifier, searchViewModel: searchViewModel)
+        AppContainer {
+            NavigationStack {
+                TabView(selection: $selectedTab) {
+                    // Home Tab
+                    homeTab
+                        .tabItem {
+                            Label("Home", systemImage: "house.fill")
+                        }
+                        .tag(0)
+
+                    // Search Tab
+                    SearchFeedView(viewModel: searchFeedViewModel)
+                        .tabItem {
+                            Label("Search", systemImage: "magnifyingglass")
+                        }
+                        .tag(1)
+
+                    // Favorites Tab
+                    FavoritesFeedView(viewModel: favoritesFeedViewModel)
+                        .tabItem {
+                            Label("Favorites", systemImage: "heart.fill")
+                        }
+                        .tag(2)
+                }
+                .accentColor(.white)
+                .preferredColorScheme(.dark)
+                .onChange(of: selectedTab) { oldValue, newValue in
+                    handleTabChange(oldTab: oldValue, newTab: newValue)
+                }
+                .navigationDestination(isPresented: $showingSimilarVideos) {
+                    // Pass the shared SearchViewModel instead of creating a new one
+                    SimilarView(referenceIdentifier: similarVideoIdentifier, searchViewModel: searchViewModel)
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .showSimilarVideos)) { notification in
