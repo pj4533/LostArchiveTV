@@ -251,8 +251,9 @@ actor VideoCacheManager {
     /// This implements a sliding window approach to cache management
     /// Called after a video transition to maintain cache state and avoid emptying/refilling
     func advanceCacheWindow(archiveService: ArchiveService, identifiers: [ArchiveIdentifier]) async {
-        // Log initial cache state
-        Logger.caching.info("📊 CACHE WINDOW: Starting cache advancement. Current cache size: \(self.cachedVideos.count)")
+        // Log initial cache state with timestamp for better debugging
+        let startTime = CFAbsoluteTimeGetCurrent()
+        Logger.caching.info("📊 CACHE WINDOW: Starting cache advancement at \(startTime). Current cache size: \(self.cachedVideos.count)")
 
         // Calculate target cache size before doing anything
         let targetSize = self.maxCachedVideos
@@ -262,33 +263,51 @@ actor VideoCacheManager {
         // don't actually remove them. But when a video is played, we need to remove it
         // from the cache (since it's already being played, it shouldn't be in the preload queue)
 
-        // First, check if there are any duplicates in the cache to clean up
-        var uniqueIdentifiers = Set<String>()
-        var duplicatesFound = false
+        // IMPROVED: More aggressive duplicate cleanup to prevent edge cases
+        var foundDuplicates = false
+        if cachedVideos.count > 1 {
+            // First identify all duplicates
+            var uniqueIdentifiers = Set<String>()
+            var indexesToRemove = [Int]()
 
-        for (index, video) in cachedVideos.enumerated() {
-            if uniqueIdentifiers.contains(video.identifier) {
-                Logger.caching.info("🔄 CACHE WINDOW: Found duplicate video in cache: \(video.identifier) at position \(index)")
-                duplicatesFound = true
-            } else {
-                uniqueIdentifiers.insert(video.identifier)
+            for (index, video) in cachedVideos.enumerated().reversed() {
+                if uniqueIdentifiers.contains(video.identifier) {
+                    Logger.caching.warning("🚨 DUPLICATE CLEANUP: Found duplicate video in cache: \(video.identifier) at position \(index)")
+                    indexesToRemove.append(index)
+                    foundDuplicates = true
+                } else {
+                    uniqueIdentifiers.insert(video.identifier)
+                }
+            }
+
+            // Then remove them safely
+            if foundDuplicates {
+                for index in indexesToRemove {
+                    if index < cachedVideos.count {
+                        let duplicate = cachedVideos.remove(at: index)
+                        Logger.caching.warning("🧹 DUPLICATE CLEANUP: Removed duplicate: \(duplicate.identifier)")
+                    }
+                }
+                Logger.caching.warning("🧹 DUPLICATE CLEANUP: Removed \(indexesToRemove.count) duplicates. New size: \(self.cachedVideos.count)")
             }
         }
 
-        // Remove duplicates if found
-        if duplicatesFound {
-            let originalCount = cachedVideos.count
-            let uniqueVideos = Array(Dictionary(grouping: cachedVideos, by: { $0.identifier }).values.compactMap { $0.first })
-            cachedVideos = uniqueVideos
-            Logger.caching.info("🧹 CACHE WINDOW: Removed duplicates from cache: \(originalCount) → \(self.cachedVideos.count)")
+        // Log current cache state for diagnostics
+        if !cachedVideos.isEmpty {
+            var cacheState = ""
+            for (i, video) in cachedVideos.enumerated() {
+                cacheState += "[\(i):\(video.identifier)] "
+            }
+            Logger.caching.info("📋 CACHE STATE BEFORE REMOVAL: \(cacheState)")
         }
 
+        // Only remove the oldest video if we have something in the cache
         if !cachedVideos.isEmpty {
             // 1. Remove the oldest (first) item if we have any videos
             let oldestVideo = cachedVideos.removeFirst()
             Logger.caching.info("📤 CACHE WINDOW: Removed oldest video: \(oldestVideo.identifier)")
         } else {
-            Logger.caching.info("⚠️ CACHE WINDOW: Cache is empty, nothing to remove")
+            Logger.caching.warning("⚠️ CACHE WINDOW: Cache is empty, nothing to remove. THIS MAY INDICATE A PROBLEM.")
         }
 
         // Log cache state after removal

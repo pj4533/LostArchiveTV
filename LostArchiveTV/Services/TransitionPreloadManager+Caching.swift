@@ -10,11 +10,45 @@ import AVKit
 import OSLog
 import Foundation
 
+// Timeout utility to prevent hanging preloading operations
+extension Task where Success == Never, Failure == Never {
+    static func timeout(seconds: Double) async throws {
+        try await Task.sleep(for: .seconds(seconds))
+        throw TimeoutError()
+    }
+}
+
+struct TimeoutError: Error {}
+
 extension TransitionPreloadManager {
+    // Timeout wrapper function
+    private func withTimeout<T>(timeout seconds: Double, operation: @escaping () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+
+            group.addTask {
+                try await Task<Never, Never>.timeout(seconds: seconds)
+                throw TimeoutError()
+            }
+
+            // Return the first result, or throw if all tasks failed
+            let result = try await group.next()
+
+            // Cancel the remaining task
+            group.cancelAll()
+
+            // If we got a result, return it
+            return result!
+        }
+    }
     /// Ensures that both general video caching and transition-specific caching are performed
     /// - Parameter provider: The video provider that supplies videos
     func ensureAllVideosCached(provider: VideoProvider) async {
-        Logger.caching.info("🔄 CACHING: Starting unified caching for \(String(describing: type(of: provider)))")
+        // Include timestamp for better tracking of operations
+        let startTime = CFAbsoluteTimeGetCurrent()
+        Logger.caching.info("🔄 CACHING: Starting unified caching for \(String(describing: type(of: provider))) at \(startTime)")
 
         // Only proceed with caching if we have a cacheable provider
         guard let cacheableProvider = provider as? CacheableProvider else {
@@ -46,17 +80,29 @@ extension TransitionPreloadManager {
         await cacheableProvider.cacheService.cancelCaching()
 
         // Create a separate task group to ensure preloading completes fully before continuing
-        await withTaskGroup(of: Void.self) { group in
-            // Add preload tasks to the group
-            group.addTask {
-                await self.preloadNextVideo(provider: provider)
-            }
-            group.addTask {
-                await self.preloadPreviousVideo(provider: provider)
-            }
+        do {
+            try await withTimeout(timeout: 10.0) {
+                await withTaskGroup(of: Void.self) { group in
+                    // Add preload tasks to the group
+                    group.addTask {
+                        await self.preloadNextVideo(provider: provider)
+                    }
+                    group.addTask {
+                        await self.preloadPreviousVideo(provider: provider)
+                    }
 
-            // Wait for all preloading tasks to complete before proceeding
-            await group.waitForAll()
+                    // Wait for all preloading tasks to complete before proceeding
+                    await group.waitForAll()
+                }
+            }
+        } catch {
+            Logger.caching.warning("⚠️ TIMEOUT: Preloading tasks timed out after 10 seconds")
+
+            // If preloading times out, ensure we don't leave the system in a blocked state
+            if let cacheableProvider = provider as? CacheableProvider {
+                Logger.caching.info("🔄 TIMEOUT RECOVERY: Ensuring preloading flags are reset due to timeout")
+                await cacheableProvider.cacheService.setPreloadingComplete()
+            }
         }
 
         // Introduce a small delay to ensure any pending state updates are processed

@@ -23,9 +23,36 @@ actor VideoCacheService {
     private var isPreloadingInProgress = false
     
     func ensureVideosAreCached(cacheManager: VideoCacheManager, archiveService: ArchiveService, identifiers: [ArchiveIdentifier]) async {
+        // Log start of process with timestamp to track operations better
+        let startTime = CFAbsoluteTimeGetCurrent()
+        Logger.caching.info("⏱️ START: ensureVideosAreCached called at \(startTime)")
         // CRITICAL: Check hard block flag first - immediately bail out if preloading is in progress
         if isPreloadingInProgress {
             Logger.caching.info("🛑 HARD BLOCK: ensureVideosAreCached called while preloading is in progress - aborting immediately")
+
+            // Safeguard: If we've been in preloading state for too long (3 seconds), assume something went wrong
+            // and reset the state to prevent permanent blocking
+            Task {
+                // Wait 3 seconds to see if preloading finishes naturally
+                try? await Task.sleep(for: .seconds(3.0))
+
+                // If we're still in preloading state after the timeout, force a reset
+                if self.isPreloadingInProgress {
+                    Logger.caching.warning("⚠️ SAFEGUARD: Preloading state has been active for too long, force resetting state")
+                    self.isPreloadingInProgress = false
+                    self.isPreloadingComplete = true
+                    Logger.caching.warning("⚠️ SAFEGUARD: Flags reset - isPreloadingInProgress: \(self.isPreloadingInProgress), isPreloadingComplete: \(self.isPreloadingComplete)")
+
+                    // Also try to restart caching directly since we had to force reset
+                    Task {
+                        try? await Task.sleep(for: .seconds(0.5))
+                        Logger.caching.info("🔄 SAFEGUARD RECOVER: Attempting to restart caching process")
+                        // The function will get called again soon by the regular flow, so we just need to
+                        // ensure the state is clean for that call.
+                    }
+                }
+            }
+
             return
         }
 
@@ -223,8 +250,36 @@ actor VideoCacheService {
         isPreloadingComplete = true
         Logger.caching.info("✅ PRIORITY: isPreloadingComplete set to \(self.isPreloadingComplete), cache tasks can now resume")
 
-        // Since the cache task was canceled during preloading, it will need to be restarted
-        // by the next call to ensureVideosAreCached
+        // Add a retry task to ensure caching gets a chance to restart even if no one calls ensureVideosAreCached
+        Task {
+            try? await Task.sleep(for: .seconds(1.0))
+
+            // If we still don't have an active caching task running after 1 second,
+            // we'll not only log, but also check if we need to restart the cache
+            if cacheTask == nil || cacheTask?.isCancelled == true {
+                Logger.caching.warning("⚠️ RECOVERY CHECK: 1 second after setPreloadingComplete, still no active cache task")
+                Logger.caching.warning("⚠️ RECOVERY CHECK: isPreloadingInProgress=\(self.isPreloadingInProgress), isPreloadingComplete=\(self.isPreloadingComplete)")
+
+                // We don't have access to cacheManager here, so we can't check cache levels directly.
+                // Instead, we'll only trigger recovery if we've detected a truly stalled system
+
+                // Only restart if the first video is ready and preloading has completed
+                if self.isFirstVideoReady {
+                    Logger.caching.warning("🔄 RECOVERY: Detected stalled cache system, initiating recovery notification")
+
+                    // Post a notification to trigger a cache restart
+                    // Note: The BaseVideoViewModel will handle checking if the cache actually needs filling
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(name: NSNotification.Name("CacheSystemNeedsRestart"), object: nil)
+                    }
+
+                    Logger.caching.warning("🔔 RECOVERY: Posted CacheSystemNeedsRestart notification")
+                } else {
+                    // First video isn't ready yet, so skip restart
+                    Logger.caching.info("✅ SKIP RECOVERY: First video not ready yet, no need to restart caching")
+                }
+            }
+        }
     }
 
     // Method to signal that preloading has started and caching should wait
@@ -494,8 +549,9 @@ actor VideoCacheService {
     func resumeCaching() {
         Logger.caching.info("▶️ RESUME: Resuming caching after trim mode")
         // Also reset the preloading state to ensure caching can proceed
+        isPreloadingInProgress = false
         isPreloadingComplete = true
-        Logger.caching.info("▶️ RESUME: Reset isPreloadingComplete flag to true")
+        Logger.caching.info("▶️ RESUME: Reset preloading flags: isPreloadingInProgress=\(self.isPreloadingInProgress), isPreloadingComplete=\(self.isPreloadingComplete)")
         // The next call to ensureVideosAreCached will restart caching
     }
 }

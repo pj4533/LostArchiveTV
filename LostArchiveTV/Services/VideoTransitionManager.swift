@@ -345,6 +345,33 @@ class VideoTransitionManager: ObservableObject {
                 // Preload the next and previous videos for the UI
                 await self.preloadNextVideo(provider: provider)
                 await self.preloadPreviousVideo(provider: provider)
+
+                // CRITICAL: Reset preloading flags to allow caching to resume
+                if let cacheableProvider = provider as? CacheableProvider {
+                    Logger.caching.info("🔄 TRANSITION CLEANUP: Ensuring preloading flags are reset to allow caching to resume")
+                    await cacheableProvider.cacheService.setPreloadingComplete()
+
+                    // SELECTIVE RESTART: Only trigger caching system if the cache is severely underfilled
+                    Task {
+                        try? await Task.sleep(for: .seconds(0.5))
+
+                        // Check the current cache state
+                        let currentCacheCount = await cacheableProvider.cacheManager.cacheCount()
+                        let maxCacheSize = await cacheableProvider.cacheManager.getMaxCacheSize()
+
+                        // Only restart caching if cache is less than half full - this prevents constant emptying/refilling
+                        if currentCacheCount < (maxCacheSize / 2) {
+                            Logger.caching.info("🔄 SELECTIVE RESTART: Cache is severely underfilled (\(currentCacheCount)/\(maxCacheSize)), restarting cache system")
+                            await cacheableProvider.cacheService.ensureVideosAreCached(
+                                cacheManager: cacheableProvider.cacheManager,
+                                archiveService: cacheableProvider.archiveService,
+                                identifiers: cacheableProvider.getIdentifiersForGeneralCaching()
+                            )
+                        } else {
+                            Logger.caching.info("✅ SKIP RESTART: Cache is already sufficiently filled (\(currentCacheCount)/\(maxCacheSize)), no need to restart")
+                        }
+                    }
+                }
             }
         }
     }
@@ -482,6 +509,33 @@ class VideoTransitionManager: ObservableObject {
                 await self.preloadNextVideo(provider: provider)
                 await self.preloadPreviousVideo(provider: provider)
                 Logger.caching.info("✅ TRANSITION COMPLETE: Done preloading videos for UI")
+
+                // CRITICAL: Reset preloading flags to allow caching to resume
+                if let cacheableProvider = provider as? CacheableProvider {
+                    Logger.caching.info("🔄 TRANSITION CLEANUP: Ensuring preloading flags are reset to allow caching to resume")
+                    await cacheableProvider.cacheService.setPreloadingComplete()
+
+                    // SELECTIVE RESTART: Only trigger caching system if the cache is severely underfilled
+                    Task {
+                        try? await Task.sleep(for: .seconds(0.5))
+
+                        // Check the current cache state
+                        let currentCacheCount = await cacheableProvider.cacheManager.cacheCount()
+                        let maxCacheSize = await cacheableProvider.cacheManager.getMaxCacheSize()
+
+                        // Only restart caching if cache is less than half full - this prevents constant emptying/refilling
+                        if currentCacheCount < (maxCacheSize / 2) {
+                            Logger.caching.info("🔄 SELECTIVE RESTART: Cache is severely underfilled (\(currentCacheCount)/\(maxCacheSize)), restarting cache system")
+                            await cacheableProvider.cacheService.ensureVideosAreCached(
+                                cacheManager: cacheableProvider.cacheManager,
+                                archiveService: cacheableProvider.archiveService,
+                                identifiers: cacheableProvider.getIdentifiersForGeneralCaching()
+                            )
+                        } else {
+                            Logger.caching.info("✅ SKIP RESTART: Cache is already sufficiently filled (\(currentCacheCount)/\(maxCacheSize)), no need to restart")
+                        }
+                    }
+                }
             }
         }
     }

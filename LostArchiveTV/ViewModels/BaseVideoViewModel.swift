@@ -55,6 +55,36 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
                 await self?.updateCacheStatuses()
             }
         }
+
+        // Listen for cache system restart requests
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("CacheSystemNeedsRestart"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+
+            Logger.caching.warning("🚨 RECOVERY: Received CacheSystemNeedsRestart notification")
+
+            // Only the VideoPlayerViewModel has all the components needed to restart caching
+            if let videoPlayerViewModel = self as? VideoPlayerViewModel,
+               let cacheableProvider = self as? CacheableProvider {
+                Task {
+                    Logger.caching.warning("🔄 FORCE RESTART: Attempting emergency cache restart in BaseVideoViewModel")
+
+                    // FIXED: Instead of calling ensureVideosAreCached() which would trigger both preloading AND caching,
+                    // directly call cacheService.ensureVideosAreCached() which only handles caching
+                    Logger.caching.warning("🔄 FORCE RESTART: Directly calling cacheService.ensureVideosAreCached to avoid unnecessary preloading")
+                    await cacheableProvider.cacheService.ensureVideosAreCached(
+                        cacheManager: cacheableProvider.cacheManager,
+                        archiveService: cacheableProvider.archiveService,
+                        identifiers: cacheableProvider.getIdentifiersForGeneralCaching()
+                    )
+
+                    Logger.caching.warning("✅ FORCE RESTART: Emergency cache restart executed")
+                }
+            }
+        }
     }
 
     private func startCacheStatusUpdates() {
