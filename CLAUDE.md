@@ -25,9 +25,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Structure
 - Organized into separate Models, Views, ViewModels, and Services directories
-- Models in `Models/` directory: ArchiveIdentifier, ArchiveMetadata, ArchiveFile, ItemMetadata, CachedVideo, ArchiveCollection, CollectionPreferences, CollectionConfigViewModel, SearchResult, PineconeMatch, FeedItem
-- Views in `Views/` directory: ContentView, VideoPlayerContent, LoadingView, ErrorView, VideoInfoOverlay, SwipeableVideoView, VideoTrimView, TimelineView, TrimHandle, TrimDownloadView, SearchView, SearchFeedView, FavoritesView, FavoritesFeedView, SimilarView
-- Services in `Services/` directory: ArchiveService, VideoCacheManager, VideoPlaybackManager, PlayerManager, VideoTrimManager, VideoSaveManager, VideoExportService, PreloadService, LoggingService, VideoLoadingService, VideoDownloadService, VideoTransitionManager, TimelineManager, AudioSessionManager, FavoritesManager, SearchManager, OpenAIService, PineconeService, EnvironmentService
+- Models in `Models/` directory: ArchiveIdentifier, ArchiveMetadata, ArchiveFile, ItemMetadata, CachedVideo, ArchiveCollection, HomeFeedPreferences, HomeFeedSettingsViewModel, IdentifiersSettingsViewModel, SearchResult, PineconeMatch, FeedItem, FavoritesFeedItem, SearchFeedItem, PlaybackPreferences, SearchQueryContext, UserSelectedIdentifier
+- Views in `Views/` directory: ContentView, VideoPlayerContent, LoadingView, ErrorView, VideoInfoOverlay, SwipeableVideoView, VideoTrimView, TimelineView, TrimHandle, TrimDownloadView, SearchView, SearchFeedView, FavoritesView, FavoritesFeedView, SimilarView, SettingsView, IdentifiersView, HomeFeedSettingsView
+- Components in `Views/Components/` directory: AppContainer, ArchiveButton, BottomInfoPanel, ButtonPanel, CacheStatusIndicator, FastForwardIndicator, FeedItemCell, IdentifierSavedNotification, OverlayButton, PlayerButtonPanel, ProgressOverlayButton, RetroEdgePreloadIndicator, ShimmerTextEffect, ThumbnailsContainer, TimelineContent, VideoDownloadButton, VideoGestureHandler, VideoLayersView, VideoMetadataView
+- Services in `Services/` directory: ArchiveService, VideoCacheManager, VideoPlaybackManager, PlayerManager, VideoTrimManager, VideoSaveManager, VideoExportService, VideoCacheService, Logger+LostArchiveTV, VideoLoadingService, VideoDownloadService, VideoTransitionManager, TimelineManager, AudioSessionManager, FavoritesManager, SearchManager, OpenAIService, PineconeService, EnvironmentService, IdentifierSelectionService, NetworkError, PreloadingIndicatorManager, SharedViewModelProvider, UserSelectedIdentifiersManager, VideoHistoryManager, VideoPlaybackManager
+- Services with extensions: TransitionPreloadManager+NextVideo, TransitionPreloadManager+PreviousVideo, TransitionPreloadManager+Caching, VideoCacheManager+CacheStatus, VideoCacheService+Notifications, PreloadingIndicatorManager+Notification
 - ViewModels: BaseVideoViewModel, BaseFeedViewModel, VideoPlayerViewModel, VideoTrimViewModel, FavoritesViewModel, SearchViewModel, SearchFeedViewModel, FavoritesFeedViewModel, VideoDownloadViewModel (all use MainActor for UI updates)
 - App entry point in `LostArchiveTVApp.swift`
 - Video identifiers stored in `identifiers.sqlite` database with collections table and individual collection tables
@@ -41,12 +43,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Preserves video positions when returning to previously viewed content
 
 ## Feature: Video Preloading and Caching
-- PreloadService manages the preloading of videos for smooth playback
-- VideoCacheManager handles the caching of videos for improved performance
+- VideoCacheService (formerly PreloadService) manages the preloading of videos for smooth playback
+- Priority-based preloading system that ensures transition preloading takes precedence over general caching
+- Advanced state management with flags to coordinate between different caching operations
+- Chunked caching operations with checkpoint breaks for graceful interruption
+- VideoCacheManager handles the caching of videos for improved performance and tracks cache readiness
 - VideoLoadingService coordinates the loading of videos from the API
 - Maintains a small cache of preloaded videos (typically 3 videos at a time)
 - Continuously preloads new videos as others are consumed from the cache
-- TransitionPreloadManager ensures smooth transitions between video views
+- Visual indicators showing preloading status with dynamic color transitions
+- TransitionPreloadManager (refactored into extensions) ensures smooth transitions between video views
+- Enhanced recovery mechanisms to detect and resolve stalled caching operations
+- Improved buffer management with loadedTimeRanges checks for reliable playback
+- RetroEdgePreloadIndicator provides visual feedback with blue-to-green transition animations
 - VideoDownloadService handles the background downloading of full videos
 - VideoDownloadViewModel provides UI feedback during download operations
 - See `docs/preloading_and_cacheing.md` for detailed documentation

@@ -14,11 +14,13 @@ LostArchiveTV lets you discover historical films, educational videos, and other 
 - TikTok-style swipeable video interface with bidirectional navigation
 - Displays random clips from Archive.org's collection
 - Bidirectional swiping with history tracking for navigating forward and backward
-- Preloads videos for smooth playback experience
+- Enhanced preloading system with visual indicators for improved user experience
+- Prioritized video preloading that ensures seamless swiping transitions
+- Robust caching system with automatic recovery mechanisms
 - Shows metadata and descriptions for each video
 - Video caching system for offline viewing and performance
 - Smart time offset selection to show interesting parts of longer videos
-- Collection-based video selection with preferred collection weighting
+- Collection-based video selection with preferred collection weighting and round-robin selection
 - SQLite database for efficient identifier storage
 - Video trimming functionality with timeline scrubbing
 - Export trimmed video clips to Photos library
@@ -30,6 +32,7 @@ LostArchiveTV lets you discover historical films, educational videos, and other 
 - Similar videos recommendations for discovering related content
 - Year-based filtering for search results
 - Component-based UI architecture for consistent experience across features
+- Retro-futuristic visual edge indicators for preloading and cached states
 
 ## How It Works
 
@@ -38,8 +41,12 @@ LostArchiveTV lets you discover historical films, educational videos, and other 
 - Fetches metadata and streaming URLs via the Archive.org API
 - Uses AVKit for high-performance video playback with centralized PlayerManager
 - Implements Swift concurrency (async/await) for smooth operation
-- Preloads upcoming videos in the background
-- Maintains a video cache for optimal performance
+- Advanced preloading system with phased approach:
+  - Phase 1: High-priority preloading for immediate swiping transitions
+  - Phase 2: Background caching for upcoming content
+- Visual indicators showing preloading status with dynamic blue-to-green transitions
+- Enhanced buffer management for reliable video playback
+- Maintains a video cache with failure recovery mechanisms
 - Tracks viewing history for consistent bidirectional navigation
 - Saves favorites with full metadata for easily accessing previously viewed content
 - Stores favorites in newest-first order with comprehensive metadata
