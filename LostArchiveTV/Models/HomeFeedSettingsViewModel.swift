@@ -198,6 +198,9 @@ class HomeFeedSettingsViewModel: ObservableObject {
             for i in 0..<collections.count {
                 collections[i].isEnabled = selectedPreset.enabledCollections.contains(collections[i].id)
             }
+            
+            // Load identifiers from the selected preset
+            UserSelectedIdentifiersManager.shared.loadFromActivePreset()
         }
         
         // Notify of changes

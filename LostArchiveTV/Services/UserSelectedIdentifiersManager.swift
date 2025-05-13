@@ -40,6 +40,13 @@ class UserSelectedIdentifiersManager {
             let data = try JSONEncoder().encode(identifiers)
             UserDefaults.standard.set(data, forKey: userDefaultsKey)
             
+            // Update active preset if there is one
+            if let preset = HomeFeedPreferences.getSelectedPreset() {
+                var updatedPreset = preset
+                updatedPreset.savedIdentifiers = identifiers
+                HomeFeedPreferences.updatePreset(updatedPreset)
+            }
+            
             // Notify that identifiers have changed
             NotificationCenter.default.post(name: Notification.Name("ReloadIdentifiers"), object: nil)
         } catch {
@@ -68,5 +75,13 @@ class UserSelectedIdentifiersManager {
     
     func getArchiveIdentifiers() -> [ArchiveIdentifier] {
         return identifiers.map { $0.archiveIdentifier }
+    }
+    
+    // Load identifiers from the active preset
+    func loadFromActivePreset() {
+        if let activePreset = HomeFeedPreferences.getSelectedPreset() {
+            identifiers = activePreset.savedIdentifiers
+            saveIdentifiers()
+        }
     }
 }
