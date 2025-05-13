@@ -2,7 +2,6 @@ import SwiftUI
 
 struct HomeFeedSettingsView: View {
     @ObservedObject var viewModel: HomeFeedSettingsViewModel
-    @StateObject private var identifiersViewModel = IdentifiersSettingsViewModel()
     
     init(viewModel: HomeFeedSettingsViewModel) {
         self.viewModel = viewModel
@@ -37,28 +36,42 @@ struct HomeFeedSettingsView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(.systemBackground))
             } else {
-                // Show NavigationLinks to Collections and Identifiers
+                // Show presets list
                 List {
-                    Section(header: Text("Collections")) {
-                        NavigationLink(destination: CollectionsView(viewModel: viewModel)) {
-                            HStack {
-                                Text("Collection Settings")
-                                Spacer()
-                                Text("\(viewModel.collections.filter { $0.isEnabled }.count) selected")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                    Section(header: Text("Feed Presets")) {
+                        ForEach(viewModel.presets) { preset in
+                            // Selected preset gets NavigationLink for details
+                            if preset.isSelected {
+                                NavigationLink(destination: PresetDetailView(viewModel: viewModel, preset: preset)) {
+                                    HStack {
+                                        Text(preset.name)
+                                            .fontWeight(.bold)
+                                        Spacer()
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(.blue)
+                                    }
+                                }
+                            } else {
+                                // Non-selected presets are simple buttons that select when tapped
+                                HStack {
+                                    Text(preset.name)
+                                    Spacer()
+                                }
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    viewModel.selectPreset(withId: preset.id)
+                                }
                             }
                         }
-                    }
-                    
-                    Section(header: Text("Saved Videos")) {
-                        NavigationLink(destination: IdentifiersView(viewModel: identifiersViewModel)) {
+                        
+                        Button(action: {
+                            viewModel.showingNewPresetAlert = true
+                            viewModel.newPresetName = ""
+                        }) {
                             HStack {
-                                Text("Saved Identifiers")
-                                Spacer()
-                                Text("\(identifiersViewModel.identifiers.count) saved")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                Image(systemName: "plus.circle.fill")
+                                    .foregroundColor(.blue)
+                                Text("Add New Preset")
                             }
                         }
                     }
@@ -79,11 +92,22 @@ struct HomeFeedSettingsView: View {
                 }
                 .listStyle(InsetGroupedListStyle())
                 .onAppear {
-                    identifiersViewModel.loadIdentifiers()
+                    viewModel.loadPresets()
                 }
             }
         }
         .navigationTitle("Home Feed Settings")
         .navigationBarTitleDisplayMode(.large)
+        .alert("New Preset", isPresented: $viewModel.showingNewPresetAlert) {
+            TextField("Preset Name", text: $viewModel.newPresetName)
+            Button("Cancel", role: .cancel) {}
+            Button("Create") {
+                if !viewModel.newPresetName.isEmpty {
+                    viewModel.createNewPreset(name: viewModel.newPresetName)
+                }
+            }
+        } message: {
+            Text("Enter a name for your new preset:")
+        }
     }
 }

@@ -8,6 +8,11 @@ class HomeFeedSettingsViewModel: ObservableObject {
     @Published var collections: [CollectionItem] = []
     @Published var searchText: String = ""
     @Published var isLoading: Bool = false
+    @Published var presets: [FeedPreset] = []
+    @Published var showingNewPresetAlert: Bool = false
+    @Published var newPresetName: String = ""
+    @Published var showingEditPresetView: Bool = false
+    @Published var selectedPresetForEdit: FeedPreset?
     
     private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "HomeFeedSettings")
     private let databaseService: DatabaseService
@@ -37,16 +42,21 @@ class HomeFeedSettingsViewModel: ObservableObject {
         }
     }
     
+    var selectedPreset: FeedPreset? {
+        return presets.first(where: { $0.isSelected })
+    }
+    
+    // MARK: - Collection Loading and Management
+    
     func loadCollections() async {
         isLoading = true
         do {
             let allCollections = try await databaseService.getAllCollections()
-            let userDefaults = UserDefaults.standard
-            let enabledCollectionIds = userDefaults.stringArray(forKey: "EnabledCollections") ?? []
+            let enabledCollectionIds = getEnabledCollectionIds()
             
             // Only default all collections to enabled if this is the first time loading
             // (i.e., no user preference has been saved yet)
-            let hasUserMadeSelection = userDefaults.object(forKey: "EnabledCollections") != nil
+            let hasUserMadeSelection = UserDefaults.standard.object(forKey: "EnabledCollections") != nil
             let defaultToEnabled = !hasUserMadeSelection
             
             self.collections = allCollections.map { collection in
@@ -89,8 +99,13 @@ class HomeFeedSettingsViewModel: ObservableObject {
         saveSettings()
     }
     
+    // MARK: - Settings Loading and Saving
+    
     func loadSettings() {
         let userDefaults = UserDefaults.standard
+        
+        // Ensure migration happens first
+        HomeFeedPreferences.migrateToPresets()
         
         // If there's no saved preference, default to true
         if userDefaults.object(forKey: "UseDefaultCollections") == nil {
@@ -99,6 +114,9 @@ class HomeFeedSettingsViewModel: ObservableObject {
         } else {
             useDefaultCollections = userDefaults.bool(forKey: "UseDefaultCollections")
         }
+        
+        // Load presets
+        presets = HomeFeedPreferences.getAllPresets()
         
         // Load collections only once at init
         if collections.isEmpty {
@@ -112,15 +130,44 @@ class HomeFeedSettingsViewModel: ObservableObject {
         let userDefaults = UserDefaults.standard
         userDefaults.set(useDefaultCollections, forKey: "UseDefaultCollections")
         
-        let enabledCollectionIds = collections
-            .filter { $0.isEnabled }
-            .map { $0.id }
+        if let selectedPreset = selectedPreset {
+            // If we have a selected preset, update its collections
+            let enabledCollectionIds = collections
+                .filter { $0.isEnabled }
+                .map { $0.id }
+            
+            var updatedPreset = selectedPreset
+            updatedPreset.enabledCollections = enabledCollectionIds
+            HomeFeedPreferences.updatePreset(updatedPreset)
+        } else {
+            // Legacy fallback if no preset is selected
+            let enabledCollectionIds = collections
+                .filter { $0.isEnabled }
+                .map { $0.id }
+            
+            userDefaults.set(enabledCollectionIds, forKey: "EnabledCollections")
+        }
         
-        userDefaults.set(enabledCollectionIds, forKey: "EnabledCollections")
+        // Update the in-memory cache
+        HomeFeedPreferences.updateLastSavedSettings(
+            useDefault: useDefaultCollections,
+            collections: getEnabledCollectionIds()
+        )
+        
+        // Reload presets
+        presets = HomeFeedPreferences.getAllPresets()
         
         // Automatically reload identifiers when settings change
         Task {
             await reloadIdentifiers()
+        }
+    }
+    
+    private func getEnabledCollectionIds() -> [String] {
+        if let selectedPreset = selectedPreset {
+            return selectedPreset.enabledCollections
+        } else {
+            return UserDefaults.standard.stringArray(forKey: "EnabledCollections") ?? []
         }
     }
     
@@ -134,5 +181,84 @@ class HomeFeedSettingsViewModel: ObservableObject {
         // Notify that settings have been changed and identifiers should be reloaded
         logger.debug("Reloading identifiers after settings change")
         NotificationCenter.default.post(name: Notification.Name("ReloadIdentifiers"), object: nil)
+    }
+    
+    // MARK: - Preset Management
+    
+    func loadPresets() {
+        presets = HomeFeedPreferences.getAllPresets()
+    }
+    
+    func selectPreset(withId id: String) {
+        HomeFeedPreferences.selectPreset(withId: id)
+        loadPresets()
+        
+        // Update the collections view to reflect the selected preset
+        if let selectedPreset = selectedPreset {
+            for i in 0..<collections.count {
+                collections[i].isEnabled = selectedPreset.enabledCollections.contains(collections[i].id)
+            }
+        }
+        
+        // Notify of changes
+        saveSettings()
+    }
+    
+    func createNewPreset(name: String) {
+        // Get currently enabled collections
+        let enabledCollectionIds = collections
+            .filter { $0.isEnabled }
+            .map { $0.id }
+        
+        // Get saved identifiers
+        let savedIdentifiers = UserSelectedIdentifiersManager.shared.identifiers
+        
+        // Create a new preset
+        let newPreset = FeedPreset(
+            name: name,
+            enabledCollections: enabledCollectionIds,
+            savedIdentifiers: savedIdentifiers,
+            isSelected: true // Automatically select the new preset
+        )
+        
+        HomeFeedPreferences.addPreset(newPreset)
+        loadPresets()
+        
+        // Notify of changes
+        saveSettings()
+    }
+    
+    func updatePreset(_ preset: FeedPreset) {
+        HomeFeedPreferences.updatePreset(preset)
+        loadPresets()
+        
+        // Update the collections view if this is the selected preset
+        if preset.isSelected {
+            for i in 0..<collections.count {
+                collections[i].isEnabled = preset.enabledCollections.contains(collections[i].id)
+            }
+        }
+        
+        // Notify of changes
+        saveSettings()
+    }
+    
+    func deletePreset(withId id: String) {
+        HomeFeedPreferences.deletePreset(withId: id)
+        loadPresets()
+        
+        // If we now have a different selected preset, update the collections view
+        if let selectedPreset = selectedPreset {
+            for i in 0..<collections.count {
+                collections[i].isEnabled = selectedPreset.enabledCollections.contains(collections[i].id)
+            }
+        }
+        
+        // Notify of changes
+        saveSettings()
+    }
+    
+    func getCurrentPresetName() -> String {
+        return selectedPreset?.name ?? "Default"
     }
 }

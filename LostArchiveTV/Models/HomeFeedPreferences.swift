@@ -4,23 +4,48 @@ import OSLog
 // Simple utility class for managing home feed preferences
 // Separate from HomeFeedSettingsViewModel to avoid async/await compilation issues
 class HomeFeedPreferences {
+    private static let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "HomeFeedPreferences")
+    private static let presetsKey = "FeedPresets"
+    private static let useDefaultKey = "UseDefaultCollections"
+    private static let enabledCollectionsKey = "EnabledCollections"
+    
     // In-memory cache of last settings to detect changes
     private static var lastUseDefault: Bool = true
     private static var lastEnabledCollections: [String] = []
     private static var hasInitializedCache = false
+    private static var initializingCache = false
+    private static var presets: [FeedPreset] = []
     
     // Initialize the settings cache
     private static func initializeCache() {
-        if !hasInitializedCache {
-            lastUseDefault = shouldUseDefaultCollections()
-            lastEnabledCollections = getEnabledCollections() ?? []
-            hasInitializedCache = true
+        // Guard against recursive initialization
+        if hasInitializedCache || initializingCache {
+            return
         }
+        
+        initializingCache = true
+        
+        // Get basic settings first
+        lastUseDefault = shouldUseDefaultCollections()
+        
+        // Load presets before getting collections to prevent recursion
+        loadPresets()
+        
+        // Ensure migration happens during initialization
+        migrateToPresetsIfNeeded()
+        
+        // Now get collections
+        lastEnabledCollections = getEnabledCollections() ?? []
+        
+        initializingCache = false
+        hasInitializedCache = true
     }
     
     // Get the last saved settings from our cache
     static func getLastSavedSettings() -> (useDefault: Bool, collections: [String]) {
-        initializeCache()
+        if !hasInitializedCache {
+            initializeCache()
+        }
         return (useDefault: lastUseDefault, collections: lastEnabledCollections)
     }
     
@@ -36,18 +61,24 @@ class HomeFeedPreferences {
         let userDefaults = UserDefaults.standard
         
         // If the setting isn't saved yet
-        if userDefaults.object(forKey: "UseDefaultCollections") == nil {
+        if userDefaults.object(forKey: useDefaultKey) == nil {
             return nil
         }
         
-        let useDefault = userDefaults.bool(forKey: "UseDefaultCollections")
+        let useDefault = userDefaults.bool(forKey: useDefaultKey)
         
         // If using default collections
         if useDefault {
             return nil
         }
         
-        return userDefaults.stringArray(forKey: "EnabledCollections")
+        // If we have a selected preset and not initializing, use its collections
+        if !initializingCache, let selectedPreset = getSelectedPresetWithoutInitializing() {
+            return selectedPreset.enabledCollections
+        }
+        
+        // Otherwise fall back to legacy settings
+        return userDefaults.stringArray(forKey: enabledCollectionsKey)
     }
     
     // Check if we should use default collections
@@ -55,10 +86,178 @@ class HomeFeedPreferences {
         let userDefaults = UserDefaults.standard
         
         // If the setting isn't saved yet, default to true
-        if userDefaults.object(forKey: "UseDefaultCollections") == nil {
+        if userDefaults.object(forKey: useDefaultKey) == nil {
             return true
         }
         
-        return userDefaults.bool(forKey: "UseDefaultCollections")
+        return userDefaults.bool(forKey: useDefaultKey)
+    }
+    
+    // MARK: - Presets Management
+    
+    // Load all presets from UserDefaults
+    static func loadPresets() {
+        let userDefaults = UserDefaults.standard
+        guard let data = userDefaults.data(forKey: presetsKey) else {
+            presets = []
+            return
+        }
+        
+        do {
+            presets = try JSONDecoder().decode([FeedPreset].self, from: data)
+        } catch {
+            logger.error("Failed to decode presets: \(error.localizedDescription)")
+            presets = []
+        }
+    }
+    
+    // Save all presets to UserDefaults
+    static func savePresets() {
+        let userDefaults = UserDefaults.standard
+        do {
+            let data = try JSONEncoder().encode(presets)
+            userDefaults.set(data, forKey: presetsKey)
+        } catch {
+            logger.error("Failed to encode presets: \(error.localizedDescription)")
+        }
+    }
+    
+    // Get all presets
+    static func getAllPresets() -> [FeedPreset] {
+        if !hasInitializedCache {
+            initializeCache()
+        }
+        return presets
+    }
+    
+    // Get the currently selected preset
+    static func getSelectedPreset() -> FeedPreset? {
+        if !hasInitializedCache {
+            initializeCache()
+        }
+        return presets.first(where: { $0.isSelected })
+    }
+    
+    // Get selected preset without triggering initialization
+    private static func getSelectedPresetWithoutInitializing() -> FeedPreset? {
+        return presets.first(where: { $0.isSelected })
+    }
+    
+    // Select a preset
+    static func selectPreset(withId id: String) {
+        if !hasInitializedCache {
+            initializeCache()
+        }
+        
+        for i in 0..<presets.count {
+            presets[i].isSelected = presets[i].id == id
+        }
+        savePresets()
+        
+        // Also update the lastEnabledCollections cache
+        if let selectedPreset = getSelectedPresetWithoutInitializing() {
+            lastEnabledCollections = selectedPreset.enabledCollections
+        }
+    }
+    
+    // Add a new preset
+    static func addPreset(_ preset: FeedPreset) {
+        if !hasInitializedCache {
+            initializeCache()
+        }
+        
+        // Deselect other presets if this one is selected
+        if preset.isSelected {
+            for i in 0..<presets.count {
+                presets[i].isSelected = false
+            }
+        }
+        presets.append(preset)
+        savePresets()
+    }
+    
+    // Update an existing preset
+    static func updatePreset(_ preset: FeedPreset) {
+        if !hasInitializedCache {
+            initializeCache()
+        }
+        
+        guard let index = presets.firstIndex(where: { $0.id == preset.id }) else {
+            return
+        }
+        
+        // If this preset is becoming selected, deselect others
+        if preset.isSelected && !presets[index].isSelected {
+            for i in 0..<presets.count {
+                if i != index {
+                    presets[i].isSelected = false
+                }
+            }
+        }
+        
+        presets[index] = preset
+        savePresets()
+        
+        // Update cache if this is the selected preset
+        if preset.isSelected {
+            lastEnabledCollections = preset.enabledCollections
+        }
+    }
+    
+    // Delete a preset
+    static func deletePreset(withId id: String) {
+        if !hasInitializedCache {
+            initializeCache()
+        }
+        
+        let wasSelected = presets.first(where: { $0.id == id })?.isSelected ?? false
+        presets.removeAll(where: { $0.id == id })
+        
+        // If we deleted the selected preset, select the first one if available
+        if wasSelected && !presets.isEmpty {
+            presets[0].isSelected = true
+            lastEnabledCollections = presets[0].enabledCollections
+        }
+        
+        savePresets()
+    }
+    
+    // Create initial preset from legacy settings if needed - should only be called from initializeCache
+    private static func migrateToPresetsIfNeeded() {
+        // Skip if we already have presets
+        if !presets.isEmpty {
+            return
+        }
+        
+        // Skip if using default collections
+        if shouldUseDefaultCollections() {
+            return
+        }
+        
+        // Get legacy enabled collections
+        let legacyCollections = UserDefaults.standard.stringArray(forKey: enabledCollectionsKey) ?? []
+        
+        // Get saved identifiers
+        let savedIdentifiers = UserSelectedIdentifiersManager.shared.identifiers
+        
+        // Create a preset from legacy settings
+        let currentPreset = FeedPreset(
+            name: "Current",
+            enabledCollections: legacyCollections,
+            savedIdentifiers: savedIdentifiers,
+            isSelected: true
+        )
+        
+        presets = [currentPreset]
+        savePresets()
+        
+        logger.debug("Migrated legacy settings to 'Current' preset")
+    }
+    
+    // Public migration function - call this when app starts
+    static func migrateToPresets() {
+        if !hasInitializedCache {
+            initializeCache()
+        }
     }
 }
