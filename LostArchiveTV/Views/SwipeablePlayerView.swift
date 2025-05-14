@@ -10,17 +10,14 @@ import AVKit
 import AVFoundation
 import OSLog
 
-// Helper class to manage notification observing - using a class allows us to properly handle deallocation
-class NotificationObserver: ObservableObject {
-    private var trimToken: NSObjectProtocol?
-    private var identifierToken: NSObjectProtocol?
-
+// Helper class to manage state for the SwipeablePlayerView
+class PlayerViewState: ObservableObject {
     @Published var trimStep: TrimWorkflowStep = .none
     @Published var showSavedNotification = false
     @Published var savedIdentifierTitle = ""
     @Published var savedPresetName: String? = nil
-    @Published var showPresetSelection = false
-    @Published var presetSelectionData: [String: String] = [:]
+    
+    private var trimToken: NSObjectProtocol?
 
     enum TrimWorkflowStep {
         case none        // No trim action in progress
@@ -41,73 +38,13 @@ class NotificationObserver: ObservableObject {
             handler()
         }
     }
-
-    func setupIdentifierSavedObserver() {
-        identifierToken = NotificationCenter.default.addObserver(
-            forName: Notification.Name("IdentifierSaved"),
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            guard let self = self else { return }
-
-            // Get the saved identifier title from the notification
-            if let userInfo = notification.userInfo,
-               let title = userInfo["title"] as? String {
-                self.savedIdentifierTitle = title
-                
-                // Get preset name if provided
-                if let presetName = userInfo["preset"] as? String {
-                    self.savedPresetName = presetName
-                } else {
-                    self.savedPresetName = nil
-                }
-
-                // Show the notification
-                withAnimation {
-                    self.showSavedNotification = true
-                }
-            }
-        }
+    
+    func showSavedConfirmation(title: String, presetName: String? = nil) {
+        self.savedIdentifierTitle = title
+        self.savedPresetName = presetName
         
-        // Add observer for preset selection
-        NotificationCenter.default.addObserver(
-            forName: Notification.Name("ShowPresetSelection"),
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            guard let self = self else { return }
-            
-            if let userInfo = notification.userInfo,
-               let identifier = userInfo["identifier"] as? String,
-               let title = userInfo["title"] as? String,
-               let collection = userInfo["collection"] as? String {
-                
-                // Store the data for the preset selection view
-                self.presetSelectionData = [
-                    "identifier": identifier,
-                    "title": title,
-                    "collection": collection
-                ]
-                
-                // Show the preset selection sheet
-                withAnimation {
-                    self.showPresetSelection = true
-                }
-            }
-        }
-        
-        // Add observer for closing preset selection globally
-        NotificationCenter.default.addObserver(
-            forName: Notification.Name("ClosePresetSelection"),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            guard let self = self else { return }
-            
-            // Hide the preset selection sheet
-            withAnimation {
-                self.showPresetSelection = false
-            }
+        withAnimation {
+            self.showSavedNotification = true
         }
     }
 
@@ -115,11 +52,6 @@ class NotificationObserver: ObservableObject {
         if let token = trimToken {
             NotificationCenter.default.removeObserver(token)
             self.trimToken = nil
-        }
-
-        if let token = identifierToken {
-            NotificationCenter.default.removeObserver(token)
-            self.identifierToken = nil
         }
     }
 
@@ -135,7 +67,7 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
         // Return the provider's transition manager if it exists
         return provider.transitionManager ?? VideoTransitionManager()
     }
-    @StateObject private var notificationObserver = NotificationObserver()
+    @StateObject private var viewState = PlayerViewState()
 
     // Make the transitionManager accessible to the provider for direct preloading
     var onPreloadReady: ((VideoTransitionManager) -> Void)? = nil
@@ -149,8 +81,8 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
     // Optional binding for dismissal in modal presentations
     var isPresented: Binding<Bool>?
 
-    // Use the TrimWorkflowStep enum from NotificationObserver
-    typealias TrimWorkflowStep = NotificationObserver.TrimWorkflowStep
+    // Use the TrimWorkflowStep enum from PlayerViewState
+    typealias TrimWorkflowStep = PlayerViewState.TrimWorkflowStep
     
     var body: some View {
         GeometryReader { geometry in
@@ -169,27 +101,27 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
             .overlay {
                 ZStack {
                     // Use a ZStack with conditional content for trim UI instead of a sheet
-                    if notificationObserver.trimStep != .none {
+                    if viewState.trimStep != .none {
                         ZStack {
                             // Semi-transparent black background
                             Color.black.opacity(0.9).ignoresSafeArea()
 
                             // Use specific content view based on the current trim step
                             VStack {
-                                if notificationObserver.trimStep == .downloading {
+                                if viewState.trimStep == .downloading {
                                     // Download view
                                     TrimDownloadView(provider: provider) { downloadedURL in
                                         if let url = downloadedURL {
                                             // Success - move to trim step
                                             self.downloadedVideoURL = url
-                                            self.notificationObserver.trimStep = .trimming
+                                            self.viewState.trimStep = .trimming
                                         } else {
                                             // Failed download - dismiss everything
                                             self.downloadedVideoURL = nil
-                                            self.notificationObserver.trimStep = .none
+                                            self.viewState.trimStep = .none
                                         }
                                     }
-                                } else if notificationObserver.trimStep == .trimming,
+                                } else if viewState.trimStep == .trimming,
                                         let downloadedURL = downloadedVideoURL,
                                         let baseViewModel = provider as? BaseVideoViewModel {
                                     // Get current time and duration from the player
@@ -300,53 +232,20 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                         .zIndex(100) // Ensure it's above all other content
                     }
 
-                    // Identifier saved notification overlay
-                    if notificationObserver.showSavedNotification {
+                    // Saved identifier notification overlay
+                    if viewState.showSavedNotification {
                         VStack {
-                            IdentifierSavedNotification(
-                                title: notificationObserver.savedIdentifierTitle,
-                                presetName: notificationObserver.savedPresetName,
-                                isVisible: $notificationObserver.showSavedNotification
+                            SavedIdentifierOverlay(
+                                title: viewState.savedIdentifierTitle,
+                                presetName: viewState.savedPresetName,
+                                isVisible: $viewState.showSavedNotification
                             )
                             .padding(.top, 50)
 
                             Spacer()
                         }
                         .transition(.move(edge: .top).combined(with: .opacity))
-                        .zIndex(110) // Ensure it's above all other content including trim UI
-                    }
-                    
-                    // Preset selection sheet
-                    if notificationObserver.showPresetSelection, 
-                       let identifier = notificationObserver.presetSelectionData["identifier"],
-                       let title = notificationObserver.presetSelectionData["title"],
-                       let collection = notificationObserver.presetSelectionData["collection"] {
-                        
-                        VStack {
-                            Spacer()
-                            
-                            // Bottom sheet with preset selection
-                            PresetSelectionView(
-                                viewModel: HomeFeedSettingsViewModel(databaseService: DatabaseService.shared),
-                                isPresented: $notificationObserver.showPresetSelection,
-                                identifier: identifier,
-                                title: title,
-                                collection: collection
-                            )
-                            .frame(height: UIScreen.main.bounds.height * 0.6)
-                            .transition(.move(edge: .bottom))
-                        }
-                        .background(Color.black.opacity(0.5).edgesIgnoringSafeArea(.all).onTapGesture {
-                            // Close modal and notify all observers
-                            notificationObserver.showPresetSelection = false
-                            
-                            // Post notification to ensure all modal instances are closed
-                            NotificationCenter.default.post(
-                                name: Notification.Name("ClosePresetSelection"),
-                                object: nil
-                            )
-                        })
-                        .zIndex(120) // Ensure it's above everything else
+                        .zIndex(110) // Ensure it's above all other content
                     }
                 }
             }
@@ -358,6 +257,29 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                 dragOffset: $dragOffset,
                 isDragging: $isDragging
             )
+            // Present preset selection sheet when the provider's isShowingPresetSelection is true
+            .sheet(isPresented: checkIfBaseViewModel() ?? .constant(false)) {
+                if let baseViewModel = provider as? BaseVideoViewModel,
+                   let data = baseViewModel.presetSelectionData {
+                    PresetSelectionView(
+                        viewModel: HomeFeedSettingsViewModel(databaseService: DatabaseService.shared),
+                        isPresented: checkIfBaseViewModel() ?? .constant(false),
+                        identifier: data.identifier,
+                        title: data.title,
+                        collection: data.collection,
+                        onSave: { title, presetName in
+                            // Show saved confirmation
+                            viewState.showSavedConfirmation(title: title, presetName: presetName)
+                            
+                            // Also close the sheet
+                            baseViewModel.isShowingPresetSelection = false
+                            baseViewModel.presetSelectionData = nil
+                        }
+                    )
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+                }
+            }
             .onAppear {
                 // Show back button if this is a modal presentation
                 showBackButton = isPresented != nil
@@ -373,21 +295,20 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                     Logger.caching.error("⚠️ SwipeablePlayerView onAppear: Player is nil, cannot preload")
                 }
                 
-                // Setup notification observers
-                notificationObserver.setupTrimObserver {
+                // Setup trim observer
+                viewState.setupTrimObserver {
                     startTrimFlow()
                 }
-                notificationObserver.setupIdentifierSavedObserver()
             }
             .onDisappear {
                 // Clean up resources when view disappears
                 Logger.caching.debug("SwipeablePlayerView disappearing - removing observers")
 
                 // Remove observers
-                notificationObserver.removeObservers()
+                viewState.removeObservers()
 
                 // Reset trim state
-                notificationObserver.trimStep = .none
+                viewState.trimStep = .none
                 downloadedVideoURL = nil
             }
         }
@@ -425,7 +346,18 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
         Logger.caching.debug("Starting trim flow for \(type(of: provider))")
 
         // Start the trim workflow with the download step
-        notificationObserver.trimStep = .downloading
+        viewState.trimStep = .downloading
+    }
+    
+    // Helper function to get BaseVideoViewModel binding for sheet presentation
+    private func checkIfBaseViewModel() -> Binding<Bool>? {
+        if let baseViewModel = provider as? BaseVideoViewModel {
+            return Binding<Bool>(
+                get: { baseViewModel.isShowingPresetSelection },
+                set: { baseViewModel.isShowingPresetSelection = $0 }
+            )
+        }
+        return nil
     }
 }
 

@@ -222,6 +222,19 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
         // Default implementation does nothing, to be overridden by subclasses
     }
 
+    // Add published property to control sheet presentation
+    @Published var isShowingPresetSelection = false
+
+    // Struct to hold preset selection data for the sheet
+    struct PresetSelectionData {
+        let identifier: String
+        let collection: String
+        let title: String
+    }
+    
+    // Data to pass to the preset selection sheet
+    @Published var presetSelectionData: PresetSelectionData?
+    
     func saveIdentifier() async {
         // This is now just a wrapper for showing the preset selection sheet
         await showPresetSelection()
@@ -237,16 +250,26 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
         // Pause the video first
         await pausePlayback()
         
-        // Notify to show the preset selection view for this identifier
-        NotificationCenter.default.post(
-            name: Notification.Name("ShowPresetSelection"),
-            object: nil,
-            userInfo: [
-                "identifier": identifier,
-                "title": title,
-                "collection": collection
-            ]
-        )
+        // Set the data to pass to the sheet
+        await MainActor.run {
+            self.presetSelectionData = PresetSelectionData(
+                identifier: identifier,
+                collection: collection,
+                title: title
+            )
+            
+            // Show the sheet
+            self.isShowingPresetSelection = true
+        }
+    }
+    
+    // Called when preset selection is complete
+    func onPresetSelectionComplete(saved: Bool, presetName: String? = nil) {
+        // Dismiss the sheet
+        isShowingPresetSelection = false
+        
+        // Reset the data
+        presetSelectionData = nil
     }
     
     func setTemporaryPlaybackRate(rate: Float) {

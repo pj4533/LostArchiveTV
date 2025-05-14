@@ -9,12 +9,16 @@ struct PresetSelectionView: View {
     var title: String
     var collection: String
     
-    init(viewModel: HomeFeedSettingsViewModel, isPresented: Binding<Bool>, identifier: String, title: String, collection: String) {
+    // Callback for when identifier is saved
+    var onSave: ((String, String?) -> Void)?
+    
+    init(viewModel: HomeFeedSettingsViewModel, isPresented: Binding<Bool>, identifier: String, title: String, collection: String, onSave: ((String, String?) -> Void)? = nil) {
         self.viewModel = viewModel
         self._isPresented = isPresented
         self.identifier = identifier
         self.title = title
         self.collection = collection
+        self.onSave = onSave
     }
     
     var body: some View {
@@ -113,22 +117,12 @@ struct PresetSelectionView: View {
                 UserSelectedIdentifiersManager.shared.addIdentifier(newSavedIdentifier)
             }
             
-            // Post notification for UI feedback
-            NotificationCenter.default.post(
-                name: Notification.Name("IdentifierSaved"),
-                object: nil,
-                userInfo: ["identifier": identifier, "title": title, "preset": preset.name]
-            )
+            // Call the onSave callback instead of using notifications
+            onSave?(title, preset.name)
         }
         
-        // Close the sheet and notify all observers
+        // Close the sheet
         isPresented = false
-        
-        // Post notification to ensure all modal instances are closed
-        NotificationCenter.default.post(
-            name: Notification.Name("ClosePresetSelection"),
-            object: nil
-        )
     }
     
     private func createNewPresetAndSaveIdentifier() {
@@ -162,20 +156,10 @@ struct PresetSelectionView: View {
             UserSelectedIdentifiersManager.shared.addIdentifier(newSavedIdentifier)
         }
         
-        // Post notification for UI feedback
-        NotificationCenter.default.post(
-            name: Notification.Name("IdentifierSaved"),
-            object: nil,
-            userInfo: ["identifier": identifier, "title": title, "preset": newPresetName]
-        )
+        // Call the onSave callback instead of using notifications
+        onSave?(title, newPresetName)
         
-        // Close the sheet and notify all observers
+        // Close the sheet
         isPresented = false
-        
-        // Post notification to ensure all modal instances are closed
-        NotificationCenter.default.post(
-            name: Notification.Name("ClosePresetSelection"),
-            object: nil
-        )
     }
 }
