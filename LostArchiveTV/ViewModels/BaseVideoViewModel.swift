@@ -213,10 +213,8 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
         false // Default implementation, to be overridden by subclasses
     }
 
-    var isIdentifierSaved: Bool {
-        guard let identifier = currentIdentifier else { return false }
-        return PresetManager.shared.contains(identifier: identifier)
-    }
+    // This property was removed as it's no longer needed with the preset system
+    // Identifiers can now be added to multiple presets
 
     func toggleFavorite() {
         // Default implementation does nothing, to be overridden by subclasses

@@ -4,25 +4,33 @@ struct IdentifierSavedNotification: View {
     let title: String
     let presetName: String?
     @Binding var isVisible: Bool
+    var isDuplicate: Bool = false
     
     var body: some View {
         VStack {
             HStack(spacing: 12) {
-                Image(systemName: "checkmark.circle.fill")
+                Image(systemName: isDuplicate ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
                     .font(.system(size: 28))
-                    .foregroundColor(.green)
+                    .foregroundColor(isDuplicate ? .yellow : .green)
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Video Added")
+                    Text(isDuplicate ? "Already Added" : "Video Added")
                         .font(.headline)
                     
                     if let presetName = presetName {
-                        Text("\"\(title)\" saved to \"\(presetName)\"")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .lineLimit(2)
+                        if isDuplicate {
+                            Text("\"\(title)\" is already in \"\(presetName)\"")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .lineLimit(2)
+                        } else {
+                            Text("\"\(title)\" saved to \"\(presetName)\"")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .lineLimit(2)
+                        }
                     } else {
-                        Text("\"\(title)\" saved to your identifier list")
+                        Text("\"\(title)\" \(isDuplicate ? "is already in your identifier list" : "saved to your identifier list")")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .lineLimit(2)

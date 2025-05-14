@@ -4,21 +4,24 @@ struct SavedIdentifierOverlay: View {
     var title: String
     var presetName: String?
     @Binding var isVisible: Bool
+    var isDuplicate: Bool = false
     
     var body: some View {
         VStack {
             HStack(spacing: 12) {
-                Image(systemName: "checkmark.circle.fill")
+                Image(systemName: isDuplicate ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
                     .font(.title2)
-                    .foregroundColor(.green)
+                    .foregroundColor(isDuplicate ? .yellow : .green)
                 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Saved to Library")
+                    Text(isDuplicate ? "Already in Library" : "Saved to Library")
                         .font(.headline)
                         .foregroundColor(.white)
                     
                     if let presetName = presetName {
-                        Text("Added to preset: \(presetName)")
+                        Text(isDuplicate 
+                            ? "Already in preset: \(presetName)" 
+                            : "Added to preset: \(presetName)")
                             .font(.subheadline)
                             .foregroundColor(.white.opacity(0.8))
                     }

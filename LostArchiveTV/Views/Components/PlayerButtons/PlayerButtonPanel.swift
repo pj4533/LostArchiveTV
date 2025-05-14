@@ -46,7 +46,7 @@ struct PlayerButtonPanel<Provider: VideoControlProvider>: View {
                             await provider.saveIdentifier()
                         }
                     },
-                    disabled: provider.currentIdentifier == nil || provider.isIdentifierSaved
+                    disabled: provider.currentIdentifier == nil
                 )
                 
                 // Restart video button

@@ -114,6 +114,17 @@ struct PresetSelectionView: View {
             
             // Call the onSave callback instead of using notifications
             onSave?(title, preset.name)
+        } else {
+            // Call the onSave callback with isDuplicate=true
+            NotificationCenter.default.post(
+                name: Notification.Name("ShowIdentifierNotification"),
+                object: nil,
+                userInfo: [
+                    "title": title,
+                    "presetName": preset.name,
+                    "isDuplicate": true
+                ]
+            )
         }
         
         // Close the sheet

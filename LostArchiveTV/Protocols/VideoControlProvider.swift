@@ -11,7 +11,6 @@ protocol VideoControlProvider: ObservableObject, VideoDownloadable {
 
     // Button state properties
     var isFavorite: Bool { get }
-    var isIdentifierSaved: Bool { get }
 
     // Required actions
     func toggleFavorite()
