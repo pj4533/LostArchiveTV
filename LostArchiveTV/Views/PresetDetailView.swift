@@ -5,7 +5,7 @@ struct PresetDetailView: View {
     @Environment(\.presentationMode) var presentationMode
     let preset: FeedPreset
     @State private var showDeleteConfirmation = false
-    @State private var identifiersViewModel = IdentifiersSettingsViewModel()
+    @StateObject private var identifiersViewModel: IdentifiersSettingsViewModel
     @State private var showEditNameAlert = false
     @State private var editingName: String = ""
     
@@ -13,6 +13,11 @@ struct PresetDetailView: View {
         self.viewModel = viewModel
         self.preset = preset
         self._editingName = State(initialValue: preset.name)
+        
+        // Initialize with the preset reference to show and edit its identifiers
+        self._identifiersViewModel = StateObject(
+            wrappedValue: IdentifiersSettingsViewModel(preset: preset)
+        )
     }
     
     var body: some View {
@@ -66,7 +71,22 @@ struct PresetDetailView: View {
             }
         }
         .onAppear {
+            // Ensure identifiers list is up to date
             identifiersViewModel.loadIdentifiers()
+            
+            // Listen for preset changes
+            NotificationCenter.default.addObserver(
+                forName: Notification.Name("ReloadIdentifiers"),
+                object: nil,
+                queue: .main
+            ) { [weak identifiersViewModel] _ in
+                // Reload identifiers when the notification is received
+                identifiersViewModel?.loadIdentifiers()
+            }
+        }
+        .onDisappear {
+            // Remove notification observer
+            NotificationCenter.default.removeObserver(self, name: Notification.Name("ReloadIdentifiers"), object: nil)
         }
         .alert("Delete Preset", isPresented: $showDeleteConfirmation) {
             Button("Cancel", role: .cancel) {}
