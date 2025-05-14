@@ -223,28 +223,29 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
     }
 
     func saveIdentifier() async {
+        // This is now just a wrapper for showing the preset selection sheet
+        await showPresetSelection()
+    }
+    
+    func showPresetSelection() async {
         guard let identifier = currentIdentifier,
               let collection = currentCollection,
-              let title = currentTitle,
-              !UserSelectedIdentifiersManager.shared.contains(identifier: identifier) else {
+              let title = currentTitle else {
             return
         }
-
-        let newSavedIdentifier = UserSelectedIdentifier(
-            id: identifier,
-            identifier: identifier,
-            title: title,
-            collection: collection,
-            fileCount: totalFiles
-        )
-
-        UserSelectedIdentifiersManager.shared.addIdentifier(newSavedIdentifier)
-
-        // Notify that identifier has been saved
+        
+        // Pause the video first
+        await pausePlayback()
+        
+        // Notify to show the preset selection view for this identifier
         NotificationCenter.default.post(
-            name: Notification.Name("IdentifierSaved"),
+            name: Notification.Name("ShowPresetSelection"),
             object: nil,
-            userInfo: ["identifier": identifier, "title": title]
+            userInfo: [
+                "identifier": identifier,
+                "title": title,
+                "collection": collection
+            ]
         )
     }
     

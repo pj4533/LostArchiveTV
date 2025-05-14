@@ -18,6 +18,9 @@ class NotificationObserver: ObservableObject {
     @Published var trimStep: TrimWorkflowStep = .none
     @Published var showSavedNotification = false
     @Published var savedIdentifierTitle = ""
+    @Published var savedPresetName: String? = nil
+    @Published var showPresetSelection = false
+    @Published var presetSelectionData: [String: String] = [:]
 
     enum TrimWorkflowStep {
         case none        // No trim action in progress
@@ -51,11 +54,59 @@ class NotificationObserver: ObservableObject {
             if let userInfo = notification.userInfo,
                let title = userInfo["title"] as? String {
                 self.savedIdentifierTitle = title
+                
+                // Get preset name if provided
+                if let presetName = userInfo["preset"] as? String {
+                    self.savedPresetName = presetName
+                } else {
+                    self.savedPresetName = nil
+                }
 
                 // Show the notification
                 withAnimation {
                     self.showSavedNotification = true
                 }
+            }
+        }
+        
+        // Add observer for preset selection
+        NotificationCenter.default.addObserver(
+            forName: Notification.Name("ShowPresetSelection"),
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self else { return }
+            
+            if let userInfo = notification.userInfo,
+               let identifier = userInfo["identifier"] as? String,
+               let title = userInfo["title"] as? String,
+               let collection = userInfo["collection"] as? String {
+                
+                // Store the data for the preset selection view
+                self.presetSelectionData = [
+                    "identifier": identifier,
+                    "title": title,
+                    "collection": collection
+                ]
+                
+                // Show the preset selection sheet
+                withAnimation {
+                    self.showPresetSelection = true
+                }
+            }
+        }
+        
+        // Add observer for closing preset selection globally
+        NotificationCenter.default.addObserver(
+            forName: Notification.Name("ClosePresetSelection"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            
+            // Hide the preset selection sheet
+            withAnimation {
+                self.showPresetSelection = false
             }
         }
     }
@@ -254,6 +305,7 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                         VStack {
                             IdentifierSavedNotification(
                                 title: notificationObserver.savedIdentifierTitle,
+                                presetName: notificationObserver.savedPresetName,
                                 isVisible: $notificationObserver.showSavedNotification
                             )
                             .padding(.top, 50)
@@ -262,6 +314,39 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                         }
                         .transition(.move(edge: .top).combined(with: .opacity))
                         .zIndex(110) // Ensure it's above all other content including trim UI
+                    }
+                    
+                    // Preset selection sheet
+                    if notificationObserver.showPresetSelection, 
+                       let identifier = notificationObserver.presetSelectionData["identifier"],
+                       let title = notificationObserver.presetSelectionData["title"],
+                       let collection = notificationObserver.presetSelectionData["collection"] {
+                        
+                        VStack {
+                            Spacer()
+                            
+                            // Bottom sheet with preset selection
+                            PresetSelectionView(
+                                viewModel: HomeFeedSettingsViewModel(databaseService: DatabaseService.shared),
+                                isPresented: $notificationObserver.showPresetSelection,
+                                identifier: identifier,
+                                title: title,
+                                collection: collection
+                            )
+                            .frame(height: UIScreen.main.bounds.height * 0.6)
+                            .transition(.move(edge: .bottom))
+                        }
+                        .background(Color.black.opacity(0.5).edgesIgnoringSafeArea(.all).onTapGesture {
+                            // Close modal and notify all observers
+                            notificationObserver.showPresetSelection = false
+                            
+                            // Post notification to ensure all modal instances are closed
+                            NotificationCenter.default.post(
+                                name: Notification.Name("ClosePresetSelection"),
+                                object: nil
+                            )
+                        })
+                        .zIndex(120) // Ensure it's above everything else
                     }
                 }
             }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct IdentifierSavedNotification: View {
     let title: String
+    let presetName: String?
     @Binding var isVisible: Bool
     
     var body: some View {
@@ -15,10 +16,17 @@ struct IdentifierSavedNotification: View {
                     Text("Video Added")
                         .font(.headline)
                     
-                    Text("\"\(title)\" saved to your identifier list")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .lineLimit(2)
+                    if let presetName = presetName {
+                        Text("\"\(title)\" saved to \"\(presetName)\"")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .lineLimit(2)
+                    } else {
+                        Text("\"\(title)\" saved to your identifier list")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .lineLimit(2)
+                    }
                 }
                 
                 Spacer()

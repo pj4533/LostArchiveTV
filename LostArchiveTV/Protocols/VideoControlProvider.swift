@@ -6,6 +6,8 @@ protocol VideoControlProvider: ObservableObject, VideoDownloadable {
     var player: AVPlayer? { get }
     var downloadViewModel: VideoDownloadViewModel { get }
     var currentIdentifier: String? { get }
+    var currentTitle: String? { get }
+    var currentCollection: String? { get }
 
     // Button state properties
     var isFavorite: Bool { get }
@@ -17,6 +19,7 @@ protocol VideoControlProvider: ObservableObject, VideoDownloadable {
     func pausePlayback() async
     func resumePlayback() async
     func saveIdentifier() async
+    func showPresetSelection() async
 
     // Playback rate control
     func setTemporaryPlaybackRate(rate: Float)

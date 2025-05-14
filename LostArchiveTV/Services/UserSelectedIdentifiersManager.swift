@@ -35,13 +35,14 @@ class UserSelectedIdentifiersManager {
         }
     }
     
-    func saveIdentifiers() {
+    func saveIdentifiers(updateActivePreset: Bool = false) {
         do {
             let data = try JSONEncoder().encode(identifiers)
             UserDefaults.standard.set(data, forKey: userDefaultsKey)
             
-            // Update active preset if there is one
-            if let preset = HomeFeedPreferences.getSelectedPreset() {
+            // Only update active preset if specifically requested
+            // This prevents the automatic sync that was causing identifiers to spread to all presets
+            if updateActivePreset, let preset = HomeFeedPreferences.getSelectedPreset() {
                 var updatedPreset = preset
                 updatedPreset.savedIdentifiers = identifiers
                 HomeFeedPreferences.updatePreset(updatedPreset)
@@ -81,7 +82,7 @@ class UserSelectedIdentifiersManager {
     func loadFromActivePreset() {
         if let activePreset = HomeFeedPreferences.getSelectedPreset() {
             identifiers = activePreset.savedIdentifiers
-            saveIdentifiers()
+            saveIdentifiers(updateActivePreset: true)
         }
     }
 }
