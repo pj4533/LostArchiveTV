@@ -1,6 +1,7 @@
 import SwiftUI
 import Foundation
 import OSLog
+import UIKit
 
 enum PreloadingState: Equatable {
     case notPreloading
@@ -230,6 +231,7 @@ struct AnimatedBorderView: View {
         
         // Then start animation after a tiny delay
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+            // Use withAnimation to ensure the repeating animation works properly
             withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
                 pulsing = true
             }
@@ -272,16 +274,11 @@ struct EdgeBorder: Shape {
     }
     
     func path(in rect: CGRect) -> Path {
-        var path = Path()
+        // Get the device corner radius from our service
+        let cornerRadius = ScreenCornerService.shared.cornerRadius
         
-        // Outer rectangle
-        path.addRect(rect)
-        
-        // Inner rectangle (to create a border effect)
-        let innerRect = rect.insetBy(dx: width, dy: width)
-        path.addRect(innerRect)
-        
-        return path
+        // Use our helper to create a path with the correct device corner radius
+        return DeviceScreenShape.borderPath(in: rect, cornerRadius: cornerRadius, lineWidth: width)
     }
 }
 
