@@ -230,6 +230,7 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
         let identifier: String
         let collection: String
         let title: String
+        let fileCount: Int
     }
     
     // Data to pass to the preset selection sheet
@@ -255,7 +256,8 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
             self.presetSelectionData = PresetSelectionData(
                 identifier: identifier,
                 collection: collection,
-                title: title
+                title: title,
+                fileCount: self.totalFiles
             )
             
             // Show the sheet

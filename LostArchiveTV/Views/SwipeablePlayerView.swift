@@ -267,6 +267,7 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                         identifier: data.identifier,
                         title: data.title,
                         collection: data.collection,
+                        fileCount: data.fileCount,
                         onSave: { title, presetName in
                             // Show saved confirmation
                             viewState.showSavedConfirmation(title: title, presetName: presetName)

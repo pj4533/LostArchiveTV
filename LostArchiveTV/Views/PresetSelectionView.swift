@@ -8,16 +8,18 @@ struct PresetSelectionView: View {
     var identifier: String
     var title: String
     var collection: String
+    var fileCount: Int
     
     // Callback for when identifier is saved
     var onSave: ((String, String?) -> Void)?
     
-    init(viewModel: HomeFeedSettingsViewModel, isPresented: Binding<Bool>, identifier: String, title: String, collection: String, onSave: ((String, String?) -> Void)? = nil) {
+    init(viewModel: HomeFeedSettingsViewModel, isPresented: Binding<Bool>, identifier: String, title: String, collection: String, fileCount: Int, onSave: ((String, String?) -> Void)? = nil) {
         self.viewModel = viewModel
         self._isPresented = isPresented
         self.identifier = identifier
         self.title = title
         self.collection = collection
+        self.fileCount = fileCount
         self.onSave = onSave
     }
     
@@ -100,7 +102,7 @@ struct PresetSelectionView: View {
             identifier: identifier,
             title: title,
             collection: collection,
-            fileCount: 0
+            fileCount: fileCount
         )
         
         // Check if the identifier is already in the preset
@@ -137,7 +139,7 @@ struct PresetSelectionView: View {
             identifier: identifier,
             title: title,
             collection: collection,
-            fileCount: 0
+            fileCount: fileCount
         )
         
         // Create new preset
