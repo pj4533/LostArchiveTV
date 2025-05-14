@@ -64,7 +64,7 @@ class IdentifierSelectionService {
     /// Generates a hash of the current user preferences to detect changes
     private func generatePreferencesHash() -> String {
         let enabledCollections = HomeFeedPreferences.getEnabledCollections() ?? []
-        let savedIdentifiers = UserSelectedIdentifiersManager.shared.getArchiveIdentifiers()
+        let savedIdentifiers = PresetManager.shared.getArchiveIdentifiers()
 
         // Create a deterministic string representing all user preferences
         let collectionsString = enabledCollections.sorted().joined(separator: ",")
@@ -77,7 +77,7 @@ class IdentifierSelectionService {
     private func initializeSelectionPools() {
         // Get user selected collections and individual identifiers
         let enabledCollections = HomeFeedPreferences.getEnabledCollections() ?? []
-        let savedIdentifiers = UserSelectedIdentifiersManager.shared.getArchiveIdentifiers()
+        let savedIdentifiers = PresetManager.shared.getArchiveIdentifiers()
 
         availableSelectionPool = []
         usedSelectionPool = []
@@ -139,7 +139,7 @@ class IdentifierSelectionService {
 
         // Get user selected collections and individual identifiers
         let enabledCollections = HomeFeedPreferences.getEnabledCollections() ?? []
-        let savedIdentifiers = UserSelectedIdentifiersManager.shared.getArchiveIdentifiers()
+        let savedIdentifiers = PresetManager.shared.getArchiveIdentifiers()
 
         // If there are no enabled collections or saved identifiers, fall back to random selection
         if enabledCollections.isEmpty && savedIdentifiers.isEmpty {

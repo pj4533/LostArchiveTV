@@ -199,8 +199,7 @@ class HomeFeedSettingsViewModel: ObservableObject {
                 collections[i].isEnabled = selectedPreset.enabledCollections.contains(collections[i].id)
             }
             
-            // Load identifiers from the selected preset
-            UserSelectedIdentifiersManager.shared.loadFromActivePreset()
+            // No need to explicitly load identifiers as they're accessed directly from the preset now
         }
         
         // Notify of changes
@@ -213,8 +212,8 @@ class HomeFeedSettingsViewModel: ObservableObject {
             .filter { $0.isEnabled }
             .map { $0.id }
         
-        // Get saved identifiers
-        let savedIdentifiers = UserSelectedIdentifiersManager.shared.identifiers
+        // Get saved identifiers from the current preset
+        let savedIdentifiers = PresetManager.shared.getIdentifiers()
         
         // Create a new preset
         let newPreset = FeedPreset(

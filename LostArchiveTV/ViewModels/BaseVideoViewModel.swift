@@ -215,7 +215,7 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
 
     var isIdentifierSaved: Bool {
         guard let identifier = currentIdentifier else { return false }
-        return UserSelectedIdentifiersManager.shared.contains(identifier: identifier)
+        return PresetManager.shared.contains(identifier: identifier)
     }
 
     func toggleFavorite() {

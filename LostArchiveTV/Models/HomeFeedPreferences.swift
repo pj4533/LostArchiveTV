@@ -237,8 +237,15 @@ class HomeFeedPreferences {
         // Get legacy enabled collections
         let legacyCollections = UserDefaults.standard.stringArray(forKey: enabledCollectionsKey) ?? []
         
-        // Get saved identifiers
-        let savedIdentifiers = UserSelectedIdentifiersManager.shared.identifiers
+        // Get saved identifiers from UserDefaults directly (don't use PresetManager yet since we're initializing it)
+        var savedIdentifiers: [UserSelectedIdentifier] = []
+        if let data = UserDefaults.standard.data(forKey: "UserSelectedIdentifiers") {
+            do {
+                savedIdentifiers = try JSONDecoder().decode([UserSelectedIdentifier].self, from: data)
+            } catch {
+                logger.error("Failed to decode legacy user-selected identifiers during migration: \(error.localizedDescription)")
+            }
+        }
         
         // Create a preset from legacy settings
         let currentPreset = FeedPreset(

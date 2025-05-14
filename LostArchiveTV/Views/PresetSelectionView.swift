@@ -109,15 +109,8 @@ struct PresetSelectionView: View {
         let alreadyExists = preset.savedIdentifiers.contains(where: { $0.identifier == identifier })
         
         if !alreadyExists {
-            // Add to the preset
-            var updatedPreset = preset
-            updatedPreset.savedIdentifiers.append(newSavedIdentifier)
-            viewModel.updatePreset(updatedPreset)
-            
-            // Add to general saved identifiers as well
-            if !UserSelectedIdentifiersManager.shared.contains(identifier: identifier) {
-                UserSelectedIdentifiersManager.shared.addIdentifier(newSavedIdentifier)
-            }
+            // Add to the preset via the PresetManager
+            PresetManager.shared.addIdentifier(newSavedIdentifier, toPresetWithId: preset.id)
             
             // Call the onSave callback instead of using notifications
             onSave?(title, preset.name)
@@ -153,10 +146,7 @@ struct PresetSelectionView: View {
         HomeFeedPreferences.addPreset(newPreset)
         viewModel.loadPresets()
         
-        // Add to general saved identifiers if not already there
-        if !UserSelectedIdentifiersManager.shared.contains(identifier: identifier) {
-            UserSelectedIdentifiersManager.shared.addIdentifier(newSavedIdentifier)
-        }
+        // The PresetManager will automatically manage identifiers within presets now
         
         // Call the onSave callback instead of using notifications
         onSave?(title, newPresetName)
