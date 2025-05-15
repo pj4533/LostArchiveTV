@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PresetSelectionView: View {
-    @ObservedObject var viewModel: HomeFeedSettingsViewModel
+    @StateObject private var viewModel = PresetSelectionViewModel()
     @State private var showingNewPresetAlert = false
     @State private var newPresetName = ""
     @Binding var isPresented: Bool
@@ -14,7 +14,7 @@ struct PresetSelectionView: View {
     var onSave: ((String, String?) -> Void)?
     
     init(viewModel: HomeFeedSettingsViewModel, isPresented: Binding<Bool>, identifier: String, title: String, collection: String, fileCount: Int, onSave: ((String, String?) -> Void)? = nil) {
-        self.viewModel = viewModel
+        // We only keep the signature for compatibility, but use our own view model
         self._isPresented = isPresented
         self.identifier = identifier
         self.title = title
@@ -96,32 +96,25 @@ struct PresetSelectionView: View {
     }
     
     private func saveIdentifierToPreset(preset: FeedPreset) {
-        // Create the new saved identifier
-        let newSavedIdentifier = UserSelectedIdentifier(
-            id: identifier,
+        let result = viewModel.saveIdentifierToPreset(
+            preset: preset,
             identifier: identifier,
             title: title,
             collection: collection,
             fileCount: fileCount
         )
         
-        // Check if the identifier is already in the preset
-        let alreadyExists = preset.savedIdentifiers.contains(where: { $0.identifier == identifier })
-        
-        if !alreadyExists {
-            // Add to the preset via the PresetManager
-            PresetManager.shared.addIdentifier(newSavedIdentifier, toPresetWithId: preset.id)
-            
-            // Call the onSave callback instead of using notifications
-            onSave?(title, preset.name)
+        if !result.isDuplicate {
+            // Call the onSave callback
+            onSave?(result.title, result.presetName)
         } else {
-            // Call the onSave callback with isDuplicate=true
+            // Use notification for duplicate case
             NotificationCenter.default.post(
                 name: Notification.Name("ShowIdentifierNotification"),
                 object: nil,
                 userInfo: [
-                    "title": title,
-                    "presetName": preset.name,
+                    "title": result.title,
+                    "presetName": result.presetName,
                     "isDuplicate": true
                 ]
             )
@@ -132,35 +125,16 @@ struct PresetSelectionView: View {
     }
     
     private func createNewPresetAndSaveIdentifier() {
-        // Create new preset with current settings and add the identifier
-        let enabledCollectionIds = viewModel.collections
-            .filter { $0.isEnabled }
-            .map { $0.id }
-        
-        // Create identifier
-        let newSavedIdentifier = UserSelectedIdentifier(
-            id: identifier,
+        let result = viewModel.createNewPresetAndSaveIdentifier(
+            name: newPresetName,
             identifier: identifier,
-            title: title,
+            title: title, 
             collection: collection,
             fileCount: fileCount
         )
         
-        // Create new preset
-        let newPreset = FeedPreset(
-            name: newPresetName,
-            enabledCollections: enabledCollectionIds,
-            savedIdentifiers: [newSavedIdentifier],
-            isSelected: false // Don't auto-select the new preset
-        )
-        
-        HomeFeedPreferences.addPreset(newPreset)
-        viewModel.loadPresets()
-        
-        // The PresetManager will automatically manage identifiers within presets now
-        
-        // Call the onSave callback instead of using notifications
-        onSave?(title, newPresetName)
+        // Call the onSave callback
+        onSave?(result.title, result.presetName)
         
         // Close the sheet
         isPresented = false

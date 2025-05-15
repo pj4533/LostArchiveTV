@@ -118,10 +118,15 @@ class IdentifierSelectionService {
     /// - Parameter collections: The available collections for selection
     /// - Returns: A randomly selected identifier based on user preferences
     func selectRandomIdentifier(from allIdentifiers: [ArchiveIdentifier], collections: [ArchiveCollection]) -> ArchiveIdentifier? {
+        // Get the current value directly from UserDefaults for reliability
+        let useDefault = UserDefaults.standard.bool(forKey: "UseDefaultCollections")
+        
         // Check if user has custom home feed behavior
-        if !HomeFeedPreferences.shouldUseDefaultCollections() {
+        if !useDefault { // If "Use Default" is OFF
+            logger.info("UserDefaults 'UseDefaultCollections' is false, using custom preferences")
             return selectWithCustomPreferences(allIdentifiers: allIdentifiers)
-        } else {
+        } else { // If "Use Default" is ON
+            logger.info("UserDefaults 'UseDefaultCollections' is true, using default behavior")
             return selectWithDefaultBehavior(allIdentifiers: allIdentifiers, collections: collections)
         }
     }

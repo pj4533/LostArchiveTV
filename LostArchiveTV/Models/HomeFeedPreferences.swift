@@ -87,10 +87,13 @@ class HomeFeedPreferences {
         
         // If the setting isn't saved yet, default to true
         if userDefaults.object(forKey: useDefaultKey) == nil {
+            logger.debug("UseDefaultCollections not set, defaulting to true")
             return true
         }
         
-        return userDefaults.bool(forKey: useDefaultKey)
+        let value = userDefaults.bool(forKey: useDefaultKey)
+        logger.debug("Reading UseDefaultCollections from UserDefaults: \(value)")
+        return value
     }
     
     // MARK: - Presets Management

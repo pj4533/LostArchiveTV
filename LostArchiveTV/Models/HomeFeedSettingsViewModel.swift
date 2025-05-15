@@ -173,7 +173,15 @@ class HomeFeedSettingsViewModel: ObservableObject {
     
     func toggleDefaultCollections() {
         useDefaultCollections.toggle()
+        
+        // First, explicitly save the UseDefaultCollections setting
+        UserDefaults.standard.set(useDefaultCollections, forKey: "UseDefaultCollections")
+        
+        // Then save the rest of the settings
         saveSettings()
+        
+        // Log the change for debugging
+        logger.debug("Toggled UseDefaultCollections to \(self.useDefaultCollections)")
     }
     
     // Reload identifiers - called when collection settings change
