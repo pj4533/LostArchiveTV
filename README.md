@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="lostarchivetv.gif" alt="LostArchiveTV Demo" width="500"/>
+  <img src="lostarchivetv.gif" alt="LostArchiveTV Demo"/>
 </p>
 
 <h1 align="center">LostArchiveTV</h1>
