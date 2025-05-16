@@ -8,6 +8,7 @@ class HomeFeedPreferences {
     private static let presetsKey = "FeedPresets"
     private static let useDefaultKey = "UseDefaultCollections"
     private static let enabledCollectionsKey = "EnabledCollections"
+    private static let hasAddedALFPresetKey = "HasAddedALFPreset"
     
     // In-memory cache of last settings to detect changes
     private static var lastUseDefault: Bool = true
@@ -269,5 +270,43 @@ class HomeFeedPreferences {
         if !hasInitializedCache {
             initializeCache()
         }
+        
+        // Add the ALF preset if it doesn't already exist
+        addALFPresetIfNeeded()
+    }
+    
+    // Adds ALF preset if it hasn't been added before
+    private static func addALFPresetIfNeeded() {
+        let userDefaults = UserDefaults.standard
+        
+        // If we've already added the ALF preset, do nothing
+        if userDefaults.bool(forKey: hasAddedALFPresetKey) {
+            return
+        }
+        
+        // Create the ALF preset with the specific identifier
+        let alfIdentifier = UserSelectedIdentifier(
+            id: "ALF-The-Complete-Series",
+            identifier: "ALF-The-Complete-Series",
+            title: "ALF - The Complete Series",
+            collection: "avgeeks",
+            fileCount: 1
+        )
+        
+        // Create the preset (not selected by default)
+        let alfPreset = FeedPreset(
+            name: "ALF",
+            enabledCollections: [],
+            savedIdentifiers: [alfIdentifier],
+            isSelected: false
+        )
+        
+        // Add the preset to our list
+        addPreset(alfPreset)
+        
+        // Mark that we've added the ALF preset
+        userDefaults.set(true, forKey: hasAddedALFPresetKey)
+        
+        logger.debug("Added ALF preset to user's presets")
     }
 }
