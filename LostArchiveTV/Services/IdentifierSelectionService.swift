@@ -63,32 +63,59 @@ class IdentifierSelectionService {
 
     /// Generates a hash of the current user preferences to detect changes
     private func generatePreferencesHash() -> String {
-        let enabledCollections = HomeFeedPreferences.getEnabledCollections() ?? []
-        let savedIdentifiers = PresetManager.shared.getArchiveIdentifiers()
-
-        // Create a deterministic string representing all user preferences
-        let collectionsString = enabledCollections.sorted().joined(separator: ",")
-        let identifiersString = savedIdentifiers.map { $0.identifier }.sorted().joined(separator: ",")
-
-        return "\(collectionsString)|\(identifiersString)"
+        // Get the current active preset
+        let useDefault = UserDefaults.standard.bool(forKey: "UseDefaultCollections")
+        
+        // Get the relevant preset
+        let preset: FeedPreset?
+        if useDefault {
+            preset = DefaultPreset.getPreset()
+        } else {
+            preset = HomeFeedPreferences.getSelectedPreset()
+        }
+        
+        guard let activePreset = preset else {
+            return "no-preset"
+        }
+        
+        // Create a deterministic string representing all preset data
+        let collectionsString = activePreset.enabledCollections.sorted().joined(separator: ",")
+        let identifiersString = activePreset.savedIdentifiers.map { $0.identifier }.sorted().joined(separator: ",")
+        
+        // Also include the preset ID and a flag for default/custom mode
+        return "\(useDefault ? "default" : "custom")|\(activePreset.id)|\(collectionsString)|\(identifiersString)"
     }
 
     /// Initializes or resets the selection pools based on current user preferences
     private func initializeSelectionPools() {
-        // Get user selected collections and individual identifiers
-        let enabledCollections = HomeFeedPreferences.getEnabledCollections() ?? []
-        let savedIdentifiers = PresetManager.shared.getArchiveIdentifiers()
-
+        // Get the current active preset
+        let useDefault = UserDefaults.standard.bool(forKey: "UseDefaultCollections")
+        
+        // Determine which preset to use
+        let preset: FeedPreset
+        if useDefault {
+            preset = DefaultPreset.getPreset()
+        } else if let selectedPreset = HomeFeedPreferences.getSelectedPreset() {
+            preset = selectedPreset
+        } else {
+            logger.warning("No preset selected, using empty pools")
+            availableSelectionPool = []
+            usedSelectionPool = []
+            lastPreferencesHash = ""
+            saveSelectionState()
+            return
+        }
+        
         availableSelectionPool = []
         usedSelectionPool = []
 
         // Add enabled collections to the available pool
-        for collection in enabledCollections {
+        for collection in preset.enabledCollections {
             availableSelectionPool.append("collection:\(collection)")
         }
 
         // Add saved identifiers to the available pool
-        for savedIdentifier in savedIdentifiers {
+        for savedIdentifier in preset.savedIdentifiers {
             availableSelectionPool.append("identifier:\(savedIdentifier.identifier)")
         }
 
@@ -98,7 +125,7 @@ class IdentifierSelectionService {
         // Save the initialized state
         saveSelectionState()
 
-        logger.info("Initialized selection pools with \(self.availableSelectionPool.count) items")
+        logger.info("Initialized selection pools with \(self.availableSelectionPool.count) items from preset: \(preset.name)")
     }
 
     /// Checks if user preferences have changed and resets pools if needed
@@ -121,34 +148,45 @@ class IdentifierSelectionService {
         // Get the current value directly from UserDefaults for reliability
         let useDefault = UserDefaults.standard.bool(forKey: "UseDefaultCollections")
         
-        // Check if user has custom home feed behavior
-        if !useDefault { // If "Use Default" is OFF
-            logger.info("UserDefaults 'UseDefaultCollections' is false, using custom preferences")
-            return selectWithCustomPreferences(allIdentifiers: allIdentifiers)
-        } else { // If "Use Default" is ON
-            logger.info("UserDefaults 'UseDefaultCollections' is true, using default behavior")
-            return selectWithDefaultBehavior(allIdentifiers: allIdentifiers, collections: collections)
+        // Get the appropriate preset
+        let preset: FeedPreset
+        if !useDefault { // If "Use Default" is OFF - use user's preset
+            logger.info("UserDefaults 'UseDefaultCollections' is false, using user's selected preset")
+            if let selectedPreset = HomeFeedPreferences.getSelectedPreset() {
+                preset = selectedPreset
+            } else {
+                logger.warning("No user preset selected, falling back to random selection")
+                return allIdentifiers.randomElement()
+            }
+        } else { // If "Use Default" is ON - use the default preset
+            logger.info("UserDefaults 'UseDefaultCollections' is true, using default preset")
+            preset = DefaultPreset.getPreset()
         }
+        
+        // Use the same selection logic for both default and custom presets
+        return selectWithPreset(preset: preset, allIdentifiers: allIdentifiers)
     }
 
-    // MARK: - Custom Preferences Selection with Round-Robin
+    // MARK: - Preset-based Selection with Round-Robin
 
-    /// Selects an identifier using the user's custom preferences with round-robin distribution
-    /// - Parameter allIdentifiers: The fallback identifiers if custom selection fails
-    /// - Returns: A randomly selected identifier based on user custom preferences
-    private func selectWithCustomPreferences(allIdentifiers: [ArchiveIdentifier]) -> ArchiveIdentifier? {
-        logger.info("Using round-robin selection from user custom preferences")
+    /// Selects an identifier using a preset (either user's custom preset or default preset)
+    /// - Parameters:
+    ///   - preset: The preset to use for selection
+    ///   - allIdentifiers: The fallback identifiers if selection fails
+    /// - Returns: A randomly selected identifier based on the provided preset
+    private func selectWithPreset(preset: FeedPreset, allIdentifiers: [ArchiveIdentifier]) -> ArchiveIdentifier? {
+        logger.info("Using round-robin selection from preset: \(preset.name)")
 
         // Check if preferences have changed since last selection
         checkAndUpdatePreferencesIfNeeded()
 
-        // Get user selected collections and individual identifiers
-        let enabledCollections = HomeFeedPreferences.getEnabledCollections() ?? []
-        let savedIdentifiers = PresetManager.shared.getArchiveIdentifiers()
+        // Get collections and identifiers from the preset
+        let enabledCollections = preset.enabledCollections
+        let savedIdentifiers = preset.savedIdentifiers
 
         // If there are no enabled collections or saved identifiers, fall back to random selection
         if enabledCollections.isEmpty && savedIdentifiers.isEmpty {
-            logger.warning("No enabled collections or saved identifiers found, falling back to random selection")
+            logger.warning("No enabled collections or saved identifiers found in preset, falling back to random selection")
             return allIdentifiers.randomElement()
         }
 
@@ -201,10 +239,10 @@ class IdentifierSelectionService {
             logger.debug("Selected specific identifier: \(identifierString)")
 
             // Find the matching identifier
-            if let matchingIdentifier = savedIdentifiers.first(where: { $0.identifier == identifierString }) {
+            if let matchingIdentifier = savedIdentifiers.first(where: { $0.identifier == identifierString })?.archiveIdentifier {
                 return matchingIdentifier
             } else {
-                logger.error("Selected identifier not found in saved identifiers")
+                logger.error("Selected identifier not found in preset's saved identifiers")
                 return allIdentifiers.randomElement()
             }
         } else {
@@ -214,79 +252,4 @@ class IdentifierSelectionService {
         }
     }
 
-    // MARK: - Default Behavior Selection
-
-    /// Selects an identifier using the default behavior (preferred/non-preferred collections)
-    /// - Parameters:
-    ///   - allIdentifiers: All available identifiers
-    ///   - collections: All available collections
-    /// - Returns: A randomly selected identifier based on collection preferences
-    private func selectWithDefaultBehavior(allIdentifiers: [ArchiveIdentifier], collections: [ArchiveCollection]) -> ArchiveIdentifier? {
-        logger.info("Using default collection behavior for selection")
-
-        guard !collections.isEmpty else {
-            logger.error("No collections available for random selection")
-            return allIdentifiers.randomElement()
-        }
-
-        // Filter out excluded collections first
-        let allowedCollections = collections.filter { !$0.excluded }
-
-        // If all collections are excluded, fall back to random selection
-        guard !allowedCollections.isEmpty else {
-            logger.warning("All collections are excluded, falling back to random selection")
-            return allIdentifiers.randomElement()
-        }
-
-        // Separate collections into preferred and non-preferred (from non-excluded collections)
-        let preferredCollections = allowedCollections.filter { $0.preferred }
-        let nonPreferredCollections = allowedCollections.filter { !$0.preferred }
-
-        // Create a selection pool where:
-        // - Each preferred collection gets one entry
-        // - All non-preferred collections together get one entry
-        var selectionPool: [String] = preferredCollections.map { $0.name }
-        if !nonPreferredCollections.isEmpty {
-            selectionPool.append("non-preferred")
-        }
-
-        logger.info("Collection pool (default behavior): \(selectionPool)")
-
-        // Randomly select from the pool
-        guard let selection = selectionPool.randomElement() else {
-            logger.error("Failed to select from collection pool")
-            return allIdentifiers.randomElement()
-        }
-
-        if selection == "non-preferred" {
-            // Randomly select one of the non-preferred collections
-            guard let randomNonPreferredCollection = nonPreferredCollections.randomElement() else {
-                logger.error("Failed to select a non-preferred collection")
-                return allIdentifiers.randomElement()
-            }
-
-            // Filter identifiers for the selected non-preferred collection
-            let collectionIdentifiers = allIdentifiers.filter { $0.collection == randomNonPreferredCollection.name }
-
-            if collectionIdentifiers.isEmpty {
-                logger.warning("No identifiers found for non-preferred collection '\(randomNonPreferredCollection.name)', selecting from all identifiers")
-                return allIdentifiers.randomElement()
-            }
-
-            logger.debug("Selected non-preferred collection: \(randomNonPreferredCollection.name)")
-            return collectionIdentifiers.randomElement()
-        } else {
-            // We selected a specific preferred collection
-            // Filter identifiers for the selected preferred collection
-            let collectionIdentifiers = allIdentifiers.filter { $0.collection == selection }
-
-            if collectionIdentifiers.isEmpty {
-                logger.warning("No identifiers found for preferred collection '\(selection)', selecting from all identifiers")
-                return allIdentifiers.randomElement()
-            }
-
-            logger.debug("Selected preferred collection: \(selection)")
-            return collectionIdentifiers.randomElement()
-        }
-    }
 }
