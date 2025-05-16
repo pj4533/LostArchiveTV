@@ -63,8 +63,12 @@ class IdentifierSelectionService {
 
     /// Generates a hash of the current user preferences to detect changes
     private func generatePreferencesHash() -> String {
-        // Get the current active preset
-        let useDefault = UserDefaults.standard.bool(forKey: "UseDefaultCollections")
+        // Check if the key exists in UserDefaults
+        let userDefaults = UserDefaults.standard
+        let keyExists = userDefaults.object(forKey: "UseDefaultCollections") != nil
+        
+        // If key doesn't exist or is true, use default preset (handle fresh installs correctly)
+        let useDefault = !keyExists || userDefaults.bool(forKey: "UseDefaultCollections")
         
         // Get the relevant preset
         let preset: FeedPreset?
@@ -88,13 +92,20 @@ class IdentifierSelectionService {
 
     /// Initializes or resets the selection pools based on current user preferences
     private func initializeSelectionPools() {
-        // Get the current active preset
-        let useDefault = UserDefaults.standard.bool(forKey: "UseDefaultCollections")
+        // Check if the key exists in UserDefaults
+        let userDefaults = UserDefaults.standard
+        let keyExists = userDefaults.object(forKey: "UseDefaultCollections") != nil
+        
+        // If key doesn't exist or is true, use default preset (handle fresh installs correctly)
+        let useDefault = !keyExists || userDefaults.bool(forKey: "UseDefaultCollections")
         
         // Determine which preset to use
         let preset: FeedPreset
         if useDefault {
             preset = DefaultPreset.getPreset()
+            if (!keyExists) {
+                logger.info("Fresh install detected, using default preset for pool initialization")
+            }
         } else if let selectedPreset = HomeFeedPreferences.getSelectedPreset() {
             preset = selectedPreset
         } else {
@@ -145,21 +156,29 @@ class IdentifierSelectionService {
     /// - Parameter collections: The available collections for selection
     /// - Returns: A randomly selected identifier based on user preferences
     func selectRandomIdentifier(from allIdentifiers: [ArchiveIdentifier], collections: [ArchiveCollection]) -> ArchiveIdentifier? {
-        // Get the current value directly from UserDefaults for reliability
-        let useDefault = UserDefaults.standard.bool(forKey: "UseDefaultCollections")
+        // Check if the key exists in UserDefaults
+        let userDefaults = UserDefaults.standard
+        let keyExists = userDefaults.object(forKey: "UseDefaultCollections") != nil
+        
+        // If key doesn't exist or is true, use default preset (handle fresh installs correctly)
+        let useDefault = !keyExists || userDefaults.bool(forKey: "UseDefaultCollections")
         
         // Get the appropriate preset
         let preset: FeedPreset
-        if !useDefault { // If "Use Default" is OFF - use user's preset
-            logger.info("UserDefaults 'UseDefaultCollections' is false, using user's selected preset")
+        if !useDefault { // If "Use Default" is explicitly OFF - use user's preset
+            logger.info("UserDefaults 'UseDefaultCollections' is explicitly false, using user's selected preset")
             if let selectedPreset = HomeFeedPreferences.getSelectedPreset() {
                 preset = selectedPreset
             } else {
                 logger.warning("No user preset selected, falling back to random selection")
                 return allIdentifiers.randomElement()
             }
-        } else { // If "Use Default" is ON - use the default preset
-            logger.info("UserDefaults 'UseDefaultCollections' is true, using default preset")
+        } else { // If "Use Default" is ON or not set (fresh install) - use the default preset
+            if (!keyExists) {
+                logger.info("UserDefaults 'UseDefaultCollections' not set (fresh install), defaulting to default preset")
+            } else {
+                logger.info("UserDefaults 'UseDefaultCollections' is true, using default preset")
+            }
             preset = DefaultPreset.getPreset()
         }
         
