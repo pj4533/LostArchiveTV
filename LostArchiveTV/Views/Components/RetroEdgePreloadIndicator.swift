@@ -197,39 +197,56 @@ struct AnimatedBorderView: View {
     
     // Animation controls
     @State private var pulsing = false
+    @State private var colorPhase: Double = 0.0
+    
+    // Rainbow colors - using a soft, pleasant gradient
+    private var currentRainbowColor: Color {
+        Color(hue: colorPhase, saturation: 0.7, brightness: 0.9)
+    }
+    
+    private var secondaryRainbowColor: Color {
+        Color(hue: (colorPhase + 0.1).truncatingRemainder(dividingBy: 1.0), 
+              saturation: 0.7, 
+              brightness: 0.8)
+    }
     
     var body: some View {
         // We use the timelineView with direct state animations
         ZStack {
-            // Primary glow - directly animating properties
-            EdgeBorder(width: pulsing ? 4.5 : 1.0)
-                .stroke(color, lineWidth: pulsing ? 4.5 : 1.0)
-                .blur(radius: pulsing ? 6.0 : 1.0)
-                .opacity(pulsing ? 0.9 : 0.3)
+            // Primary glow - directly animating properties but never fading to black
+            EdgeBorder(width: pulsing ? 4.5 : 2.0)
+                .stroke(currentRainbowColor, lineWidth: pulsing ? 4.5 : 2.0)
+                .blur(radius: pulsing ? 6.0 : 3.0)
+                .opacity(pulsing ? 0.9 : 0.6)
             
             // Secondary inner glow for depth effect
-            EdgeBorder(width: pulsing ? 2.5 : 0.5)
-                .stroke(secondaryColor, lineWidth: pulsing ? 3.5 : 0.7)
-                .blur(radius: pulsing ? 4.0 : 0.7)
-                .opacity(pulsing ? 0.8 : 0.2)
+            EdgeBorder(width: pulsing ? 2.5 : 1.5)
+                .stroke(secondaryRainbowColor, lineWidth: pulsing ? 3.5 : 2.0)
+                .blur(radius: pulsing ? 4.0 : 2.0)
+                .opacity(pulsing ? 0.8 : 0.5)
         }
         .onAppear {
-            // Start rapid cycling animation when view appears
-            startPulseAnimation()
+            // Start both pulse and color animations
+            startAnimations()
         }
         .onChange(of: isTransitioning) { transitioning in
-            // If we just finished transitioning, restart the pulse
+            // If we just finished transitioning, restart the animations
             if !transitioning {
-                startPulseAnimation()
+                startAnimations()
             }
+        }
+        // Add a timer to continuously update the color phase
+        .onReceive(Timer.publish(every: 0.03, on: .main, in: .common).autoconnect()) { _ in
+            // Gradually increment the color phase to cycle through hues
+            colorPhase = (colorPhase + 0.015).truncatingRemainder(dividingBy: 1.0)
         }
     }
     
-    private func startPulseAnimation() {
+    private func startAnimations() {
         // Reset pulsing to restart animation
         pulsing = false
         
-        // Then start animation after a tiny delay
+        // Start the pulse animation only (color managed by Timer)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
             // Use withAnimation to ensure the repeating animation works properly
             withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
@@ -260,6 +277,12 @@ extension Color {
         let a = a1 + (a2 - a1) * clampedFraction
         
         return Color(UIColor(red: r, green: g, blue: b, alpha: a))
+    }
+    
+    // Generate a rainbow color at a specific position (0-1)
+    static func rainbow(at position: Double) -> Color {
+        let clampedPosition = position.truncatingRemainder(dividingBy: 1.0)
+        return Color(hue: clampedPosition, saturation: 0.8, brightness: 0.9)
     }
 }
 
