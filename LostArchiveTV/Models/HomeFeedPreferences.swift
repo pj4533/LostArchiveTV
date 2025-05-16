@@ -109,10 +109,39 @@ class HomeFeedPreferences {
         
         do {
             presets = try JSONDecoder().decode([FeedPreset].self, from: data)
+            
+            // Ensure there's always at least one selected preset
+            ensurePresetSelected()
         } catch {
             logger.error("Failed to decode presets: \(error.localizedDescription)")
             presets = []
         }
+    }
+    
+    // Ensures that at least one preset is selected, defaulting to ALF or the first preset
+    private static func ensurePresetSelected() {
+        // Skip if we have no presets yet
+        if presets.isEmpty {
+            return
+        }
+        
+        // Check if we already have a selected preset
+        if presets.contains(where: { $0.isSelected }) {
+            return
+        }
+        
+        // Try to find the ALF preset first
+        if let alfIndex = presets.firstIndex(where: { $0.name == "ALF" }) {
+            presets[alfIndex].isSelected = true
+            logger.debug("Selected ALF preset by default")
+        } else if !presets.isEmpty {
+            // Otherwise select the first preset
+            presets[0].isSelected = true
+            logger.debug("Selected first preset by default: \(presets[0].name)")
+        }
+        
+        // Save the updated selection
+        savePresets()
     }
     
     // Save all presets to UserDefaults
@@ -177,6 +206,10 @@ class HomeFeedPreferences {
             }
         }
         presets.append(preset)
+        
+        // Ensure there's always a selected preset
+        ensurePresetSelected()
+        
         savePresets()
     }
     
@@ -219,9 +252,19 @@ class HomeFeedPreferences {
         
         // If we deleted the selected preset, select the first one if available
         if wasSelected && !presets.isEmpty {
-            presets[0].isSelected = true
-            lastEnabledCollections = presets[0].enabledCollections
+            // Try to select ALF first if available
+            if let alfIndex = presets.firstIndex(where: { $0.name == "ALF" }) {
+                presets[alfIndex].isSelected = true
+                lastEnabledCollections = presets[alfIndex].enabledCollections
+            } else {
+                // Otherwise select the first preset
+                presets[0].isSelected = true
+                lastEnabledCollections = presets[0].enabledCollections
+            }
         }
+        
+        // Ensure a preset is selected even if we didn't delete the selected one
+        ensurePresetSelected()
         
         savePresets()
     }
@@ -293,12 +336,13 @@ class HomeFeedPreferences {
             fileCount: 1
         )
         
-        // Create the preset (not selected by default)
+        // Create the preset - select it if no other preset is selected
+        let shouldSelect = !presets.contains(where: { $0.isSelected })
         let alfPreset = FeedPreset(
             name: "ALF",
             enabledCollections: [],
             savedIdentifiers: [alfIdentifier],
-            isSelected: false
+            isSelected: shouldSelect
         )
         
         // Add the preset to our list
