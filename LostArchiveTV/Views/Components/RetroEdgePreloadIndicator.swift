@@ -198,16 +198,33 @@ struct AnimatedBorderView: View {
     // Animation controls
     @State private var pulsing = false
     @State private var colorPhase: Double = 0.0
+    @State private var colorIndex: Int = 0
     
-    // Rainbow colors - using a soft, pleasant gradient
+    // Define a set of pleasing colors to cycle through
+    private let colors: [Color] = [
+        Color(hue: 0.0, saturation: 0.7, brightness: 0.9),   // Red
+        Color(hue: 0.1, saturation: 0.7, brightness: 0.9),   // Orange-Red
+        Color(hue: 0.17, saturation: 0.7, brightness: 0.9),  // Orange
+        Color(hue: 0.33, saturation: 0.7, brightness: 0.9),  // Yellow-Green
+        Color(hue: 0.45, saturation: 0.7, brightness: 0.9),  // Green
+        Color(hue: 0.57, saturation: 0.7, brightness: 0.9),  // Cyan
+        Color(hue: 0.7, saturation: 0.7, brightness: 0.9),   // Blue
+        Color(hue: 0.83, saturation: 0.7, brightness: 0.9),  // Purple
+        Color(hue: 0.95, saturation: 0.7, brightness: 0.9)   // Magenta
+    ]
+    
+    // Calculate current color from interpolation
     private var currentRainbowColor: Color {
-        Color(hue: colorPhase, saturation: 0.7, brightness: 0.9)
+        let fromColor = colors[colorIndex]
+        let toColor = colors[(colorIndex + 1) % colors.count]
+        return Color.interpolate(from: fromColor, to: toColor, fraction: colorPhase)
     }
     
+    // Secondary color is a slightly darker version of the current color
     private var secondaryRainbowColor: Color {
-        Color(hue: (colorPhase + 0.1).truncatingRemainder(dividingBy: 1.0), 
-              saturation: 0.7, 
-              brightness: 0.8)
+        let fromColor = colors[colorIndex].opacity(0.85)
+        let toColor = colors[(colorIndex + 1) % colors.count].opacity(0.85)
+        return Color.interpolate(from: fromColor, to: toColor, fraction: colorPhase)
     }
     
     var body: some View {
@@ -235,18 +252,25 @@ struct AnimatedBorderView: View {
                 startAnimations()
             }
         }
-        // Add a timer to continuously update the color phase
+        // Add a timer to cycle through colors
         .onReceive(Timer.publish(every: 0.03, on: .main, in: .common).autoconnect()) { _ in
-            // Gradually increment the color phase to cycle through hues
-            colorPhase = (colorPhase + 0.015).truncatingRemainder(dividingBy: 1.0)
+            // Increment the color phase
+            colorPhase += 0.02
+            
+            // When we reach 1.0, move to the next color in our cycle
+            if colorPhase >= 1.0 {
+                colorPhase = 0.0
+                colorIndex = (colorIndex + 1) % colors.count
+            }
         }
     }
     
     private func startAnimations() {
-        // Reset pulsing to restart animation
+        // Reset animation state
         pulsing = false
+        colorPhase = 0.0
         
-        // Start the pulse animation only (color managed by Timer)
+        // Start the pulse animation
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
             // Use withAnimation to ensure the repeating animation works properly
             withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
