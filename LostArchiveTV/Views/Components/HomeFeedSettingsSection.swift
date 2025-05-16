@@ -52,7 +52,16 @@ struct HomeFeedSettingsSection: View {
                     .contentShape(Rectangle())
                     .onTapGesture {
                         if !useDefault {
-                            viewModel.selectPreset(withId: preset.id)
+                            // When selecting a preset, we need to do three things:
+                            // 1. Select the preset in the HomeFeedPreferences service
+                            HomeFeedPreferences.selectPreset(withId: preset.id)
+                            // 2. Update our view model and UI
+                            viewModel.loadPresets()
+                            // 3. Clear the useDefault flag to ensure we're using custom mode
+                            useDefault = false
+                            UserDefaults.standard.set(false, forKey: "UseDefaultCollections")
+                            viewModel.useDefaultCollections = false
+                            viewModel.saveSettings()
                         }
                     }
                 } 
