@@ -122,6 +122,13 @@ class HomeFeedSettingsViewModel: ObservableObject {
         if collections.isEmpty {
             Task {
                 await loadCollections()
+                
+                // After loading collections, sync them with the selected preset
+                if let selectedPreset = selectedPreset {
+                    for i in 0..<collections.count {
+                        collections[i].isEnabled = selectedPreset.enabledCollections.contains(collections[i].id)
+                    }
+                }
             }
         }
     }

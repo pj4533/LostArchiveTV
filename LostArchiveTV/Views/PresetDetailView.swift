@@ -27,7 +27,7 @@ struct PresetDetailView: View {
                     HStack {
                         Text("Collection Settings")
                         Spacer()
-                        Text("\(viewModel.collections.filter { $0.isEnabled }.count) selected")
+                        Text("\(preset.enabledCollections.count) selected")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
