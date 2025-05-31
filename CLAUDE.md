@@ -3,138 +3,92 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
-- LostArchiveTV is an app that plays random videos from the Internet Archive
-- Uses the Archive.org API to fetch metadata and stream videos
-- Implements a TikTok-style video player with random clip selection
-- Features bidirectional swiping with history tracking for navigating forward and backward
-- Features video preloading and caching for smoother playback experience
-- Uses SQLite database for storing video identifiers organized by collections
-- Prioritizes content from preferred collections for better user experience
-- Provides video trimming functionality to save clips to Photos library
-- Optimized loading experience that shows content as soon as the first video is ready
-- Includes semantic search capabilities to find relevant videos
-- Offers similar videos recommendation feature
-- Provides favorites system for saving and revisiting interesting videos
+LostArchiveTV is a tvOS app that plays random videos from the Internet Archive with a TikTok-style swipeable interface.
 
-## Build and Test Commands
-- Build app: `xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhone 16,arch=arm64' build | xcbeautify`
-- Build and check for errors: `xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhone 16,arch=arm64' build | xcbeautify`
-- Run tests: `xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhone 16,arch=arm64' test | xcbeautify`
-- Run single test: `xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhone 16' test -only-testing:LostArchiveTVTests/[TestName]`
-- Verify build after making changes: Run the build command to ensure there are no errors
+### Core Features
+- Random video playback from Archive.org collections
+- Bidirectional swiping (up for next, down for previous) with history tracking
+- Advanced preloading and caching for smooth transitions
+- Video trimming and export to Photos library
+- Semantic search using OpenAI embeddings and Pinecone vector search
+- Favorites system for saving videos
+- Similar videos recommendations
+- Analytics integration with Mixpanel
 
-## Project Structure
-- Organized into separate Models, Views, ViewModels, and Services directories
-- Models in `Models/` directory: ArchiveIdentifier, ArchiveMetadata, ArchiveFile, ItemMetadata, CachedVideo, ArchiveCollection, HomeFeedPreferences, HomeFeedSettingsViewModel, IdentifiersSettingsViewModel, SearchResult, PineconeMatch, FeedItem, FavoritesFeedItem, SearchFeedItem, PlaybackPreferences, SearchQueryContext, UserSelectedIdentifier
-- Views in `Views/` directory: ContentView, VideoPlayerContent, LoadingView, ErrorView, VideoInfoOverlay, SwipeableVideoView, VideoTrimView, TimelineView, TrimHandle, TrimDownloadView, SearchView, SearchFeedView, FavoritesView, FavoritesFeedView, SimilarView, SettingsView, IdentifiersView, HomeFeedSettingsView
-- Components in `Views/Components/` directory: AppContainer, ArchiveButton, BottomInfoPanel, ButtonPanel, CacheStatusIndicator, FastForwardIndicator, FeedItemCell, IdentifierSavedNotification, OverlayButton, PlayerButtonPanel, ProgressOverlayButton, RetroEdgePreloadIndicator, ShimmerTextEffect, ThumbnailsContainer, TimelineContent, VideoDownloadButton, VideoGestureHandler, VideoLayersView, VideoMetadataView
-- Services in `Services/` directory: ArchiveService, VideoCacheManager, VideoPlaybackManager, PlayerManager, VideoTrimManager, VideoSaveManager, VideoExportService, VideoCacheService, Logger+LostArchiveTV, VideoLoadingService, VideoDownloadService, VideoTransitionManager, TimelineManager, AudioSessionManager, FavoritesManager, SearchManager, OpenAIService, PineconeService, EnvironmentService, IdentifierSelectionService, NetworkError, PreloadingIndicatorManager, SharedViewModelProvider, UserSelectedIdentifiersManager, VideoHistoryManager, VideoPlaybackManager
-- Services with extensions: TransitionPreloadManager+NextVideo, TransitionPreloadManager+PreviousVideo, TransitionPreloadManager+Caching, VideoCacheManager+CacheStatus, VideoCacheService+Notifications, PreloadingIndicatorManager+Notification
-- ViewModels: BaseVideoViewModel, BaseFeedViewModel, VideoPlayerViewModel, VideoTrimViewModel, FavoritesViewModel, SearchViewModel, SearchFeedViewModel, FavoritesFeedViewModel, VideoDownloadViewModel (all use MainActor for UI updates)
-- App entry point in `LostArchiveTVApp.swift`
-- Video identifiers stored in `identifiers.sqlite` database with collections table and individual collection tables
-- You NEVER have to alter the Xcode project file to add new files - the project uses folder references that automatically include any new files
+## Critical Build Commands
+```bash
+# Build and check for errors (ALWAYS run after making changes)
+xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhone 16,arch=arm64' build | xcbeautify
 
-## Feature: Bidirectional Swiping
-- Supports swiping up for next (new) videos and down for previous videos
-- Maintains a history of viewed videos for consistent navigation
-- VideoTransitionManager handles the swiping logic and history tracking
-- Properly manages history when navigating backward then forward again
-- Preserves video positions when returning to previously viewed content
+# Run tests
+xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhone 16,arch=arm64' test | xcbeautify
+```
 
-## Feature: Video Preloading and Caching
-- VideoCacheService (formerly PreloadService) manages the preloading of videos for smooth playback
-- Priority-based preloading system that ensures transition preloading takes precedence over general caching
-- Advanced state management with flags to coordinate between different caching operations
-- Chunked caching operations with checkpoint breaks for graceful interruption
-- VideoCacheManager handles the caching of videos for improved performance and tracks cache readiness
-- VideoLoadingService coordinates the loading of videos from the API
-- Maintains a small cache of preloaded videos (typically 3 videos at a time)
-- Continuously preloads new videos as others are consumed from the cache
-- Visual indicators showing preloading status with dynamic color transitions
-- TransitionPreloadManager (refactored into extensions) ensures smooth transitions between video views
-- Enhanced recovery mechanisms to detect and resolve stalled caching operations
-- Improved buffer management with loadedTimeRanges checks for reliable playback
-- RetroEdgePreloadIndicator provides visual feedback with blue-to-green transition animations
-- VideoDownloadService handles the background downloading of full videos
-- VideoDownloadViewModel provides UI feedback during download operations
-- See `docs/preloading_and_cacheing.md` for detailed documentation
+## Project Architecture
 
-## Feature: Centralized Player Management
-- PlayerManager provides a single source of truth for player functionality
-- Handles audio session configuration via AudioSessionManager
-- Manages AVPlayer lifecycle, time observation, and playback status
-- Improves code reuse through service-based architecture
-- VideoPlaybackManager acts as a facade that delegates to PlayerManager
-- BaseVideoViewModel provides shared player functionality for view models
-- VideoControlProvider protocol and extensions standardize playback controls
-- Component-based button architecture for player controls (PlayerButtonPanel)
-- Consistent player UI across main feed, search results, and favorites
+### Directory Structure
+- `Models/` - Data models and business logic entities
+- `Views/` - SwiftUI views and UI components
+- `Views/Components/` - Reusable UI components
+- `ViewModels/` - View models using @MainActor for UI updates
+- `Services/` - Business logic and external integrations
+- `Protocols/` - Protocol definitions for architecture patterns
 
-## Feature: Video Trimming
-- VideoTrimView provides the UI for trimming videos with a timeline and handles
-- TimelineView displays video thumbnails and trim handles for visual reference
-- VideoTrimViewModel coordinates the trim interface, playback, and saving functions
-- VideoTrimManager handles the actual video extraction and processing
-- VideoExportService manages exporting of trimmed videos to Photos library
-- TrimDownloadView shows the download progress when preparing videos for trimming
-- Auto-hiding play/pause button provides better user experience during trimming
-- Videos can be trimmed to custom lengths with visual timeline for reference
+### Key Architectural Patterns
+- **MVVM Architecture**: Views, ViewModels (with @MainActor), and Services
+- **Base Classes**: BaseVideoViewModel and BaseFeedViewModel for shared functionality
+- **Protocol-Based Design**: VideoProvider, VideoControlProvider, FeedItem protocols
+- **Service Layer**: Centralized services for player, cache, and API management
+- **Dependency Injection**: SharedViewModelProvider for view model management
 
-## Feature: Favorites
-- Allows users to save videos they want to revisit later
-- FavoritesManager handles saving and retrieving favorites data stored in UserDefaults
-- Favorites include comprehensive metadata (identifier, collection, title, description, URL, playback position, timestamp)
-- New favorites are inserted at the beginning of the list for newest-first ordering
-- FavoritesViewModel extends BaseVideoViewModel for consistent player experience
-- FavoritesFeedViewModel extends BaseFeedViewModel for feed-style browsing
-- FavoritesView displays saved videos in a custom interface with pagination support
-- Integrates with the video player components for a consistent UI
-- Favorites can be toggled from both main video player and search results
+### Important Files
+- `LostArchiveTVApp.swift` - App entry point
+- `identifiers.sqlite` - SQLite database with video collections
+- `SecretsTemplate.swift` - Template for API keys (create Secrets.swift locally)
+- **NEVER modify the .xcodeproj file** - Uses folder references for automatic file inclusion
 
-## Testing Approach
-- Uses Swift Testing framework (not XCTest) for unit tests
-- Tests are organized by service functionality in separate test files
-- Each test focuses on a specific functionality aspect with clear Arrange/Act/Assert structure
-- No mock classes are used; tests use the actual implementations
-- Test files follow the naming convention of [ServiceName]Tests.swift
+## Key Services and Components
 
-## Database Structure
-- SQLite database with a `collections` table listing all available collections and their preferred status
-- Each collection has its own table containing identifiers for that collection
-- Database is bundled with the app and accessed via SQLite3 C API
+### Video Management
+- **VideoTransitionManager**: Handles bidirectional swiping and history
+- **VideoCacheService**: Priority-based video preloading system
+- **VideoCacheManager**: Tracks cache status and manages preloaded videos
+- **VideoLoadingService**: Coordinates API loading and caching
+- **PlayerManager**: Centralized AVPlayer lifecycle management
+- **VideoPlaybackManager**: Facade for player operations
 
-## Feature: Semantic Search
-- Allows users to find videos using natural language queries
-- OpenAIService generates embeddings for semantic search 
-- PineconeService performs vector similarity search using the embeddings
-- SearchManager coordinates between services and view models
-- SearchView provides the interface for entering search criteria
-- SearchFeedView displays results in a swipeable feed like the main player
-- Support for filtering results by year range
-- Detailed implementation documentation in `docs/pinecone_search.md`
+### Data and Search
+- **ArchiveService**: Interface to Archive.org API
+- **OpenAIService**: Generates embeddings for semantic search
+- **PineconeService**: Vector similarity search
+- **FavoritesManager**: Persists favorite videos in UserDefaults
+- **DatabaseService**: SQLite interface for video identifiers
 
-## Feature: Similar Videos
-- Shows videos with similar content to the currently playing video
-- Uses the same vector search technology as the main search feature
-- SimilarView displays the related videos in a dedicated interface
-- SimilarButton allows easy access to this feature from the player
-- PineconeService+Similar extension handles finding semantically similar content
+### UI Components
+- **SwipeableVideoView**: Main video player with gesture handling
+- **VideoTrimView**: Timeline-based video trimming interface
+- **SearchFeedView**: Swipeable feed for search results
+- **RetroEdgePreloadIndicator**: Visual preloading status
 
-## Code Style Guidelines
-- Use SwiftUI for all UI components
-- Use async/await for asynchronous operations (NEVER use Combine)
-- Use Codable for data models to support both encoding and decoding
-- Use computed properties for derived values
-- Use MainActor for UI-related view models
-- Use inheritance with BaseVideoViewModel for shared video functionality
-- Group related functionality using extensions
-- Use optional chaining for handling nullable values
-- Explicitly handle errors with try/catch
-- Keep functions small and focused on a single responsibility
-- Follow the DRY principle with centralized services like PlayerManager
-- Leverage OSLog for structured logging across different categories (network, metadata, caching, etc.)
-- Use descriptive variable names following Swift conventions (camelCase)
-- Implement robust error handling and recovery
-- Use protocol-based design for flexible component interfaces
-- Prefer facade services that delegate to specialized managers
+## Testing Requirements
+- **Use Swift Testing framework** (not XCTest)
+- **No mock objects** - use actual implementations
+- Follow `[ServiceName]Tests.swift` naming convention
+- Structure tests with clear Arrange/Act/Assert pattern
+
+## Code Style Rules
+1. **Always use SwiftUI** for UI components
+2. **Always use @MainActor** for ViewModels
+3. **Always use Codable** for data models
+4. **Always handle errors explicitly** with try/catch
+5. **Always run build command** after making changes
+6. **Never modify .xcodeproj file**
+7. **Never use force unwrapping** - use optional chaining
+8. **Use OSLog** for structured logging
+9. **Follow Swift naming conventions** (camelCase)
+10. **Extend base classes** (BaseVideoViewModel, BaseFeedViewModel) for consistency
+
+## Environment Setup
+- API keys go in `Secrets.swift` (copy from `SecretsTemplate.swift`)
+- Mixpanel token uses `MIXPANEL_TOKEN` environment variable
+- See `docs/` for detailed feature documentation
