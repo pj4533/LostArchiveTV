@@ -17,6 +17,16 @@
   },
   "testTargets" : [
     {
+      "skippedTests" : {
+        "suites" : [
+          {
+            "name" : "VideoLoadingServiceTests"
+          },
+          {
+            "name" : "VideoPlayerViewModelTests"
+          }
+        ]
+      },
       "target" : {
         "containerPath" : "container:LostArchiveTV.xcodeproj",
         "identifier" : "B0C35BEA2DB3E4A6009A3714",
@@ -24,5 +34,5 @@
       }
     }
   ],
-  "version" : 1
+  "version" : 2
 }

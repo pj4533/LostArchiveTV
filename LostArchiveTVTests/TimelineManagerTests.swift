@@ -198,7 +198,7 @@ struct TimelineManagerTests {
         let timelineWidth: CGFloat = 1000
         var capturedSeekTime: CMTime?
         
-        manager.onSeekToTime = { time in
+        manager.onSeekToTime = { time, _ in
             capturedSeekTime = time
         }
         
