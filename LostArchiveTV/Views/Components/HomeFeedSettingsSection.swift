@@ -1,5 +1,6 @@
 import SwiftUI
 import OSLog
+import Mixpanel
 
 struct HomeFeedSettingsSection: View {
     @ObservedObject var viewModel: HomeFeedSettingsViewModel
@@ -20,6 +21,11 @@ struct HomeFeedSettingsSection: View {
         Section {
             Toggle("Use Default", isOn: $useDefault)
                 .onChange(of: useDefault) { newValue in
+                    // Track the toggle event
+                    Mixpanel.mainInstance().track(event: "Toggle Feed Default", properties: [
+                        "enabled": newValue
+                    ])
+                    
                     // Directly save to UserDefaults first
                     UserDefaults.standard.set(newValue, forKey: "UseDefaultCollections")
                     UserDefaults.standard.synchronize() // Force immediate write

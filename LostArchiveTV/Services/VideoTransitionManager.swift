@@ -8,6 +8,7 @@
 import SwiftUI
 import AVKit
 import OSLog
+import Mixpanel
 
 class VideoTransitionManager: ObservableObject {
     // State tracking
@@ -169,6 +170,9 @@ class VideoTransitionManager: ObservableObject {
         animationDuration: Double
     ) {
         guard nextVideoReady, let nextPlayer = nextPlayer else { return }
+        
+        // Track the swipe next event
+        Mixpanel.mainInstance().track(event: "Swipe Next")
         
         // Update on main thread
         Task { @MainActor in
@@ -385,6 +389,9 @@ class VideoTransitionManager: ObservableObject {
         animationDuration: Double
     ) {
         guard prevVideoReady, let prevPlayer = prevPlayer else { return }
+        
+        // Track the swipe back event
+        Mixpanel.mainInstance().track(event: "Swipe Back")
         
         // Update on main thread
         Task { @MainActor in

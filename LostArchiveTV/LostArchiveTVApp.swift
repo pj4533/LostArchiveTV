@@ -7,6 +7,7 @@
 
 import SwiftUI
 import OSLog
+import Mixpanel
 
 @main
 struct LostArchiveTVApp: App {
@@ -16,6 +17,23 @@ struct LostArchiveTVApp: App {
     init() {
         // Initialize environment service to load API keys
         let _ = EnvironmentService.shared
+        Mixpanel.initialize(token: "f191a6da642536fbb49cb9cdabd662a6")
+        
+        // Generate and persist anonymous user ID
+        let userDefaults = UserDefaults.standard
+        let anonymousUserIDKey = "anonymousUserID"
+        
+        if let existingID = userDefaults.string(forKey: anonymousUserIDKey) {
+            // Use existing ID
+            Mixpanel.mainInstance().identify(distinctId: existingID)
+        } else {
+            // Generate new UUID for this installation
+            let newID = UUID().uuidString
+            userDefaults.set(newID, forKey: anonymousUserIDKey)
+            Mixpanel.mainInstance().identify(distinctId: newID)
+        }
+        
+        Mixpanel.mainInstance().track(event: "App Launch")
     }
     
     var body: some Scene {

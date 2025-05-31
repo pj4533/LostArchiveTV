@@ -1,5 +1,6 @@
 import SwiftUI
 import OSLog
+import Mixpanel
 
 struct ButtonPanel: View {
     @ObservedObject var viewModel: VideoPlayerViewModel
@@ -13,6 +14,7 @@ struct ButtonPanel: View {
             provider: viewModel,
             showSettingsButton: true,
             settingsAction: { 
+                Mixpanel.mainInstance().track(event: "Open Settings")
                 showSettings = true 
             },
             trimAction: startTrimFlow,

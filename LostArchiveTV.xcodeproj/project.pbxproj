@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		B05DAC502DEB339300B62B7B /* Mixpanel in Frameworks */ = {isa = PBXBuildFile; productRef = B05DAC4F2DEB339300B62B7B /* Mixpanel */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		B0C35BEC2DB3E4A6009A3714 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B05DAC502DEB339300B62B7B /* Mixpanel in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -103,6 +108,7 @@
 			);
 			name = LostArchiveTV;
 			packageProductDependencies = (
+				B05DAC4F2DEB339300B62B7B /* Mixpanel */,
 			);
 			productName = LostArchiveTV;
 			productReference = B0C35BDE2DB3E4A5009A3714 /* LATV.app */;
@@ -159,6 +165,9 @@
 			);
 			mainGroup = B0C35BD52DB3E4A5009A3714;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				B05DAC4E2DEB339300B62B7B /* XCRemoteSwiftPackageReference "mixpanel-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B0C35BDF2DB3E4A5009A3714 /* Products */;
 			projectDirPath = "";
@@ -469,6 +478,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		B05DAC4E2DEB339300B62B7B /* XCRemoteSwiftPackageReference "mixpanel-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mixpanel/mixpanel-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.10.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B05DAC4F2DEB339300B62B7B /* Mixpanel */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B05DAC4E2DEB339300B62B7B /* XCRemoteSwiftPackageReference "mixpanel-swift" */;
+			productName = Mixpanel;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = B0C35BD62DB3E4A5009A3714 /* Project object */;
 }
