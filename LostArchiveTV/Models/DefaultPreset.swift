@@ -15,7 +15,7 @@ struct DefaultPreset {
             id: "SeinfeldComplete",
             identifier: "SeinfeldComplete",
             title: "Seinfeld Complete Series",
-            collection: "avgeeks",
+            collection: "Television",
             fileCount: 1
         )
     ]
