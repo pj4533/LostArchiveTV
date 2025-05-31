@@ -7,4 +7,5 @@ struct Secrets {
     static let pineconeKey: String = "${PINECONE_API_KEY}"
     static let pineconeHost: String = "${PINECONE_HOST}"
     static let archiveCooke: String = "${ARCHIVE_COOKIE}"
+    static let mixpanelToken: String = "${MIXPANEL_TOKEN}"
 }

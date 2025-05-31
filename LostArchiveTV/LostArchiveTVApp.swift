@@ -16,8 +16,14 @@ struct LostArchiveTVApp: App {
     
     init() {
         // Initialize environment service to load API keys
-        let _ = EnvironmentService.shared
-        Mixpanel.initialize(token: "f191a6da642536fbb49cb9cdabd662a6")
+        let environmentService = EnvironmentService.shared
+        
+        // Initialize Mixpanel with token from environment
+        if !environmentService.mixpanelToken.isEmpty {
+            Mixpanel.initialize(token: environmentService.mixpanelToken)
+        } else {
+            Logger.network.error("Mixpanel token not found - analytics will not be tracked")
+        }
         
         // Generate and persist anonymous user ID
         let userDefaults = UserDefaults.standard

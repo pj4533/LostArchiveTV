@@ -2,13 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>ArchiveCookie</key>
+	<string>$(ARCHIVE_COOKIE)</string>
+	<key>MixpanelToken</key>
+	<string>$(MIXPANEL_TOKEN)</string>
 	<key>OpenAIApiKey</key>
 	<string>$(OPENAI_API_KEY)</string>
 	<key>PineconeApiKey</key>
 	<string>$(PINECONE_API_KEY)</string>
 	<key>PineconeHost</key>
 	<string>$(PINECONE_HOST)</string>
-	<key>ArchiveCookie</key>
-	<string>$(ARCHIVE_COOKIE)</string>
 </dict>
 </plist>

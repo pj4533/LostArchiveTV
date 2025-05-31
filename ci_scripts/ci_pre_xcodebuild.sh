@@ -68,6 +68,13 @@ else
     echo "✅ ARCHIVE_COOKIE is set. (Length: ${#ARCHIVE_COOKIE})"
 fi
 
+if [ -z "${MIXPANEL_TOKEN}" ]; then
+    echo "❌ ERROR: MIXPANEL_TOKEN is not set."
+    MISSING_ENV_VARS=true
+else
+    echo "✅ MIXPANEL_TOKEN is set. (Length: ${#MIXPANEL_TOKEN})"
+fi
+
 if [ "$MISSING_ENV_VARS" = true ]; then
     echo "❌ ERROR: One or more environment variables are missing. Stopping build."
     exit 1
@@ -88,6 +95,7 @@ ESCAPED_OPENAI_API_KEY=$(printf '%s\n' "$OPENAI_API_KEY" | sed 's/[&/\]/\\&/g')
 ESCAPED_PINECONE_API_KEY=$(printf '%s\n' "$PINECONE_API_KEY" | sed 's/[&/\]/\\&/g')
 ESCAPED_PINECONE_HOST=$(printf '%s\n' "$PINECONE_HOST" | sed 's/[&/\]/\\&/g')
 ESCAPED_ARCHIVE_COOKIE=$(printf '%s\n' "$ARCHIVE_COOKIE" | sed 's/[&/\]/\\&/g')
+ESCAPED_MIXPANEL_TOKEN=$(printf '%s\n' "$MIXPANEL_TOKEN" | sed 's/[&/\]/\\&/g')
 
 echo "🔧 Replacing placeholders in Secrets.swift..."
 
@@ -95,6 +103,7 @@ sed -i '' "s|\${OPENAI_API_KEY}|${ESCAPED_OPENAI_API_KEY}|g" "$OUTPUT_FILE"
 sed -i '' "s|\${PINECONE_API_KEY}|${ESCAPED_PINECONE_API_KEY}|g" "$OUTPUT_FILE"
 sed -i '' "s|\${PINECONE_HOST}|${ESCAPED_PINECONE_HOST}|g" "$OUTPUT_FILE"
 sed -i '' "s|\${ARCHIVE_COOKIE}|${ESCAPED_ARCHIVE_COOKIE}|g" "$OUTPUT_FILE"
+sed -i '' "s|\${MIXPANEL_TOKEN}|${ESCAPED_MIXPANEL_TOKEN}|g" "$OUTPUT_FILE"
 
 # --- Step 6: Confirm output ---
 

@@ -18,6 +18,7 @@ class EnvironmentService {
         static let pineconeKey = "PINECONE_API_KEY" 
         static let pineconeHost = "PINECONE_HOST"
         static let archiveCookie = "ARCHIVE_COOKIE"
+        static let mixpanelToken = "MIXPANEL_TOKEN"
     }
     
     // MARK: - API Keys
@@ -25,6 +26,7 @@ class EnvironmentService {
     private var cachedPineconeKey: String?
     private var cachedPineconeHost: String?
     private var cachedArchiveCookie: String?
+    private var cachedMixpanelToken: String?
     
     // MARK: - Initialization
     
@@ -54,6 +56,11 @@ class EnvironmentService {
         return cachedArchiveCookie ?? ""
     }
     
+    /// The Mixpanel token
+    var mixpanelToken: String {
+        return cachedMixpanelToken ?? ""
+    }
+    
     // MARK: - Private Methods
     
     /// Loads API keys from environment variables or Info.plist
@@ -66,6 +73,7 @@ class EnvironmentService {
         cachedPineconeKey = processInfo.environment[EnvironmentVariables.pineconeKey]
         cachedPineconeHost = processInfo.environment[EnvironmentVariables.pineconeHost]
         cachedArchiveCookie = processInfo.environment[EnvironmentVariables.archiveCookie]
+        cachedMixpanelToken = processInfo.environment[EnvironmentVariables.mixpanelToken]
         
         // If not found in environment, try Info.plist (for app store builds)
         if cachedOpenAIKey == nil {
@@ -84,11 +92,16 @@ class EnvironmentService {
             cachedArchiveCookie = Secrets.archiveCooke
         }
         
+        if cachedMixpanelToken == nil {
+            cachedMixpanelToken = Secrets.mixpanelToken
+        }
+        
         // Log status (without exposing actual keys)
         Logger.network.debug("OpenAI API key status: \(self.cachedOpenAIKey != nil ? "Available" : "Missing")")
         Logger.network.debug("Pinecone API key status: \(self.cachedPineconeKey != nil ? "Available" : "Missing")")
         Logger.network.debug("Pinecone host status: \(self.cachedPineconeHost != nil ? "Available" : "Missing")")
         Logger.network.debug("Archive cookie status: \(self.cachedArchiveCookie != nil ? "Available" : "Missing")")
+        Logger.network.debug("Mixpanel token status: \(self.cachedMixpanelToken != nil ? "Available" : "Missing")")
 
         // Validate that we have the required keys
         if self.cachedOpenAIKey == nil {
