@@ -28,15 +28,16 @@ struct NotificationRegressionTests {
             }
             .store(in: &cancellables)
         
-        // Track notifications
-        NotificationCenter.default
-            .publisher(for: .preloadingStarted)
-            .sink { _ in startedReceived = true }
-            .store(in: &cancellables)
-        
-        NotificationCenter.default
-            .publisher(for: .preloadingCompleted)
-            .sink { _ in completedReceived = true }
+        // Track Combine publisher events
+        VideoCacheService.preloadingStatusPublisher
+            .sink { status in
+                switch status {
+                case .started:
+                    startedReceived = true
+                case .completed:
+                    completedReceived = true
+                }
+            }
             .store(in: &cancellables)
         
         // Act - simulate full preloading cycle
@@ -111,14 +112,8 @@ struct NotificationRegressionTests {
         )
         HomeFeedPreferences.addPreset(testPreset)
         
-        // Subscribe to all notification types
-        NotificationCenter.default
-            .publisher(for: .preloadingStarted)
-            .sink { _ in notificationCount += 1 }
-            .store(in: &cancellables)
-        
-        NotificationCenter.default
-            .publisher(for: .preloadingCompleted)
+        // Subscribe to Combine publisher
+        VideoCacheService.preloadingStatusPublisher
             .sink { _ in notificationCount += 1 }
             .store(in: &cancellables)
         
@@ -164,14 +159,15 @@ struct NotificationRegressionTests {
         var receivedOrder: [String] = []
         var cancellables = Set<AnyCancellable>()
         
-        NotificationCenter.default
-            .publisher(for: .preloadingStarted)
-            .sink { _ in receivedOrder.append("started") }
-            .store(in: &cancellables)
-        
-        NotificationCenter.default
-            .publisher(for: .preloadingCompleted)
-            .sink { _ in receivedOrder.append("completed") }
+        VideoCacheService.preloadingStatusPublisher
+            .sink { status in
+                switch status {
+                case .started:
+                    receivedOrder.append("started")
+                case .completed:
+                    receivedOrder.append("completed")
+                }
+            }
             .store(in: &cancellables)
         
         // Act - send in specific order
@@ -205,7 +201,7 @@ struct NotificationRegressionTests {
         weakManager = manager
         
         // Trigger some notifications
-        NotificationCenter.default.post(name: .preloadingStarted, object: nil)
+        VideoCacheService.preloadingStatusPublisher.send(.started)
         
         // Wait for cleanup
         try? await Task.sleep(for: .milliseconds(100))

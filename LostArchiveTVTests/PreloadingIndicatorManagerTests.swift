@@ -16,7 +16,7 @@ struct PreloadingIndicatorManagerTests {
         #expect(manager.state == .notPreloading)
         
         // Act
-        NotificationCenter.default.post(name: .preloadingStarted, object: nil)
+        VideoCacheService.preloadingStatusPublisher.send(.started)
         
         // Wait for notification processing
         try? await Task.sleep(for: .milliseconds(100))
@@ -32,7 +32,7 @@ struct PreloadingIndicatorManagerTests {
         manager.state = .preloading
         
         // Act
-        NotificationCenter.default.post(name: .preloadingCompleted, object: nil)
+        VideoCacheService.preloadingStatusPublisher.send(.completed)
         
         // Wait for notification processing
         try? await Task.sleep(for: .milliseconds(100))
@@ -121,12 +121,9 @@ struct PreloadingIndicatorManagerTests {
         let manager = PreloadingIndicatorManager.shared
         
         // Send multiple notifications in sequence
-        NotificationCenter.default.post(name: .preloadingStarted, object: nil)
-        NotificationCenter.default.post(
-            name: Notification.Name("CacheStatusChanged"),
-            object: nil
-        )
-        NotificationCenter.default.post(name: .preloadingCompleted, object: nil)
+        VideoCacheService.preloadingStatusPublisher.send(.started)
+        TransitionPreloadManager.cacheStatusPublisher.send()
+        VideoCacheService.preloadingStatusPublisher.send(.completed)
         
         // Wait for all notifications
         try? await Task.sleep(for: .milliseconds(200))

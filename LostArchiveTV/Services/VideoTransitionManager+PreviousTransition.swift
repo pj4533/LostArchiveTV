@@ -9,6 +9,7 @@ import SwiftUI
 import AVKit
 import OSLog
 import Mixpanel
+import Combine
 
 // MARK: - Previous Video Transition
 extension VideoTransitionManager {
@@ -109,7 +110,7 @@ extension VideoTransitionManager {
 
                 // Post a notification to update UI cache status immediately
                 Logger.caching.info("🔔 POSTING NOTIFICATION: CacheStatusChanged - nextVideoReady is now \(self.preloadManager.nextVideoReady)")
-                NotificationCenter.default.post(name: Notification.Name("CacheStatusChanged"), object: nil)
+                TransitionPreloadManager.cacheStatusPublisher.send()
             }
             
             // Preload in both directions and advance cache window

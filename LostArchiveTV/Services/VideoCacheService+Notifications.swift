@@ -1,12 +1,22 @@
 import Foundation
 import OSLog
+import Combine
 
 extension VideoCacheService {
+    /// Publisher for preloading status changes
+    nonisolated static let preloadingStatusPublisher = PassthroughSubject<PreloadingStatus, Never>()
+    
+    /// Enum for preloading status
+    enum PreloadingStatus {
+        case started
+        case completed
+    }
+    
     /// Notifies the system that caching has started
     func notifyCachingStarted() {
         Task { @MainActor in
             Logger.caching.info("VideoCacheService: Broadcasting caching started notification")
-            NotificationCenter.default.post(name: .preloadingStarted, object: nil)
+            VideoCacheService.preloadingStatusPublisher.send(.started)
         }
     }
     
@@ -14,7 +24,7 @@ extension VideoCacheService {
     func notifyCachingCompleted() {
         Task { @MainActor in
             Logger.caching.info("VideoCacheService: Broadcasting caching completed notification")
-            NotificationCenter.default.post(name: .preloadingCompleted, object: nil)
+            VideoCacheService.preloadingStatusPublisher.send(.completed)
         }
     }
 }

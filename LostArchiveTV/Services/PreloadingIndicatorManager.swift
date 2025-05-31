@@ -7,7 +7,7 @@ class PreloadingIndicatorManager: ObservableObject {
 
     @Published var state: PreloadingState = .notPreloading
 
-    private var cancellables = Set<AnyCancellable>()
+    internal var cancellables = Set<AnyCancellable>()
 
     private init() {
         // Setup both observers: direct PreloadService and CacheStatusChanged
@@ -16,22 +16,18 @@ class PreloadingIndicatorManager: ObservableObject {
     }
 
     private func setupPreloadObservers() {
-        // Listen for preloading status changes from PreloadService
-        NotificationCenter.default
-            .publisher(for: .preloadingStarted)
+        // Listen for preloading status changes using Combine
+        VideoCacheService.preloadingStatusPublisher
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.setPreloading()
-            }
-            .store(in: &cancellables)
-
-        NotificationCenter.default
-            .publisher(for: .preloadingCompleted)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                // When a preload completes, check if we should advance to "preloaded" state
-                // This happens if TransitionManager.nextVideoReady is true
-                self?.updateStateFromTransitionManager()
+            .sink { [weak self] status in
+                switch status {
+                case .started:
+                    self?.setPreloading()
+                case .completed:
+                    // When a preload completes, check if we should advance to "preloaded" state
+                    // This happens if TransitionManager.nextVideoReady is true
+                    self?.updateStateFromTransitionManager()
+                }
             }
             .store(in: &cancellables)
     }
@@ -50,10 +46,4 @@ class PreloadingIndicatorManager: ObservableObject {
     func reset() {
         state = .notPreloading
     }
-}
-
-// Extend Notification.Name with custom notifications
-extension Notification.Name {
-    static let preloadingStarted = Notification.Name("preloadingStarted")
-    static let preloadingCompleted = Notification.Name("preloadingCompleted")
 }

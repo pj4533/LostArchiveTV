@@ -9,8 +9,11 @@ import SwiftUI
 import AVKit
 import OSLog
 import Foundation
+import Combine
 
 class TransitionPreloadManager: ObservableObject {
+    /// Publisher for cache status changes
+    static let cacheStatusPublisher = PassthroughSubject<Void, Never>()
     // Next (down) video properties
     @Published var nextVideoReady = false {
         didSet {
@@ -26,7 +29,7 @@ class TransitionPreloadManager: ObservableObject {
                 // This helps prevent mismatch between UI and actual swipe availability
                 DispatchQueue.main.async {
                     Logger.caching.info("🚨 AUTO NOTIFICATION: Publishing CacheStatusChanged due to nextVideoReady change")
-                    NotificationCenter.default.post(name: Notification.Name("CacheStatusChanged"), object: nil)
+                    TransitionPreloadManager.cacheStatusPublisher.send()
                 }
             }
         }
@@ -50,7 +53,7 @@ class TransitionPreloadManager: ObservableObject {
                 // This helps prevent mismatch between UI and actual swipe availability
                 DispatchQueue.main.async {
                     Logger.caching.info("🚨 AUTO NOTIFICATION: Publishing CacheStatusChanged due to prevVideoReady change")
-                    NotificationCenter.default.post(name: Notification.Name("CacheStatusChanged"), object: nil)
+                    TransitionPreloadManager.cacheStatusPublisher.send()
                 }
             }
         }

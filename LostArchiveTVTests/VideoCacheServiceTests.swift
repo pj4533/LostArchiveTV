@@ -58,10 +58,11 @@ struct VideoCacheServiceTests {
         
         // Subscribe to notification
         await MainActor.run {
-            NotificationCenter.default
-                .publisher(for: .preloadingStarted)
-                .sink { _ in
-                    receivedNotification = true
+            VideoCacheService.preloadingStatusPublisher
+                .sink { status in
+                    if status == .started {
+                        receivedNotification = true
+                    }
                 }
                 .store(in: &cancellables)
         }
@@ -87,10 +88,11 @@ struct VideoCacheServiceTests {
         
         // Subscribe to notification
         await MainActor.run {
-            NotificationCenter.default
-                .publisher(for: .preloadingCompleted)
-                .sink { _ in
-                    receivedNotification = true
+            VideoCacheService.preloadingStatusPublisher
+                .sink { status in
+                    if status == .completed {
+                        receivedNotification = true
+                    }
                 }
                 .store(in: &cancellables)
         }
@@ -117,17 +119,14 @@ struct VideoCacheServiceTests {
         
         // Subscribe to notifications
         await MainActor.run {
-            NotificationCenter.default
-                .publisher(for: .preloadingStarted)
-                .sink { _ in
-                    startedOnMainThread = Thread.isMainThread
-                }
-                .store(in: &cancellables)
-            
-            NotificationCenter.default
-                .publisher(for: .preloadingCompleted)
-                .sink { _ in
-                    completedOnMainThread = Thread.isMainThread
+            VideoCacheService.preloadingStatusPublisher
+                .sink { status in
+                    switch status {
+                    case .started:
+                        startedOnMainThread = Thread.isMainThread
+                    case .completed:
+                        completedOnMainThread = Thread.isMainThread
+                    }
                 }
                 .store(in: &cancellables)
         }
@@ -157,19 +156,28 @@ struct VideoCacheServiceTests {
         
         // Create multiple subscribers
         await MainActor.run {
-            NotificationCenter.default
-                .publisher(for: .preloadingStarted)
-                .sink { _ in subscriber1Received = true }
+            VideoCacheService.preloadingStatusPublisher
+                .sink { status in
+                    if status == .started {
+                        subscriber1Received = true
+                    }
+                }
                 .store(in: &cancellables)
             
-            NotificationCenter.default
-                .publisher(for: .preloadingStarted)
-                .sink { _ in subscriber2Received = true }
+            VideoCacheService.preloadingStatusPublisher
+                .sink { status in
+                    if status == .started {
+                        subscriber2Received = true
+                    }
+                }
                 .store(in: &cancellables)
             
-            NotificationCenter.default
-                .publisher(for: .preloadingStarted)
-                .sink { _ in subscriber3Received = true }
+            VideoCacheService.preloadingStatusPublisher
+                .sink { status in
+                    if status == .started {
+                        subscriber3Received = true
+                    }
+                }
                 .store(in: &cancellables)
         }
         

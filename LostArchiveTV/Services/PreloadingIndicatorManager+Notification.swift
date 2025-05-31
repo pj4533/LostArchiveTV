@@ -1,16 +1,16 @@
 import Foundation
+import Combine
 
 extension PreloadingIndicatorManager {
     /// Receive cache status change notifications that drive the indicator
     func setupCacheStatusObserver() {
-        // Listen for the same "CacheStatusChanged" notification that drives the existing cache indicator
-        NotificationCenter.default.addObserver(
-            forName: Notification.Name("CacheStatusChanged"),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.updateStateFromTransitionManager()
-        }
+        // Listen for cache status changes using Combine
+        TransitionPreloadManager.cacheStatusPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateStateFromTransitionManager()
+            }
+            .store(in: &cancellables)
     }
     
     /// Update indicator state based on the TransitionManager's nextVideoReady state

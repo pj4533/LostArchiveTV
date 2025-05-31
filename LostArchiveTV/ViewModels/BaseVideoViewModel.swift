@@ -10,6 +10,7 @@ import AVKit
 import AVFoundation
 import OSLog
 import SwiftUI
+import Combine
 
 /// Base class for video view models that implements common functionality
 @MainActor
@@ -33,6 +34,9 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
     // MARK: - Cache Status Update Timer
     private var cacheStatusTask: Task<Void, Never>?
     private var cacheStatusPaused = false
+    
+    // MARK: - Combine
+    private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Initialization
     init() {
@@ -40,21 +44,20 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
         setupDurationObserver()
         startCacheStatusUpdates()
 
-        // Listen for cache status change notifications
-        NotificationCenter.default.addObserver(
-            forName: Notification.Name("CacheStatusChanged"),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            // Log that we received the notification
-            Logger.caching.info("📱 RECEIVED NOTIFICATION: CacheStatusChanged in \(String(describing: type(of: self)))")
+        // Listen for cache status changes using Combine
+        TransitionPreloadManager.cacheStatusPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                // Log that we received the notification
+                Logger.caching.info("📱 RECEIVED COMBINE EVENT: CacheStatusChanged in \(String(describing: type(of: self)))")
 
-            // Update cache status immediately when notification received
-            Task {
-                Logger.caching.info("🔄 UPDATING UI: updateCacheStatuses called due to notification")
-                await self?.updateCacheStatuses()
+                // Update cache status immediately when notification received
+                Task {
+                    Logger.caching.info("🔄 UPDATING UI: updateCacheStatuses called due to Combine event")
+                    await self?.updateCacheStatuses()
+                }
             }
-        }
+            .store(in: &cancellables)
 
         // Listen for cache system restart requests
         NotificationCenter.default.addObserver(
