@@ -47,3 +47,14 @@ class PreloadingIndicatorManager: ObservableObject {
         state = .notPreloading
     }
 }
+
+// MARK: - Test Helpers
+extension PreloadingIndicatorManager {
+    /// Reset subscriptions for testing
+    func resetForTesting() {
+        cancellables.removeAll()
+        state = .notPreloading
+        setupPreloadObservers()
+        setupCacheStatusObserver()
+    }
+}

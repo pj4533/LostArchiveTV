@@ -10,9 +10,19 @@ import AVKit
 import Combine
 @testable import LATV
 
+@MainActor
+@Suite(.serialized)
 struct VideoCacheServiceTests {
     // Most of VideoCacheService's functionality requires complex interactions
     // between live ArchiveService and VideoCacheManager, so only basic tests are possible
+    
+    // Helper to ensure clean state for each test
+    private func setupCleanState() async {
+        VideoCacheService.resetForTesting()
+        TransitionPreloadManager.resetForTesting()
+        // Small delay to ensure any pending async operations complete
+        try? await Task.sleep(for: .milliseconds(50))
+    }
     
     @Test
     func ensureVideosAreCached_withEmptyIdentifiers_doesNotLoadVideos() async {
@@ -51,12 +61,14 @@ struct VideoCacheServiceTests {
     
     @Test
     func notifyCachingStarted_postsPreloadingStartedNotification() async {
+        await setupCleanState()
+        
         // Arrange
         let cacheService = VideoCacheService()
         var receivedNotification = false
         var cancellables = Set<AnyCancellable>()
         
-        // Subscribe to notification
+        // Subscribe to notification on main thread
         await MainActor.run {
             VideoCacheService.preloadingStatusPublisher
                 .sink { status in
@@ -81,12 +93,14 @@ struct VideoCacheServiceTests {
     
     @Test
     func notifyCachingCompleted_postsPreloadingCompletedNotification() async {
+        await setupCleanState()
+        
         // Arrange
         let cacheService = VideoCacheService()
         var receivedNotification = false
         var cancellables = Set<AnyCancellable>()
         
-        // Subscribe to notification
+        // Subscribe to notification on main thread
         await MainActor.run {
             VideoCacheService.preloadingStatusPublisher
                 .sink { status in
@@ -111,6 +125,8 @@ struct VideoCacheServiceTests {
     
     @Test
     func cachingNotifications_arePostedOnMainThread() async {
+        await setupCleanState()
+        
         // Arrange
         let cacheService = VideoCacheService()
         var startedOnMainThread = false
@@ -118,18 +134,17 @@ struct VideoCacheServiceTests {
         var cancellables = Set<AnyCancellable>()
         
         // Subscribe to notifications
-        await MainActor.run {
-            VideoCacheService.preloadingStatusPublisher
-                .sink { status in
-                    switch status {
-                    case .started:
-                        startedOnMainThread = Thread.isMainThread
-                    case .completed:
-                        completedOnMainThread = Thread.isMainThread
-                    }
+        VideoCacheService.preloadingStatusPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { status in
+                switch status {
+                case .started:
+                    startedOnMainThread = Thread.isMainThread
+                case .completed:
+                    completedOnMainThread = Thread.isMainThread
                 }
-                .store(in: &cancellables)
-        }
+            }
+            .store(in: &cancellables)
         
         // Act
         await cacheService.notifyCachingStarted()
@@ -147,6 +162,8 @@ struct VideoCacheServiceTests {
     
     @Test
     func multipleSubscribers_allReceiveNotifications() async {
+        await setupCleanState()
+        
         // Arrange
         let cacheService = VideoCacheService()
         var subscriber1Received = false
@@ -154,7 +171,7 @@ struct VideoCacheServiceTests {
         var subscriber3Received = false
         var cancellables = Set<AnyCancellable>()
         
-        // Create multiple subscribers
+        // Create multiple subscribers on main thread
         await MainActor.run {
             VideoCacheService.preloadingStatusPublisher
                 .sink { status in

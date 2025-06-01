@@ -6,12 +6,24 @@ import Foundation
 /// Regression test suite for notification behaviors
 /// These tests establish the baseline behavior before Combine conversion
 @MainActor
+@Suite(.serialized)
 struct NotificationRegressionTests {
+    
+    // Helper to ensure clean state for each test
+    private func setupCleanState() async {
+        VideoCacheService.resetForTesting()
+        TransitionPreloadManager.resetForTesting()
+        PreloadingIndicatorManager.shared.resetForTesting()
+        // Small delay to ensure any pending async operations complete
+        try? await Task.sleep(for: .milliseconds(50))
+    }
     
     // MARK: - Integration Tests
     
     @Test
     func fullPreloadingCycle_notificationsFlowCorrectly() async {
+        await setupCleanState()
+        
         // Arrange
         let cacheService = VideoCacheService()
         var startedReceived = false
@@ -22,23 +34,25 @@ struct NotificationRegressionTests {
         let manager = PreloadingIndicatorManager.shared
         
         // Track state changes
-        manager.$state
-            .sink { state in
-                stateChanges.append(state)
-            }
-            .store(in: &cancellables)
-        
-        // Track Combine publisher events
-        VideoCacheService.preloadingStatusPublisher
-            .sink { status in
-                switch status {
-                case .started:
-                    startedReceived = true
-                case .completed:
-                    completedReceived = true
+        await MainActor.run {
+            manager.$state
+                .sink { state in
+                    stateChanges.append(state)
                 }
-            }
-            .store(in: &cancellables)
+                .store(in: &cancellables)
+            
+            // Track Combine publisher events
+            VideoCacheService.preloadingStatusPublisher
+                .sink { status in
+                    switch status {
+                    case .started:
+                        startedReceived = true
+                    case .completed:
+                        completedReceived = true
+                    }
+                }
+                .store(in: &cancellables)
+        }
         
         // Act - simulate full preloading cycle
         await cacheService.notifyCachingStarted()
@@ -96,6 +110,8 @@ struct NotificationRegressionTests {
     
     @Test
     func concurrentNotifications_handleGracefully() async {
+        await setupCleanState()
+        
         // Arrange
         let cacheService = VideoCacheService()
         let manager = PresetManager.shared
@@ -154,21 +170,25 @@ struct NotificationRegressionTests {
     
     @Test
     func notificationOrder_preservedWithinType() async {
+        await setupCleanState()
+        
         // Arrange
         let cacheService = VideoCacheService()
         var receivedOrder: [String] = []
         var cancellables = Set<AnyCancellable>()
         
-        VideoCacheService.preloadingStatusPublisher
-            .sink { status in
-                switch status {
-                case .started:
-                    receivedOrder.append("started")
-                case .completed:
-                    receivedOrder.append("completed")
+        await MainActor.run {
+            VideoCacheService.preloadingStatusPublisher
+                .sink { status in
+                    switch status {
+                    case .started:
+                        receivedOrder.append("started")
+                    case .completed:
+                        receivedOrder.append("completed")
+                    }
                 }
-            }
-            .store(in: &cancellables)
+                .store(in: &cancellables)
+        }
         
         // Act - send in specific order
         await cacheService.notifyCachingStarted()

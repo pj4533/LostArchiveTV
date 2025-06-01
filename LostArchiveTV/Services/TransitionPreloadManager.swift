@@ -13,7 +13,7 @@ import Combine
 
 class TransitionPreloadManager: ObservableObject {
     /// Publisher for cache status changes
-    static let cacheStatusPublisher = PassthroughSubject<Void, Never>()
+    static var cacheStatusPublisher = PassthroughSubject<Void, Never>()
     // Next (down) video properties
     @Published var nextVideoReady = false {
         didSet {

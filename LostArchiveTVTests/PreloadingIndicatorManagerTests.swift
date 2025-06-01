@@ -4,15 +4,26 @@ import Foundation
 @testable import LATV
 
 @MainActor
+@Suite(.serialized)
 struct PreloadingIndicatorManagerTests {
+    
+    // Helper to ensure clean state for each test
+    private func setupCleanState() async {
+        VideoCacheService.resetForTesting()
+        TransitionPreloadManager.resetForTesting()
+        PreloadingIndicatorManager.shared.resetForTesting()
+        // Small delay to ensure any pending async operations complete
+        try? await Task.sleep(for: .milliseconds(50))
+    }
     
     // MARK: - Preloading Notification Tests
     
     @Test
     func preloadingStartedNotification_setsPreloadingState() async {
+        await setupCleanState()
+        
         // Arrange
         let manager = PreloadingIndicatorManager.shared
-        manager.reset() // Start from known state
         #expect(manager.state == .notPreloading)
         
         // Act
@@ -27,6 +38,8 @@ struct PreloadingIndicatorManagerTests {
     
     @Test
     func preloadingCompletedNotification_triggersStateUpdate() async {
+        await setupCleanState()
+        
         // Arrange
         let manager = PreloadingIndicatorManager.shared
         manager.state = .preloading
@@ -44,6 +57,8 @@ struct PreloadingIndicatorManagerTests {
     
     @Test
     func setPreloading_changesStateFromNotPreloading() async {
+        await setupCleanState()
+        
         // Arrange
         let manager = PreloadingIndicatorManager.shared
         manager.state = .notPreloading
@@ -57,6 +72,8 @@ struct PreloadingIndicatorManagerTests {
     
     @Test
     func setPreloading_doesNotChangePreloadedState() async {
+        await setupCleanState()
+        
         // Arrange
         let manager = PreloadingIndicatorManager.shared
         manager.state = .preloaded
@@ -70,6 +87,8 @@ struct PreloadingIndicatorManagerTests {
     
     @Test
     func setPreloaded_changesStateToPreloaded() async {
+        await setupCleanState()
+        
         // Arrange
         let manager = PreloadingIndicatorManager.shared
         manager.state = .notPreloading
@@ -83,6 +102,8 @@ struct PreloadingIndicatorManagerTests {
     
     @Test
     func reset_changesStateToNotPreloading() async {
+        await setupCleanState()
+        
         // Arrange
         let manager = PreloadingIndicatorManager.shared
         manager.state = .preloaded
@@ -98,6 +119,8 @@ struct PreloadingIndicatorManagerTests {
     
     @Test
     func cacheStatusChangedNotification_triggersUpdateFromTransitionManager() async {
+        await setupCleanState()
+        
         // Arrange
         let manager = PreloadingIndicatorManager.shared
         
@@ -117,6 +140,8 @@ struct PreloadingIndicatorManagerTests {
     
     @Test
     func multipleNotificationTypes_areHandledCorrectly() async {
+        await setupCleanState()
+        
         // Arrange & Act
         let manager = PreloadingIndicatorManager.shared
         
@@ -136,6 +161,8 @@ struct PreloadingIndicatorManagerTests {
     
     @Test
     func stateTransitions_followExpectedPattern() async {
+        await setupCleanState()
+        
         let manager = PreloadingIndicatorManager.shared
         
         // Initial state
@@ -157,6 +184,8 @@ struct PreloadingIndicatorManagerTests {
     
     @Test
     func preloadingState_publishesChanges() async {
+        await setupCleanState()
+        
         let manager = PreloadingIndicatorManager.shared
         var receivedStates: [PreloadingState] = []
         var cancellables = Set<AnyCancellable>()
