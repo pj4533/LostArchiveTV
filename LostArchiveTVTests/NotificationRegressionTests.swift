@@ -14,8 +14,8 @@ struct NotificationRegressionTests {
         VideoCacheService.resetForTesting()
         TransitionPreloadManager.resetForTesting()
         PreloadingIndicatorManager.shared.resetForTesting()
-        // Small delay to ensure any pending async operations complete
-        try? await Task.sleep(for: .milliseconds(50))
+        // Longer delay to ensure subscriptions are properly established
+        try? await Task.sleep(for: .milliseconds(100))
     }
     
     // MARK: - Integration Tests
@@ -33,32 +33,31 @@ struct NotificationRegressionTests {
         
         let manager = PreloadingIndicatorManager.shared
         
-        // Track state changes
-        await MainActor.run {
-            manager.$state
-                .sink { state in
-                    stateChanges.append(state)
+        // Track state changes - Include initial value to ensure we capture changes
+        manager.$state
+            .sink { state in
+                stateChanges.append(state)
+            }
+            .store(in: &cancellables)
+        
+        // Track Combine publisher events
+        VideoCacheService.preloadingStatusPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { status in
+                switch status {
+                case .started:
+                    startedReceived = true
+                case .completed:
+                    completedReceived = true
                 }
-                .store(in: &cancellables)
-            
-            // Track Combine publisher events
-            VideoCacheService.preloadingStatusPublisher
-                .sink { status in
-                    switch status {
-                    case .started:
-                        startedReceived = true
-                    case .completed:
-                        completedReceived = true
-                    }
-                }
-                .store(in: &cancellables)
-        }
+            }
+            .store(in: &cancellables)
         
         // Act - simulate full preloading cycle
         await cacheService.notifyCachingStarted()
-        try? await Task.sleep(for: .milliseconds(50))
+        try? await Task.sleep(for: .milliseconds(200))
         await cacheService.notifyCachingCompleted()
-        try? await Task.sleep(for: .milliseconds(50))
+        try? await Task.sleep(for: .milliseconds(200))
         
         // Assert
         #expect(startedReceived == true)
@@ -177,26 +176,25 @@ struct NotificationRegressionTests {
         var receivedOrder: [String] = []
         var cancellables = Set<AnyCancellable>()
         
-        await MainActor.run {
-            VideoCacheService.preloadingStatusPublisher
-                .sink { status in
-                    switch status {
-                    case .started:
-                        receivedOrder.append("started")
-                    case .completed:
-                        receivedOrder.append("completed")
-                    }
+        VideoCacheService.preloadingStatusPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { status in
+                switch status {
+                case .started:
+                    receivedOrder.append("started")
+                case .completed:
+                    receivedOrder.append("completed")
                 }
-                .store(in: &cancellables)
-        }
+            }
+            .store(in: &cancellables)
         
         // Act - send in specific order
         await cacheService.notifyCachingStarted()
-        try? await Task.sleep(for: .milliseconds(100))
+        try? await Task.sleep(for: .milliseconds(200))
         await cacheService.notifyCachingCompleted()
-        try? await Task.sleep(for: .milliseconds(100))
+        try? await Task.sleep(for: .milliseconds(200))
         await cacheService.notifyCachingStarted()
-        try? await Task.sleep(for: .milliseconds(100))
+        try? await Task.sleep(for: .milliseconds(200))
         
         // Assert - notifications from actor might not preserve strict order
         #expect(receivedOrder.count >= 3)

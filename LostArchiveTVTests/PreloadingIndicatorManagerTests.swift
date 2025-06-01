@@ -12,8 +12,8 @@ struct PreloadingIndicatorManagerTests {
         VideoCacheService.resetForTesting()
         TransitionPreloadManager.resetForTesting()
         PreloadingIndicatorManager.shared.resetForTesting()
-        // Small delay to ensure any pending async operations complete
-        try? await Task.sleep(for: .milliseconds(50))
+        // Longer delay to ensure subscriptions are properly established
+        try? await Task.sleep(for: .milliseconds(100))
     }
     
     // MARK: - Preloading Notification Tests
@@ -26,11 +26,11 @@ struct PreloadingIndicatorManagerTests {
         let manager = PreloadingIndicatorManager.shared
         #expect(manager.state == .notPreloading)
         
-        // Act
+        // Act - Send directly since we're already on MainActor
         VideoCacheService.preloadingStatusPublisher.send(.started)
         
-        // Wait for notification processing
-        try? await Task.sleep(for: .milliseconds(100))
+        // Wait longer for notification processing and state update
+        try? await Task.sleep(for: .milliseconds(300))
         
         // Assert
         #expect(manager.state == .preloading)

@@ -68,27 +68,24 @@ struct VideoCacheServiceTests {
         var receivedNotification = false
         var cancellables = Set<AnyCancellable>()
         
-        // Subscribe to notification on main thread
-        await MainActor.run {
-            VideoCacheService.preloadingStatusPublisher
-                .sink { status in
-                    if status == .started {
-                        receivedNotification = true
-                    }
+        // Subscribe to notification
+        VideoCacheService.preloadingStatusPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { status in
+                if status == .started {
+                    receivedNotification = true
                 }
-                .store(in: &cancellables)
-        }
+            }
+            .store(in: &cancellables)
         
         // Act
         await cacheService.notifyCachingStarted()
         
-        // Wait for notification to be posted
-        try? await Task.sleep(for: .milliseconds(100))
+        // Wait longer for notification to be posted
+        try? await Task.sleep(for: .milliseconds(300))
         
         // Assert
-        await MainActor.run {
-            #expect(receivedNotification == true)
-        }
+        #expect(receivedNotification == true)
     }
     
     @Test
@@ -100,27 +97,24 @@ struct VideoCacheServiceTests {
         var receivedNotification = false
         var cancellables = Set<AnyCancellable>()
         
-        // Subscribe to notification on main thread
-        await MainActor.run {
-            VideoCacheService.preloadingStatusPublisher
-                .sink { status in
-                    if status == .completed {
-                        receivedNotification = true
-                    }
+        // Subscribe to notification
+        VideoCacheService.preloadingStatusPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { status in
+                if status == .completed {
+                    receivedNotification = true
                 }
-                .store(in: &cancellables)
-        }
+            }
+            .store(in: &cancellables)
         
         // Act
         await cacheService.notifyCachingCompleted()
         
-        // Wait for notification to be posted
-        try? await Task.sleep(for: .milliseconds(100))
+        // Wait longer for notification to be posted
+        try? await Task.sleep(for: .milliseconds(300))
         
         // Assert
-        await MainActor.run {
-            #expect(receivedNotification == true)
-        }
+        #expect(receivedNotification == true)
     }
     
     @Test

@@ -20,7 +20,7 @@ LostArchiveTV is a tvOS app that plays random videos from the Internet Archive w
 # Build and check for errors (ALWAYS run after making changes)
 xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhone 16,arch=arm64' build | xcbeautify
 
-# Run tests
+# Run tests (ALWAYS run ALL tests - never try to run individual tests)
 xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhone 16,arch=arm64' test | xcbeautify
 ```
 
