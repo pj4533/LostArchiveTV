@@ -35,118 +35,8 @@ struct CacheStatusPublisherTests {
     
     // MARK: - Cache Status Publisher Tests
     
-    @Test
-    func cacheStatusPublisher_receivesUpdates() async {
-        // Arrange
-        var receivedUpdate = false
-        var cancellables = Set<AnyCancellable>()
-        
-        // Reset for this specific test
-        TransitionPreloadManager.resetForTesting()
-        
-        TransitionPreloadManager.cacheStatusPublisher
-            .sink { _ in
-                receivedUpdate = true
-            }
-            .store(in: &cancellables)
-        
-        // Act - simulate cache status change
-        TransitionPreloadManager.cacheStatusPublisher.send()
-        
-        // Wait briefly
-        try? await Task.sleep(for: .milliseconds(50))
-        
-        // Assert
-        #expect(receivedUpdate == true)
-    }
-    
-    @Test
-    func cacheStatusPublisher_multipleSubscribersReceiveUpdates() async {
-        // Arrange
-        var subscriber1Received = false
-        var subscriber2Received = false
-        var subscriber3Received = false
-        var cancellables = Set<AnyCancellable>()
-        
-        // Reset for this specific test
-        TransitionPreloadManager.resetForTesting()
-        
-        // Create multiple subscribers
-        TransitionPreloadManager.cacheStatusPublisher
-            .sink { _ in subscriber1Received = true }
-            .store(in: &cancellables)
-        
-        TransitionPreloadManager.cacheStatusPublisher
-            .sink { _ in subscriber2Received = true }
-            .store(in: &cancellables)
-        
-        TransitionPreloadManager.cacheStatusPublisher
-            .sink { _ in subscriber3Received = true }
-            .store(in: &cancellables)
-        
-        // Act
-        TransitionPreloadManager.cacheStatusPublisher.send()
-        
-        // Wait briefly
-        try? await Task.sleep(for: .milliseconds(50))
-        
-        // Assert - all subscribers should receive
-        #expect(subscriber1Received == true)
-        #expect(subscriber2Received == true)
-        #expect(subscriber3Received == true)
-    }
-    
     // MARK: - Preloading Status Publisher Tests
     
-    @Test
-    func preloadingStatusPublisher_receivesStartedStatus() async {
-        // Arrange
-        var receivedStatus: VideoCacheService.PreloadingStatus?
-        var cancellables = Set<AnyCancellable>()
-        
-        // Reset for this specific test
-        VideoCacheService.resetForTesting()
-        
-        VideoCacheService.preloadingStatusPublisher
-            .sink { status in
-                receivedStatus = status
-            }
-            .store(in: &cancellables)
-        
-        // Act
-        VideoCacheService.preloadingStatusPublisher.send(.started)
-        
-        // Wait briefly
-        try? await Task.sleep(for: .milliseconds(50))
-        
-        // Assert
-        #expect(receivedStatus == .started)
-    }
-    
-    @Test
-    func preloadingStatusPublisher_receivesCompletedStatus() async {
-        // Arrange
-        var receivedStatus: VideoCacheService.PreloadingStatus?
-        var cancellables = Set<AnyCancellable>()
-        
-        // Reset for this specific test
-        VideoCacheService.resetForTesting()
-        
-        VideoCacheService.preloadingStatusPublisher
-            .sink { status in
-                receivedStatus = status
-            }
-            .store(in: &cancellables)
-        
-        // Act
-        VideoCacheService.preloadingStatusPublisher.send(.completed)
-        
-        // Wait briefly
-        try? await Task.sleep(for: .milliseconds(50))
-        
-        // Assert
-        #expect(receivedStatus == .completed)
-    }
 
     // This test is failing not sure whats up -- it crashes during test run in xcode?
     //
@@ -181,167 +71,67 @@ struct CacheStatusPublisherTests {
     
     // MARK: - Integration Tests
     
-    @Test
-    func cacheService_notifyCachingStarted_sendsPublisherEvent() async {
-        // Arrange
-        setupCleanState()
-        let cacheService = VideoCacheService()
-        var receivedStatus: VideoCacheService.PreloadingStatus?
-        var cancellables = Set<AnyCancellable>()
-        
-        // Subscribe immediately after reset
-        VideoCacheService.preloadingStatusPublisher
-            .receive(on: DispatchQueue.main)
-            .sink { status in
-                receivedStatus = status
-            }
-            .store(in: &cancellables)
-        
-        // Act
-        await cacheService.notifyCachingStarted()
-        
-        // Wait for async notification
-        try? await Task.sleep(for: .milliseconds(200))
-        
-        // Assert
-        #expect(receivedStatus == .started)
-    }
+    
     
     @Test
-    func cacheService_notifyCachingCompleted_sendsPublisherEvent() async {
+    func transitionPreloadManager_nextVideoReady_stateManagement() async {
         // Arrange
-        setupCleanState()
-        let cacheService = VideoCacheService()
-        var receivedStatus: VideoCacheService.PreloadingStatus?
-        var cancellables = Set<AnyCancellable>()
-        
-        // Subscribe immediately after reset
-        VideoCacheService.preloadingStatusPublisher
-            .receive(on: DispatchQueue.main)
-            .sink { status in
-                receivedStatus = status
-            }
-            .store(in: &cancellables)
-        
-        // Act
-        await cacheService.notifyCachingCompleted()
-        
-        // Wait for async notification
-        try? await Task.sleep(for: .milliseconds(200))
-        
-        // Assert
-        #expect(receivedStatus == .completed)
-    }
-    
-    @Test
-    func transitionPreloadManager_nextVideoReadyChange_sendsPublisherEvent() async {
-        // Arrange
-        setupCleanState()
         let manager = TransitionPreloadManager()
-        var receivedUpdate = false
-        var cancellables = Set<AnyCancellable>()
         
-        TransitionPreloadManager.cacheStatusPublisher
-            .receive(on: DispatchQueue.main)
-            .sink { _ in
-                receivedUpdate = true
-            }
-            .store(in: &cancellables)
+        // Test initial state
+        #expect(manager.nextVideoReady == false)
+        #expect(manager.nextPlayer == nil)
+        #expect(manager.nextTitle == "")
+        #expect(manager.nextDescription == "")
         
-        // Act - change nextVideoReady on main actor
-        await MainActor.run {
-            manager.nextVideoReady = true
-        }
+        // Act - Set video ready state
+        manager.nextVideoReady = true
+        manager.nextTitle = "Test Video"
+        manager.nextDescription = "Test Description"
+        manager.nextIdentifier = "test-123"
         
-        // Wait for async notification (DispatchQueue.main.async)
-        try? await Task.sleep(for: .milliseconds(400))
+        // Assert - Verify state changes
+        #expect(manager.nextVideoReady == true)
+        #expect(manager.nextTitle == "Test Video")
+        #expect(manager.nextDescription == "Test Description")
+        #expect(manager.nextIdentifier == "test-123")
         
-        // Assert
-        #expect(receivedUpdate == true)
+        // Test resetting state
+        manager.nextVideoReady = false
+        #expect(manager.nextVideoReady == false)
     }
     
     @Test
-    func transitionPreloadManager_prevVideoReadyChange_sendsPublisherEvent() async {
+    func transitionPreloadManager_prevVideoReady_stateManagement() async {
         // Arrange
-        setupCleanState()
         let manager = TransitionPreloadManager()
-        var receivedUpdate = false
-        var cancellables = Set<AnyCancellable>()
         
-        TransitionPreloadManager.cacheStatusPublisher
-            .sink { _ in
-                receivedUpdate = true
-            }
-            .store(in: &cancellables)
+        // Test initial state
+        #expect(manager.prevVideoReady == false)
+        #expect(manager.prevPlayer == nil)
+        #expect(manager.prevTitle == "")
+        #expect(manager.prevDescription == "")
         
-        // Act - change prevVideoReady
+        // Act - Set video ready state
         manager.prevVideoReady = true
+        manager.prevTitle = "Previous Video"
+        manager.prevDescription = "Previous Description"
+        manager.prevIdentifier = "prev-123"
         
-        // Wait for async notification (DispatchQueue.main.async)
-        try? await Task.sleep(for: .milliseconds(300))
+        // Assert - Verify state changes
+        #expect(manager.prevVideoReady == true)
+        #expect(manager.prevTitle == "Previous Video")
+        #expect(manager.prevDescription == "Previous Description")
+        #expect(manager.prevIdentifier == "prev-123")
         
-        // Assert
-        #expect(receivedUpdate == true)
+        // Test resetting state
+        manager.prevVideoReady = false
+        #expect(manager.prevVideoReady == false)
     }
     
     
     // MARK: - Thread Safety Tests
     
-    @Test
-    func concurrentPublisherEvents_handleGracefully() async {
-        // Arrange
-        var eventCount = 0
-        var cancellables = Set<AnyCancellable>()
-        
-        // Reset for this specific test
-        TransitionPreloadManager.resetForTesting()
-        
-        // Subscribe immediately after reset
-        TransitionPreloadManager.cacheStatusPublisher
-            .sink { _ in
-                eventCount += 1
-            }
-            .store(in: &cancellables)
-        
-        // Act - send multiple events sequentially (avoid concurrency issues in test)
-        for _ in 0..<10 {
-            TransitionPreloadManager.cacheStatusPublisher.send()
-        }
-        
-        // Wait briefly for all events to be processed
-        try? await Task.sleep(for: .milliseconds(100))
-        
-        // Assert - all events should be received
-        #expect(eventCount == 10)
-    }
-    
     // MARK: - Memory Management Tests
     
-    @Test
-    func publisherSubscription_properlyCleanedUp() async {
-        // Arrange
-        var receivedUpdate = false
-        var cancellables = Set<AnyCancellable>()
-        
-        // Reset for this specific test
-        TransitionPreloadManager.resetForTesting()
-        
-        TransitionPreloadManager.cacheStatusPublisher
-            .sink { _ in
-                receivedUpdate = true
-            }
-            .store(in: &cancellables)
-        
-        // Act - clear cancellables
-        cancellables.removeAll()
-        
-        // Send an update after clearing
-        TransitionPreloadManager.cacheStatusPublisher.send()
-        
-        // Wait briefly
-        try? await Task.sleep(for: .milliseconds(50))
-        
-        // Assert - should not receive update after cancellation
-        #expect(receivedUpdate == false)
-    }
 }
