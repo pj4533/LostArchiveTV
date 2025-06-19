@@ -86,11 +86,11 @@ struct PlayerButtonPanel<Provider: VideoControlProvider>: View {
                 )
                 
                 // Download button with progress indicator
-                VideoDownloadButton(
-                    downloadViewModel: provider.downloadViewModel,
-                    provider: provider,
-                    disabled: provider.currentIdentifier == nil
-                )
+                // VideoDownloadButton(
+                //     downloadViewModel: provider.downloadViewModel,
+                //     provider: provider,
+                //     disabled: provider.currentIdentifier == nil
+                // )
                 
                 // Archive.org link button
                 ArchiveButton(identifier: identifier ?? provider.currentIdentifier)
