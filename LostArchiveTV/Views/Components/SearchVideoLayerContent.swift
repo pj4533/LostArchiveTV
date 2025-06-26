@@ -90,7 +90,9 @@ struct SearchVideoLayerContent: View {
                     showSettingsButton: false,
                     trimAction: {
                         // Trigger trimming to be shown in the parent view
-                        NotificationCenter.default.post(name: .startVideoTrimming, object: nil)
+                        Task {
+                            await VideoEditingService.startVideoTrimming()
+                        }
                     }
                 )
                 .padding(.trailing, 8)

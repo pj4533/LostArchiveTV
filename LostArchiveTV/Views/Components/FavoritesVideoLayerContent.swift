@@ -89,7 +89,9 @@ struct FavoritesVideoLayerContent: View {
                     showSettingsButton: false,
                     trimAction: {
                         // Trigger trimming to be shown in the parent view
-                        NotificationCenter.default.post(name: .startVideoTrimming, object: nil)
+                        Task {
+                            await VideoEditingService.startVideoTrimming()
+                        }
                     }
                 )
                 .padding(.trailing, 8)
@@ -101,6 +103,5 @@ struct FavoritesVideoLayerContent: View {
 
 // Notification names for video interactions
 extension Notification.Name {
-    static let startVideoTrimming = Notification.Name("startVideoTrimming")
     static let showSimilarVideos = Notification.Name("showSimilarVideos")
 }

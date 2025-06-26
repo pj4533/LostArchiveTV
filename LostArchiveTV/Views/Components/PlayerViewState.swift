@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 // Helper class to manage state for the SwipeablePlayerView
 class PlayerViewState: ObservableObject {
@@ -15,7 +16,7 @@ class PlayerViewState: ObservableObject {
     @Published var savedPresetName: String? = nil
     @Published var isDuplicate = false
     
-    private var trimToken: NSObjectProtocol?
+    private var trimCancellable: AnyCancellable?
     private var notificationToken: NSObjectProtocol?
 
     enum TrimWorkflowStep {
@@ -25,17 +26,16 @@ class PlayerViewState: ObservableObject {
     }
 
     func setupTrimObserver(handler: @escaping () -> Void) {
-        // Remove existing observer if it exists
+        // Cancel existing subscription if it exists
         removeObservers()
 
-        // Create a new observer
-        trimToken = NotificationCenter.default.addObserver(
-            forName: .startVideoTrimming,
-            object: nil,
-            queue: .main
-        ) { _ in
-            handler()
-        }
+        // Subscribe to the publisher
+        trimCancellable = VideoEditingService.startVideoTrimmingPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard self != nil else { return }
+                handler()
+            }
     }
     
     func showSavedConfirmation(title: String, presetName: String? = nil, isDuplicate: Bool = false) {
@@ -80,10 +80,8 @@ class PlayerViewState: ObservableObject {
     }
     
     func removeObservers() {
-        if let token = trimToken {
-            NotificationCenter.default.removeObserver(token)
-            self.trimToken = nil
-        }
+        trimCancellable?.cancel()
+        trimCancellable = nil
         
         if let token = notificationToken {
             NotificationCenter.default.removeObserver(token)

@@ -8,6 +8,7 @@
 import SwiftUI
 import OSLog
 import CoreHaptics
+import Combine
 
 struct VideoGestureHandler: ViewModifier {
     let transitionManager: VideoTransitionManager
@@ -43,30 +44,6 @@ struct VideoGestureHandler: ViewModifier {
         self._isDragging = isDragging
         self.swipeThreshold = swipeThreshold
         self.animationDuration = animationDuration
-        
-        // Listen for notifications that might require resetting playback rate
-        setupNotificationObservers()
-    }
-    
-    // Set up notification observers for trim mode and other state changes
-    private func setupNotificationObservers() {
-        // Listen for trim mode activation notification
-        NotificationCenter.default.addObserver(
-            forName: .startVideoTrimming,
-            object: nil,
-            queue: .main
-        ) { [self] _ in
-            // Reset double-speed state when entering trim mode
-            if isLongPressing {
-                isLongPressing = false
-                showIndicator = false
-                
-                if let controlProvider = provider as? VideoControlProvider {
-                    Logger.videoPlayback.debug("⏩ Resetting speed due to trim mode activation")
-                    controlProvider.resetPlaybackRate()
-                }
-            }
-        }
     }
     
     func body(content: Content) -> some View {
@@ -271,6 +248,18 @@ struct VideoGestureHandler: ViewModifier {
                 }
                 // Use rendered effect instead of View animation for better performance
                 .transition(.opacity)
+            }
+        }
+        .onReceive(VideoEditingService.startVideoTrimmingPublisher) { _ in
+            // Reset double-speed state when entering trim mode
+            if isLongPressing {
+                isLongPressing = false
+                showIndicator = false
+                
+                if let controlProvider = provider as? VideoControlProvider {
+                    Logger.videoPlayback.debug("⏩ Resetting speed due to trim mode activation")
+                    controlProvider.resetPlaybackRate()
+                }
             }
         }
     }
