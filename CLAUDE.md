@@ -16,6 +16,9 @@ LostArchiveTV is a tvOS app that plays random videos from the Internet Archive w
 - Analytics integration with Mixpanel
 
 ## Critical Build Commands
+
+**IMPORTANT: To save context window space, ALWAYS use the Task agent to run builds and tests. The agent should report back only the specific errors or warnings that occurred.**
+
 ```bash
 # Build and check for errors (ALWAYS run after making changes)
 xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhone 16,arch=arm64' build | xcbeautify
@@ -23,6 +26,11 @@ xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhon
 # Run tests (ALWAYS run ALL tests - never try to run individual tests)
 xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhone 16,arch=arm64' test | xcbeautify
 ```
+
+### Build Process Guidelines
+1. **Use Task agent for builds**: Spawn a Task agent to run the build command and report back only errors/warnings
+2. **Fix errors with agents**: When fixing build errors or warnings, spawn a Task agent to handle the fixes
+3. **Keep context clean**: This approach prevents build logs from overwhelming the primary context window
 
 ## Project Architecture
 
