@@ -139,8 +139,8 @@ struct NotificationRegressionTests {
         
         var notificationReceived = false
         
-        NotificationCenter.default
-            .publisher(for: Notification.Name("ReloadIdentifiers"))
+        // Subscribe to the PresetManager publisher instead of NotificationCenter
+        PresetManager.identifierReloadPublisher
             .sink { _ in notificationReceived = true }
             .store(in: &cancellables)
         

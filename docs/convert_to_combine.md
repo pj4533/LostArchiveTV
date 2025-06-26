@@ -3,6 +3,8 @@
 ## Overview
 This document outlines a phased approach to convert LostArchiveTV's reactive patterns to use Combine framework where appropriate, with a focus on modernizing the codebase while maintaining testability and code clarity.
 
+**Current Status**: Phase 2 completed (2025-06-26) - Simple notification conversions successfully migrated to Combine.
+
 ## Current State Analysis
 
 ### Existing Combine Usage
@@ -89,24 +91,49 @@ This document outlines a phased approach to convert LostArchiveTV's reactive pat
 - Document expected behaviors
 - Create baseline for regression testing
 
-### Phase 2: Simple Notification Conversions
-**Timeline**: 1 week
+### Phase 2: Simple Notification Conversions ✅ COMPLETED
+**Timeline**: 1 week (Completed 2025-06-26)
 
-#### 2.1 Convert Cache Status Notifications
-**Files to Update**:
+#### 2.1 Convert Cache Status Notifications ✅
+**Files Updated**:
 - `VideoCacheService+Notifications.swift`
 - `BaseVideoViewModel.swift`
 - `PreloadingIndicatorManager.swift`
 
-**Testing Requirements**:
-- Test cache status updates propagate correctly
-- Test multiple subscribers receive updates
-- Test thread safety
+**Testing Completed**:
+- Cache status updates propagate correctly
+- Multiple subscribers receive updates
+- Thread safety verified
 
-#### 2.2 Convert Preloading Notifications
-**Files to Update**:
+#### 2.2 Convert Preloading Notifications ✅
+**Files Updated**:
 - `TransitionPreloadManager.swift`
 - `VideoTransitionManager+CacheHandling.swift`
+
+#### 2.3 Additional Notifications Converted ✅
+**Navigation and UI Notifications**:
+- `showSimilarVideos` → `NavigationService.similarVideosPublisher`
+  - Converted from NotificationCenter to Combine publisher
+  - Improved type safety with direct SimilarVideo parameter
+  - Eliminated string-based notification names
+
+- `startVideoTrimming` → `VideoEditingService.startVideoTrimmingPublisher`
+  - Converted completion handler pattern to Combine
+  - Better integration with SwiftUI views
+  - Cleaner subscription management
+
+**Data Update Notifications**:
+- `ReloadIdentifiers` → `PresetManager.identifierReloadPublisher`
+  - Converted from NotificationCenter to PassthroughSubject
+  - Centralized identifier reload notifications
+  - Better coordination between preset changes and UI updates
+
+#### Patterns and Lessons Learned:
+1. **Service-based Publishers**: Creating dedicated publishers in service classes (NavigationService, VideoEditingService) provides better encapsulation and type safety
+2. **PassthroughSubject vs CurrentValueSubject**: Used PassthroughSubject for event-based notifications that don't need to retain state
+3. **Main Thread Delivery**: Used `.receive(on: DispatchQueue.main)` for UI-bound publishers to ensure SwiftUI updates happen on the main thread
+4. **Subscription Management**: Stored subscriptions in `Set<AnyCancellable>` within ViewModels for automatic cleanup
+5. **Testing Benefits**: Combine publishers made testing more deterministic with async/await patterns
 
 ### Phase 3: Timer and Progress Conversions
 **Timeline**: 1 week
@@ -237,6 +264,31 @@ func playheadTimer_updatesAtCorrectFrequency() async {
 - Maintained or improved performance
 - No regression in functionality
 
+## Remaining NotificationCenter Usage
+
+### Intentionally Kept as NotificationCenter:
+1. **CacheSystemNeedsRestart**
+   - **Location**: `VideoCacheService+StateManagement.swift`
+   - **Reason**: System-level notification that requires app restart
+   - **Justification**: Rare event, doesn't benefit from Combine conversion
+
+2. **AVPlayerItemDidPlayToEndTime**
+   - **Location**: `PlayerManager+Monitoring.swift`, `BaseVideoViewModel.swift`
+   - **Reason**: AVFoundation framework notification
+   - **Justification**: Direct integration with AVFoundation, converting would add unnecessary abstraction layer
+
+### Notifications Still to Convert (Future Phases):
+1. **Player State Notifications**
+   - Player readiness notifications
+   - Playback error notifications
+   - Consider in Phase 5 with complex state management
+
+2. **Cache Update Notifications**
+   - Individual cache item updates
+   - Cache progress notifications
+   - Consider combining with download progress in Phase 3
+
 ## Risk Mitigation
 1. **Gradual rollout** - One component at a time
 2. **Comprehensive testing** - Before and after each change
+3. **Maintain fallback patterns** - Keep NotificationCenter for system-level events

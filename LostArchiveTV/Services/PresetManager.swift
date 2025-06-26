@@ -8,10 +8,14 @@
 import Foundation
 import OSLog
 import SwiftUI
+import Combine
 
 /// Manager for presets and their identifiers, providing a single interface for all preset operations
 class PresetManager {
     static let shared = PresetManager()
+    
+    /// Publisher for identifier reload events
+    static var identifierReloadPublisher = PassthroughSubject<Void, Never>()
     
     private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "PresetManager")
     
@@ -81,7 +85,7 @@ class PresetManager {
         HomeFeedPreferences.updatePreset(updatedPreset)
         
         // Notify that identifiers have changed
-        NotificationCenter.default.post(name: Notification.Name("ReloadIdentifiers"), object: nil)
+        PresetManager.identifierReloadPublisher.send()
         
         return true
     }
@@ -107,7 +111,7 @@ class PresetManager {
         HomeFeedPreferences.updatePreset(updatedPreset)
         
         // Notify that identifiers have changed
-        NotificationCenter.default.post(name: Notification.Name("ReloadIdentifiers"), object: nil)
+        PresetManager.identifierReloadPublisher.send()
         
         return true
     }
@@ -138,7 +142,7 @@ class PresetManager {
         HomeFeedPreferences.updatePreset(updatedPreset)
         
         // Notify that identifiers have changed
-        NotificationCenter.default.post(name: Notification.Name("ReloadIdentifiers"), object: nil)
+        PresetManager.identifierReloadPublisher.send()
         
         return true
     }
@@ -187,5 +191,13 @@ class PresetManager {
         if let selectedPreset = getSelectedPreset() {
             HomeFeedPreferences.updatePreset(selectedPreset)
         }
+    }
+    
+    // MARK: - Testing Support
+    
+    /// Resets publishers for testing
+    static func resetForTesting() {
+        // Create a new publisher instance to ensure no lingering subscribers
+        identifierReloadPublisher = PassthroughSubject<Void, Never>()
     }
 }

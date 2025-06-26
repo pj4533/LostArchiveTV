@@ -3,10 +3,276 @@ import Combine
 import Foundation
 @testable import LATV
 
+// Test-only extension to reset static publishers
+extension PresetManager {
+    // resetForTesting is already implemented in PresetManager
+}
+
 @MainActor
+@Suite(.serialized)
 struct PresetManagerTests {
     
-    // MARK: - ReloadIdentifiers Notification Tests
+    // Helper to ensure clean state for each test
+    private func setupCleanState() {
+        PresetManager.resetForTesting()
+        // Small delay to ensure any pending events are cleared
+        Thread.sleep(forTimeInterval: 0.05)
+    }
+    
+    // MARK: - Identifier Reload Publisher Tests
+    
+    @Test
+    func identifierReloadPublisher_sendsSingleEvent() async throws {
+        // Arrange
+        setupCleanState()
+        let manager = PresetManager.shared
+        var receivedEvent = false
+        var cancellables = Set<AnyCancellable>()
+        
+        // Create a unique test preset
+        let uniqueId = "test-preset-single-\(UUID().uuidString)"
+        let testPreset = FeedPreset(
+            id: uniqueId,
+            name: "Test Preset",
+            enabledCollections: ["test-collection"],
+            savedIdentifiers: [],
+            isSelected: true
+        )
+        HomeFeedPreferences.addPreset(testPreset)
+        
+        // Wait for any preset creation events
+        try? await Task.sleep(for: .milliseconds(100))
+        
+        // Reset the publisher again right before subscribing to ensure clean state
+        PresetManager.resetForTesting()
+        
+        // Subscribe
+        PresetManager.identifierReloadPublisher
+            .sink { _ in
+                receivedEvent = true
+            }
+            .store(in: &cancellables)
+        
+        // Act
+        let newIdentifier = UserSelectedIdentifier(
+            id: "test-single",
+            identifier: "test-single",
+            title: "Test Single",
+            collection: "test-collection",
+            fileCount: 1
+        )
+        manager.addIdentifier(newIdentifier)
+        
+        // Wait for event
+        try? await Task.sleep(for: .milliseconds(100))
+        
+        // Assert
+        #expect(receivedEvent == true)
+        
+        // Cleanup
+        HomeFeedPreferences.deletePreset(withId: uniqueId)
+    }
+    
+    @Test
+    func identifierReloadPublisher_multipleSubscribersReceiveEvents() async throws {
+        // Arrange
+        setupCleanState()
+        let manager = PresetManager.shared
+        var subscriber1Count = 0
+        var subscriber2Count = 0
+        var cancellables = Set<AnyCancellable>()
+        
+        // Create a unique test preset
+        let uniqueId = "test-preset-multi-sub-\(UUID().uuidString)"
+        let testPreset = FeedPreset(
+            id: uniqueId,
+            name: "Test Preset",
+            enabledCollections: ["test-collection"],
+            savedIdentifiers: [],
+            isSelected: true
+        )
+        HomeFeedPreferences.addPreset(testPreset)
+        
+        // Wait for any preset creation events
+        try? await Task.sleep(for: .milliseconds(100))
+        
+        // Wait a bit to let any previous test events settle
+        try? await Task.sleep(for: .milliseconds(50))
+        
+        // Store the current event count to track only new events
+        var initialSubscriber1Count = 0
+        var initialSubscriber2Count = 0
+        
+        // Reset the publisher right before subscribing to ensure clean state
+        PresetManager.resetForTesting()
+        
+        // Subscribe multiple times, only counting events after the initial snapshot
+        PresetManager.identifierReloadPublisher
+            .sink { _ in
+                subscriber1Count += 1
+            }
+            .store(in: &cancellables)
+        
+        PresetManager.identifierReloadPublisher
+            .sink { _ in
+                subscriber2Count += 1
+            }
+            .store(in: &cancellables)
+        
+        // Take initial snapshot to ignore any immediate events
+        initialSubscriber1Count = subscriber1Count
+        initialSubscriber2Count = subscriber2Count
+        
+        // Act
+        let newIdentifier = UserSelectedIdentifier(
+            id: "test-multi-sub",
+            identifier: "test-multi-sub",
+            title: "Test Multi Sub",
+            collection: "test-collection",
+            fileCount: 1
+        )
+        manager.addIdentifier(newIdentifier)
+        
+        // Wait for events
+        try? await Task.sleep(for: .milliseconds(100))
+        
+        // Assert - both subscribers should receive exactly one event from our addIdentifier call
+        #expect(subscriber1Count - initialSubscriber1Count == 1)
+        #expect(subscriber2Count - initialSubscriber2Count == 1)
+        
+        // Cleanup
+        HomeFeedPreferences.deletePreset(withId: uniqueId)
+        
+        // Cancel all subscriptions to prevent event leakage
+        cancellables.removeAll()
+    }
+    
+    @Test
+    func identifierReloadPublisher_threadSafety_concurrentOperations() async throws {
+        // Arrange
+        setupCleanState()
+        let manager = PresetManager.shared
+        var totalEventCount = 0
+        var cancellables = Set<AnyCancellable>()
+        let lock = NSLock()
+        
+        // Create a unique test preset
+        let uniqueId = "test-preset-concurrent-\(UUID().uuidString)"
+        let testPreset = FeedPreset(
+            id: uniqueId,
+            name: "Test Preset",
+            enabledCollections: ["test-collection"],
+            savedIdentifiers: [],
+            isSelected: true
+        )
+        HomeFeedPreferences.addPreset(testPreset)
+        
+        // Wait for any preset creation events
+        try? await Task.sleep(for: .milliseconds(100))
+        
+        PresetManager.identifierReloadPublisher
+            .sink { _ in
+                lock.lock()
+                totalEventCount += 1
+                lock.unlock()
+            }
+            .store(in: &cancellables)
+        
+        // Act - perform multiple operations concurrently
+        await withTaskGroup(of: Void.self) { group in
+            for i in 0..<10 {
+                group.addTask { @MainActor in
+                    let identifier = UserSelectedIdentifier(
+                        id: "concurrent-\(i)",
+                        identifier: "concurrent-\(i)",
+                        title: "Concurrent \(i)",
+                        collection: "test-collection",
+                        fileCount: 1
+                    )
+                    manager.addIdentifier(identifier)
+                }
+            }
+        }
+        
+        // Wait for all events
+        try? await Task.sleep(for: .milliseconds(200))
+        
+        // Assert - all events should be received
+        #expect(totalEventCount == 10)
+        
+        // Cleanup
+        HomeFeedPreferences.deletePreset(withId: uniqueId)
+    }
+    
+    @Test
+    func identifierReloadPublisher_subscriptionAfterReset() async throws {
+        // Arrange
+        setupCleanState()
+        let manager = PresetManager.shared
+        var firstSubscriberCount = 0
+        var secondSubscriberCount = 0
+        var cancellables = Set<AnyCancellable>()
+        
+        // Create a unique test preset
+        let uniqueId = "test-preset-reset-\(UUID().uuidString)"
+        let testPreset = FeedPreset(
+            id: uniqueId,
+            name: "Test Preset",
+            enabledCollections: ["test-collection"],
+            savedIdentifiers: [],
+            isSelected: true
+        )
+        HomeFeedPreferences.addPreset(testPreset)
+        
+        // Wait for any preset creation events
+        try? await Task.sleep(for: .milliseconds(100))
+        
+        // First subscriber
+        PresetManager.identifierReloadPublisher
+            .sink { _ in
+                firstSubscriberCount += 1
+            }
+            .store(in: &cancellables)
+        
+        // Send first event
+        let identifier1 = UserSelectedIdentifier(
+            id: "before-reset",
+            identifier: "before-reset",
+            title: "Before Reset",
+            collection: "test-collection",
+            fileCount: 1
+        )
+        manager.addIdentifier(identifier1)
+        try? await Task.sleep(for: .milliseconds(50))
+        
+        // Reset
+        PresetManager.resetForTesting()
+        
+        // Second subscriber on new publisher
+        PresetManager.identifierReloadPublisher
+            .sink { _ in
+                secondSubscriberCount += 1
+            }
+            .store(in: &cancellables)
+        
+        // Send second event
+        let identifier2 = UserSelectedIdentifier(
+            id: "after-reset",
+            identifier: "after-reset",
+            title: "After Reset",
+            collection: "test-collection",
+            fileCount: 1
+        )
+        manager.addIdentifier(identifier2)
+        try? await Task.sleep(for: .milliseconds(50))
+        
+        // Assert
+        #expect(firstSubscriberCount == 1) // Only received event before reset
+        #expect(secondSubscriberCount == 1) // Only received event after reset
+        
+        // Cleanup
+        HomeFeedPreferences.deletePreset(withId: uniqueId)
+    }
     
     @Test
     func addIdentifier_postsReloadIdentifiersNotification() async {
@@ -29,9 +295,8 @@ struct PresetManagerTests {
         // Wait for any preset creation notifications to pass
         try? await Task.sleep(for: .milliseconds(100))
         
-        // Subscribe to notification
-        NotificationCenter.default
-            .publisher(for: Notification.Name("ReloadIdentifiers"))
+        // Subscribe to publisher
+        PresetManager.identifierReloadPublisher
             .sink { _ in
                 receivedNotification = true
             }
@@ -85,9 +350,8 @@ struct PresetManagerTests {
         // Wait for any preset creation notifications to pass
         try? await Task.sleep(for: .milliseconds(100))
         
-        // Subscribe to notification
-        NotificationCenter.default
-            .publisher(for: Notification.Name("ReloadIdentifiers"))
+        // Subscribe to publisher
+        PresetManager.identifierReloadPublisher
             .sink { _ in
                 receivedNotification = true
             }
@@ -127,9 +391,8 @@ struct PresetManagerTests {
         // Wait for any preset creation notifications to pass
         try? await Task.sleep(for: .milliseconds(100))
         
-        // Subscribe to notification
-        NotificationCenter.default
-            .publisher(for: Notification.Name("ReloadIdentifiers"))
+        // Subscribe to publisher
+        PresetManager.identifierReloadPublisher
             .sink { _ in
                 receivedNotification = true
             }
@@ -177,8 +440,7 @@ struct PresetManagerTests {
         try? await Task.sleep(for: .milliseconds(100))
         
         // Subscribe to notifications
-        NotificationCenter.default
-            .publisher(for: Notification.Name("ReloadIdentifiers"))
+        PresetManager.identifierReloadPublisher
             .sink { _ in
                 notificationCount += 1
             }
@@ -253,8 +515,7 @@ struct PresetManagerTests {
         #expect(selectedPreset?.savedIdentifiers[0].identifier == "existing-test")
         
         // Subscribe to notifications
-        NotificationCenter.default
-            .publisher(for: Notification.Name("ReloadIdentifiers"))
+        PresetManager.identifierReloadPublisher
             .sink { _ in
                 notificationCount += 1
             }
@@ -313,8 +574,7 @@ struct PresetManagerTests {
         let baselineCount = notificationCount
         
         // Subscribe to notifications
-        NotificationCenter.default
-            .publisher(for: Notification.Name("ReloadIdentifiers"))
+        PresetManager.identifierReloadPublisher
             .sink { _ in
                 notificationCount += 1
             }
