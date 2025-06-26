@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://testflight.apple.com/join/5u5qyTWh"><img src="https://img.shields.io/badge/TestFlight-Join_Beta-blue?style=flat-square&logo=apple" alt="Join TestFlight"></a>
+  <a href="https://apps.apple.com/us/app/lostarchivetv/id6744857333"><img src="https://img.shields.io/badge/App_Store-Download-blue?style=flat-square&logo=apple" alt="Download on App Store"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/iOS-18.0+-orange?style=flat-square&logo=apple" alt="iOS 18.0+">
   <img src="https://img.shields.io/badge/Swift-5.9+-red?style=flat-square&logo=swift" alt="Swift 5.9+">
