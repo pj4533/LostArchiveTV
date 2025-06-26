@@ -54,7 +54,7 @@ extension VideoTrimViewModel {
             // Save the URL for later use
             self.localVideoURL = self.assetURL
 
-            // Audio session is configured by PlayerManager, not needed here
+            // Audio session is configured by VideoPlaybackManager, not needed here
 
             // Verify that we have an incoming player with a valid item from the main app
             if let existingPlayer = playbackManager.player,
@@ -205,7 +205,7 @@ extension VideoTrimViewModel {
             }
         }
 
-        // Audio session is managed by PlayerManager, not needed here
+        // Audio session is managed by VideoPlaybackManager, not needed here
 
         // Re-enable background services
         if Task.isCancelled == false {

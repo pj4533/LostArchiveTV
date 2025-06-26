@@ -1,8 +1,8 @@
 //
-//  PlayerManager+Playback.swift
+//  VideoPlaybackManager+Playback.swift
 //  LostArchiveTV
 //
-//  Created by PJ Gray on 5/31/25.
+//  Created by Claude on 6/26/25.
 //
 
 import Foundation
@@ -10,19 +10,33 @@ import AVFoundation
 import OSLog
 
 // MARK: - Playback Control
-extension PlayerManager {
+extension VideoPlaybackManager {
     /// Starts or resumes playback
     func play() {
-        Logger.videoPlayback.debug("Playing video")
-        player?.play()
-        isPlaying = true
+        if let player = player {
+            let playerPointer = String(describing: ObjectIdentifier(player))
+            let itemStatus = player.currentItem?.status.rawValue ?? -1
+            Logger.videoPlayback.debug("▶️ VP_MANAGER: Play requested for player \(playerPointer), item status: \(itemStatus)")
+            Logger.videoPlayback.debug("Playing video")
+            player.play()
+            isPlaying = true
+        } else {
+            Logger.videoPlayback.warning("▶️ VP_MANAGER: Play requested but player is nil")
+        }
     }
     
     /// Pauses playback
     func pause() {
-        Logger.videoPlayback.debug("Pausing video")
-        player?.pause()
-        isPlaying = false
+        if let player = player {
+            let playerPointer = String(describing: ObjectIdentifier(player))
+            let itemStatus = player.currentItem?.status.rawValue ?? -1
+            Logger.videoPlayback.debug("⏸️ VP_MANAGER: Pause requested for player \(playerPointer), item status: \(itemStatus)")
+            Logger.videoPlayback.debug("Pausing video")
+            player.pause()
+            isPlaying = false
+        } else {
+            Logger.videoPlayback.warning("⏸️ VP_MANAGER: Pause requested but player is nil")
+        }
     }
     
     /// Seeks to a specific time in the video

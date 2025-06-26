@@ -1,5 +1,5 @@
 //
-//  PlayerManager+Creation.swift
+//  VideoPlaybackManager+Creation.swift
 //  LostArchiveTV
 //
 //  Created by PJ Gray on 5/31/25.
@@ -10,7 +10,7 @@ import AVFoundation
 import OSLog
 
 // MARK: - Player Creation and Setup
-extension PlayerManager {
+extension VideoPlaybackManager {
     /// Uses an existing player instance instead of creating a new one
     func useExistingPlayer(_ player: AVPlayer) {
         let playerPointer = String(describing: ObjectIdentifier(player))

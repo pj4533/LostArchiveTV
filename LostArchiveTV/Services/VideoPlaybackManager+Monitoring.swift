@@ -1,8 +1,8 @@
 //
-//  PlayerManager+Monitoring.swift
+//  VideoPlaybackManager+Monitoring.swift
 //  LostArchiveTV
 //
-//  Created by PJ Gray on 5/31/25.
+//  Created by Claude on 6/26/25.
 //
 
 import Foundation
@@ -10,11 +10,11 @@ import AVFoundation
 import OSLog
 
 // MARK: - Monitoring and Observation
-extension PlayerManager {
+extension VideoPlaybackManager {
     /// Sets up periodic time observation for the player
     internal func setupTimeObserver() {
         let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-        timeObserverToken = player?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
+        timeObserverToken = player?.addPeriodicTimeObserver(forInterval: interval, queue: DispatchQueue.main) { [weak self] time in
             guard let self = self else { return }
             self.currentTime = time.seconds
 
@@ -53,7 +53,7 @@ extension PlayerManager {
     }
     
     /// Monitors buffer status for the given player item
-    func monitorBufferStatus(for playerItem: AVPlayerItem) async {
+    public func monitorBufferStatus(for playerItem: AVPlayerItem) async {
         Task { @MainActor in
             for monitorCount in 0..<10 {
                 guard self.player != nil else { break }
