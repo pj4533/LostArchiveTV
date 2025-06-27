@@ -30,10 +30,12 @@ class VideoSaveManager {
         
         // Download the video file with cookie header
         var request = URLRequest(url: url)
-        let headers: [String: String] = [
-            "Cookie": EnvironmentService.shared.archiveCookie
-        ]
-        request.allHTTPHeaderFields = headers
+        if EnvironmentService.shared.hasArchiveCookie {
+            let headers: [String: String] = [
+                "Cookie": EnvironmentService.shared.archiveCookie
+            ]
+            request.allHTTPHeaderFields = headers
+        }
         
         let downloadTask = URLSession.shared.downloadTask(with: request) { tempFileURL, response, error in
             // Handle download errors

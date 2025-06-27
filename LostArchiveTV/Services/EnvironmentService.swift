@@ -61,6 +61,12 @@ class EnvironmentService {
         return cachedMixpanelToken ?? ""
     }
     
+    /// Check if we have a valid archive cookie
+    var hasArchiveCookie: Bool {
+        guard let cookie = cachedArchiveCookie else { return false }
+        return cookie != "${ARCHIVE_COOKIE}" && !cookie.isEmpty
+    }
+    
     // MARK: - Private Methods
     
     /// Loads API keys from environment variables or Info.plist
@@ -97,18 +103,18 @@ class EnvironmentService {
         }
         
         // Log status (without exposing actual keys)
-        Logger.network.debug("OpenAI API key status: \(self.cachedOpenAIKey != nil ? "Available" : "Missing")")
-        Logger.network.debug("Pinecone API key status: \(self.cachedPineconeKey != nil ? "Available" : "Missing")")
-        Logger.network.debug("Pinecone host status: \(self.cachedPineconeHost != nil ? "Available" : "Missing")")
-        Logger.network.debug("Archive cookie status: \(self.cachedArchiveCookie != nil ? "Available" : "Missing")")
-        Logger.network.debug("Mixpanel token status: \(self.cachedMixpanelToken != nil ? "Available" : "Missing")")
+        Logger.network.debug("OpenAI API key status: \((self.cachedOpenAIKey ?? "") != "${OPENAI_API_KEY}" && !(self.cachedOpenAIKey ?? "").isEmpty ? "Available" : "Missing")")
+        Logger.network.debug("Pinecone API key status: \((self.cachedPineconeKey ?? "") != "${PINECONE_API_KEY}" && !(self.cachedPineconeKey ?? "").isEmpty ? "Available" : "Missing")")
+        Logger.network.debug("Pinecone host status: \((self.cachedPineconeHost ?? "") != "${PINECONE_HOST}" && !(self.cachedPineconeHost ?? "").isEmpty ? "Available" : "Missing")")
+        Logger.network.debug("Archive cookie status: \((self.cachedArchiveCookie ?? "") != "${ARCHIVE_COOKIE}" && !(self.cachedArchiveCookie ?? "").isEmpty ? "Available" : "Missing")")
+        Logger.network.debug("Mixpanel token status: \((self.cachedMixpanelToken ?? "") != "${MIXPANEL_TOKEN}" && !(self.cachedMixpanelToken ?? "").isEmpty ? "Available" : "Missing")")
 
         // Validate that we have the required keys
-        if self.cachedOpenAIKey == nil {
+        if (self.cachedOpenAIKey ?? "") == "${OPENAI_API_KEY}" || (self.cachedOpenAIKey ?? "").isEmpty {
             Logger.network.error("MISSING OPENAI API KEY: Application will fail when attempting semantic search")
         }
         
-        if self.cachedPineconeKey == nil || self.cachedPineconeHost == nil {
+        if (self.cachedPineconeKey ?? "") == "${PINECONE_API_KEY}" || (self.cachedPineconeKey ?? "").isEmpty || (self.cachedPineconeHost ?? "") == "${PINECONE_HOST}" || (self.cachedPineconeHost ?? "").isEmpty {
             Logger.network.error("MISSING PINECONE CREDENTIALS: Application will fail when attempting semantic search")
         }
     }
