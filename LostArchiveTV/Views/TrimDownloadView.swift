@@ -158,10 +158,12 @@ struct TrimDownloadView<Provider: VideoProvider & ObservableObject>: View {
             Task {
                 // Now download to our specific location with cookie header
                 var request = URLRequest(url: videoURL)
-                let headers: [String: String] = [
-                    "Cookie": EnvironmentService.shared.archiveCookie
-                ]
-                request.allHTTPHeaderFields = headers
+                if EnvironmentService.shared.hasArchiveCookie {
+                    let headers: [String: String] = [
+                        "Cookie": EnvironmentService.shared.archiveCookie
+                    ]
+                    request.allHTTPHeaderFields = headers
+                }
 
                 logger.debug("Downloading from direct URL: \(videoURL.lastPathComponent)")
 
@@ -252,10 +254,12 @@ struct TrimDownloadView<Provider: VideoProvider & ObservableObject>: View {
                     
                     // Now download to our specific location with cookie header
                     var request = URLRequest(url: videoURL)
-                    let headers: [String: String] = [
-                        "Cookie": EnvironmentService.shared.archiveCookie
-                    ]
-                    request.allHTTPHeaderFields = headers
+                    if EnvironmentService.shared.hasArchiveCookie {
+                        let headers: [String: String] = [
+                            "Cookie": EnvironmentService.shared.archiveCookie
+                        ]
+                        request.allHTTPHeaderFields = headers
+                    }
                     
                     let downloadTask = URLSession.shared.downloadTask(with: request) { tempFileURL, response, error in
                         // Handle download errors
