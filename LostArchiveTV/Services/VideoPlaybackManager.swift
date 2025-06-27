@@ -63,6 +63,42 @@ class VideoPlaybackManager: ObservableObject {
     
     // MARK: - Cleanup
     
+    /// Cleans up player resources without setting player to nil (for switching players)
+    func cleanupPlayerResources() {        
+        // Get player identifier for logging before cleanup
+        var playerPointerStr = "nil"
+        var playerItemStatus = -1
+        if let existingPlayer = player {
+            playerPointerStr = String(describing: ObjectIdentifier(existingPlayer))
+            playerItemStatus = existingPlayer.currentItem?.status.rawValue ?? -1
+        }
+
+        Logger.videoPlayback.debug("🧹 VP_MANAGER: Starting resource cleanup for player \(playerPointerStr), item status: \(playerItemStatus)")
+
+        // Remove time observer
+        if let timeObserverToken = timeObserverToken, let player = player {
+            Logger.videoPlayback.debug("🧹 VP_MANAGER: Removing time observer")
+            player.removeTimeObserver(timeObserverToken)
+            self.timeObserverToken = nil
+        }
+
+        // Remove notification observers
+        if let currentItem = player?.currentItem {
+            Logger.videoPlayback.debug("🧹 VP_MANAGER: Removing notification observers for item with status: \(currentItem.status.rawValue)")
+            NotificationCenter.default.removeObserver(
+                self,
+                name: .AVPlayerItemDidPlayToEndTime,
+                object: currentItem
+            )
+        }
+
+        // Stop the player but don't replace the item yet
+        Logger.videoPlayback.debug("🧹 VP_MANAGER: Stopping current player")
+        player?.pause()
+        
+        Logger.videoPlayback.debug("🧹 VP_MANAGER: Resource cleanup complete (player not nil)")
+    }
+    
     /// Cleans up all player resources
     func cleanupPlayer() {
         // Get player identifier for logging before cleanup

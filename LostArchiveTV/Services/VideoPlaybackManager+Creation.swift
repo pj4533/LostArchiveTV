@@ -23,8 +23,8 @@ extension VideoPlaybackManager {
             Logger.videoPlayback.debug("🔄 PLAYER_CHANGE: About to clean up existing player \(existingPointer) with item status: \(existingItemStatus)")
         }
 
-        // Clean up resources from the existing player
-        cleanupPlayer()
+        // Clean up resources from the existing player WITHOUT setting player to nil
+        cleanupPlayerResources()
 
         // Use the provided player directly
         self.player = player
