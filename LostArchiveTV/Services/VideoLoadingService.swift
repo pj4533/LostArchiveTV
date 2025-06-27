@@ -139,14 +139,17 @@ actor VideoLoadingService {
         // Create player item with format-specific caching configuration
         let playerItem = AVPlayerItem(asset: asset)
         
-        // Configure buffer size based on format
+        // Configure aggressive buffer size for all formats (5 minutes)
         if isH264IA {
-            playerItem.preferredForwardBufferDuration = 15  // Smaller buffer for optimized format
+            playerItem.preferredForwardBufferDuration = 300.0  // 5 minutes (was 15 seconds)
         } else if isH264 {
-            playerItem.preferredForwardBufferDuration = 30  // Medium buffer for h.264
+            playerItem.preferredForwardBufferDuration = 300.0  // 5 minutes (was 30 seconds)
         } else {
-            playerItem.preferredForwardBufferDuration = 60  // Larger buffer for MPEG4
+            playerItem.preferredForwardBufferDuration = 300.0  // 5 minutes (was 60 seconds)
         }
+        
+        // Remove quality limits for preloading
+        playerItem.preferredPeakBitRate = 0  // No limit (system default)
         
         // Allow network caching while paused for all formats
         playerItem.canUseNetworkResourcesForLiveStreamingWhilePaused = true
@@ -315,9 +318,27 @@ actor VideoLoadingService {
             Logger.videoPlayback.warning("Failed to preload asset keys: \(error.localizedDescription)")
             // Continue anyway - this is just an optimization
         }
+        
+        // Create player item with aggressive buffer configuration
+        let playerItem = AVPlayerItem(asset: asset)
+        
+        // Configure aggressive buffer size for all formats (5 minutes)
+        if isH264IA {
+            playerItem.preferredForwardBufferDuration = 300.0  // 5 minutes
+        } else if isH264 {
+            playerItem.preferredForwardBufferDuration = 300.0  // 5 minutes
+        } else {
+            playerItem.preferredForwardBufferDuration = 300.0  // 5 minutes
+        }
+        
+        // Remove quality limits for preloading
+        playerItem.preferredPeakBitRate = 0  // No limit (system default)
+        
+        // Allow network caching while paused for all formats
+        playerItem.canUseNetworkResourcesForLiveStreamingWhilePaused = true
         // -------------------- END: FORMAT-SPECIFIC ASSET OPTIMIZATIONS --------------------
         
-        Logger.videoPlayback.debug("Created AVURLAsset with format-specific optimizations")
+        Logger.videoPlayback.debug("Created AVURLAsset with format-specific optimizations and aggressive buffer configuration")
         
         // Set title and description from metadata
         let title = metadata.metadata?.title ?? identifier
