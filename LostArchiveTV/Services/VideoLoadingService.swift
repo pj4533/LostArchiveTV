@@ -86,9 +86,10 @@ actor VideoLoadingService {
         }
         
         // Create optimized asset with format-specific settings
-        let headers: [String: String] = [
-           "Cookie": EnvironmentService.shared.archiveCookie
-        ]
+        var headers: [String: String] = [:]
+        if EnvironmentService.shared.hasArchiveCookie {
+            headers["Cookie"] = EnvironmentService.shared.archiveCookie
+        }
         
         // -------------------- START: FORMAT-SPECIFIC ASSET OPTIMIZATIONS --------------------
         // Detect file format for optimizations
@@ -99,7 +100,10 @@ actor VideoLoadingService {
         Logger.videoPlayback.info("Format-specific optimizations for file format: \(fileFormat)")
         
         // Configure asset options based on format
-        var resourceOptions: [String: Any] = ["AVURLAssetHTTPHeaderFieldsKey": headers]
+        var resourceOptions: [String: Any] = [:]
+        if !headers.isEmpty {
+            resourceOptions["AVURLAssetHTTPHeaderFieldsKey"] = headers
+        }
         
         if isH264IA {
             // h.264 IA specific optimizations for fastest startup
@@ -269,9 +273,10 @@ actor VideoLoadingService {
         
         // Create asset with optimized loading
         let assetStartTime = CFAbsoluteTimeGetCurrent()
-        let headers: [String: String] = [
-           "Cookie": EnvironmentService.shared.archiveCookie
-        ]
+        var headers: [String: String] = [:]
+        if EnvironmentService.shared.hasArchiveCookie {
+            headers["Cookie"] = EnvironmentService.shared.archiveCookie
+        }
         
         // -------------------- START: FORMAT-SPECIFIC ASSET OPTIMIZATIONS --------------------
         // Detect file format for optimizations
@@ -282,7 +287,10 @@ actor VideoLoadingService {
         Logger.videoPlayback.info("Format-specific optimizations for file format: \(fileFormat)")
         
         // Configure asset options based on format
-        var resourceOptions: [String: Any] = ["AVURLAssetHTTPHeaderFieldsKey": headers]
+        var resourceOptions: [String: Any] = [:]
+        if !headers.isEmpty {
+            resourceOptions["AVURLAssetHTTPHeaderFieldsKey"] = headers
+        }
         
         if isH264IA {
             // h.264 IA specific optimizations for fastest startup
