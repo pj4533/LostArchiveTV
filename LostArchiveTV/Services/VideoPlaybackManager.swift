@@ -11,19 +11,7 @@ import OSLog
 
 class VideoPlaybackManager: ObservableObject {
     // MARK: - Published Properties
-    @Published var player: AVPlayer? {
-        didSet {
-            if player == nil {
-                Logger.videoPlayback.debug("🎯 VP_MANAGER: Player set to nil - CALL STACK:")
-                let callStack = Thread.callStackSymbols
-                for (index, symbol) in callStack.enumerated() {
-                    Logger.videoPlayback.debug("🎯 VP_MANAGER: [\(index)] \(symbol)")
-                }
-            } else {
-                Logger.videoPlayback.debug("🎯 VP_MANAGER: Player set to non-nil value")
-            }
-        }
-    }
+    @Published var player: AVPlayer?
     @Published var isPlaying = false
     @Published var currentTime: Double = 0
     @Published var videoDuration: Double = 0
@@ -36,12 +24,7 @@ class VideoPlaybackManager: ObservableObject {
     
     // MARK: - Initialization
     init() {
-        Logger.videoPlayback.debug("🚀 VP_MANAGER: VideoPlaybackManager initializing - CALL STACK:")
-        let callStack = Thread.callStackSymbols
-        for (index, symbol) in callStack.enumerated() {
-            Logger.videoPlayback.debug("🚀 VP_MANAGER: [\(index)] \(symbol)")
-        }
-        Logger.videoPlayback.debug("🚀 VP_MANAGER: VideoPlaybackManager initialized")
+        Logger.videoPlayback.debug("VideoPlaybackManager initialized")
         // Configure audio session
         setupAudioSession()
     }
@@ -82,19 +65,7 @@ class VideoPlaybackManager: ObservableObject {
     
     /// Cleans up player resources without setting player to nil (for switching players)
     func cleanupPlayerResources() {        
-        // Get player identifier for logging before cleanup
-        var playerPointerStr = "nil"
-        var playerItemStatus = -1
-        if let existingPlayer = player {
-            playerPointerStr = String(describing: ObjectIdentifier(existingPlayer))
-            playerItemStatus = existingPlayer.currentItem?.status.rawValue ?? -1
-        }
-
-        Logger.videoPlayback.debug("🧹 VP_MANAGER: Starting resource cleanup for player \(playerPointerStr), item status: \(playerItemStatus) - CALL STACK:")
-        let callStack = Thread.callStackSymbols
-        for (index, symbol) in callStack.enumerated() {
-            Logger.videoPlayback.debug("🧹 VP_MANAGER: [\(index)] \(symbol)")
-        }
+        Logger.videoPlayback.debug("🧹 VP_MANAGER: Starting resource cleanup")
 
         // Remove time observer
         if let timeObserverToken = timeObserverToken, let player = player {
@@ -105,7 +76,7 @@ class VideoPlaybackManager: ObservableObject {
 
         // Remove notification observers
         if let currentItem = player?.currentItem {
-            Logger.videoPlayback.debug("🧹 VP_MANAGER: Removing notification observers for item with status: \(currentItem.status.rawValue)")
+            Logger.videoPlayback.debug("🧹 VP_MANAGER: Removing notification observers")
             NotificationCenter.default.removeObserver(
                 self,
                 name: .AVPlayerItemDidPlayToEndTime,
@@ -122,19 +93,7 @@ class VideoPlaybackManager: ObservableObject {
     
     /// Cleans up all player resources
     func cleanupPlayer() {
-        // Get player identifier for logging before cleanup
-        var playerPointerStr = "nil"
-        var playerItemStatus = -1
-        if let existingPlayer = player {
-            playerPointerStr = String(describing: ObjectIdentifier(existingPlayer))
-            playerItemStatus = existingPlayer.currentItem?.status.rawValue ?? -1
-        }
-
-        Logger.videoPlayback.debug("🧹 VP_MANAGER: Starting cleanup for player \(playerPointerStr), item status: \(playerItemStatus) - CALL STACK:")
-        let callStack = Thread.callStackSymbols
-        for (index, symbol) in callStack.enumerated() {
-            Logger.videoPlayback.debug("🧹 VP_MANAGER: [\(index)] \(symbol)")
-        }
+        Logger.videoPlayback.debug("🧹 VP_MANAGER: Starting cleanup")
 
         // Remove time observer
         if let timeObserverToken = timeObserverToken, let player = player {
@@ -145,7 +104,7 @@ class VideoPlaybackManager: ObservableObject {
 
         // Remove notification observers
         if let currentItem = player?.currentItem {
-            Logger.videoPlayback.debug("🧹 VP_MANAGER: Removing notification observers for item with status: \(currentItem.status.rawValue)")
+            Logger.videoPlayback.debug("🧹 VP_MANAGER: Removing notification observers")
             NotificationCenter.default.removeObserver(
                 self,
                 name: .AVPlayerItemDidPlayToEndTime,
