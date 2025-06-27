@@ -1,8 +1,8 @@
 //
-//  PlayerManager+Monitoring.swift
+//  VideoPlaybackManager+Monitoring.swift
 //  LostArchiveTV
 //
-//  Created by PJ Gray on 5/31/25.
+//  Created by VideoPlaybackManager split on 6/27/25.
 //
 
 import Foundation
@@ -10,7 +10,8 @@ import AVFoundation
 import OSLog
 
 // MARK: - Monitoring and Observation
-extension PlayerManager {
+extension VideoPlaybackManager {
+    
     /// Sets up periodic time observation for the player
     internal func setupTimeObserver() {
         let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
@@ -45,7 +46,7 @@ extension PlayerManager {
     
     /// Handler for when playback reaches the end
     @objc private func playerItemDidReachEnd(notification: Notification) {
-        Logger.videoPlayback.info("Video playback reached end - restarting from beginning")
+        Logger.videoPlayback.info("🔄 VP_MANAGER: Video playback reached end - restarting from beginning")
         // Seek to the beginning and continue playing
         player?.seek(to: CMTime.zero)
         player?.play()
@@ -75,7 +76,7 @@ extension PlayerManager {
                     
                     // Create detailed playback progress log
                     let monitorLog = """
-                    [Monitor \(monitorCount+1)/10] Playback status at time \(currentTime.formatted(.number.precision(.fractionLength(2))))s / \(totalDuration.formatted(.number.precision(.fractionLength(2))))s (\(percentComplete.formatted(.number.precision(.fractionLength(2)))))%):
+                    📊 VP_MANAGER: [Monitor \(monitorCount+1)/10] Playback status at time \(currentTime.formatted(.number.precision(.fractionLength(2))))s / \(totalDuration.formatted(.number.precision(.fractionLength(2))))s (\(percentComplete.formatted(.number.precision(.fractionLength(2)))))%):
                     - Buffered: \(bufferedDuration.formatted(.number.precision(.fractionLength(1))))s ahead
                     - Buffer status: \(bufferEmpty ? "EMPTY" : bufferFull ? "FULL" : playbackLikelyToKeepUp ? "GOOD" : "LOW")
                     - Buffer likely to keep up: \(playbackLikelyToKeepUp)
@@ -86,7 +87,7 @@ extension PlayerManager {
                     Logger.videoPlayback.debug("\(monitorLog)")
                     
                     if bufferEmpty {
-                        Logger.videoPlayback.warning("⚠️ Playback buffer empty at \(currentTime.formatted(.number.precision(.fractionLength(2))))s (\(percentComplete.formatted(.number.precision(.fractionLength(2)))))%)")
+                        Logger.videoPlayback.warning("⚠️ VP_MANAGER: Playback buffer empty at \(currentTime.formatted(.number.precision(.fractionLength(2))))s (\(percentComplete.formatted(.number.precision(.fractionLength(2)))))%)")
                     }
                 }
                 

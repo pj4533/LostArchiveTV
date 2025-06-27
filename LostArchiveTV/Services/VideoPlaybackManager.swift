@@ -9,138 +9,112 @@ import Foundation
 import AVFoundation
 import OSLog
 
+/// Consolidated video playback manager that directly handles AVPlayer functionality
+/// This class provides a centralized interface for all video playback operations.
 class VideoPlaybackManager: ObservableObject {
-    // Use the centralized PlayerManager
-    let playerManager = PlayerManager()
-    
-    // Published properties that mirror PlayerManager values
+    // MARK: - Published Properties
+    @Published var player: AVPlayer?
     @Published var isPlaying = false
     @Published var currentTime: Double = 0
     @Published var videoDuration: Double = 0
+
+    // MARK: - Internal Properties
+    internal var timeObserverToken: Any?
+    internal var _currentVideoURL: URL?
+    internal let audioSessionManager = AudioSessionManager()
+    internal var normalPlaybackRate: Float = 1.0
+
+    // MARK: - Computed Properties
+    var currentVideoURL: URL? {
+        return _currentVideoURL
+    }
     
+    var currentTimeAsCMTime: CMTime? {
+        guard let player = player else { return nil }
+        return player.currentItem?.currentTime()
+    }
+    
+    var durationAsCMTime: CMTime? {
+        guard let player = player else { return nil }
+        return player.currentItem?.duration
+    }
+    
+    // MARK: - Initialization
     init() {
-        // Set up observation of the player manager's published properties
-        setupObservations()
+        Logger.videoPlayback.debug("🎮 VP_MANAGER: VideoPlaybackManager initialized")
         
         // Configure audio session
         setupAudioSession()
     }
     
-    private func setupObservations() {
-        // Observe isPlaying
-        Task {
-            for await isPlaying in playerManager.$isPlaying.values {
-                await MainActor.run {
-                    self.isPlaying = isPlaying
-                }
-            }
-        }
-        
-        // Observe currentTime
-        Task {
-            for await currentTime in playerManager.$currentTime.values {
-                await MainActor.run {
-                    self.currentTime = currentTime
-                }
-            }
-        }
-        
-        // Observe videoDuration
-        Task {
-            for await videoDuration in playerManager.$videoDuration.values {
-                await MainActor.run {
-                    self.videoDuration = videoDuration
-                }
-            }
-        }
+    deinit {
+        cleanupPlayer()
     }
     
-    // MARK: - Proxied Player Properties
-    var player: AVPlayer? {
-        get { playerManager.player }
-        set {
-            if let newPlayer = newValue {
-                playerManager.useExistingPlayer(newPlayer)
-            } else {
-                playerManager.cleanupPlayer()
-            }
-        }
-    }
+    // MARK: - Audio Session Management
     
-    var currentVideoURL: URL? {
-        return playerManager.currentVideoURL
-    }
-    
-    var currentTimeAsCMTime: CMTime? {
-        return playerManager.currentTimeAsCMTime
-    }
-    
-    var durationAsCMTime: CMTime? {
-        return playerManager.durationAsCMTime
-    }
-    
-    // MARK: - Proxied Methods
-    
-    func setupAudioSession() {
-        playerManager.setupAudioSession()
-    }
-    
-    func useExistingPlayer(_ player: AVPlayer) {
-        let playerPointer = String(describing: ObjectIdentifier(player))
-        Logger.videoPlayback.debug("🎮 VP_MANAGER: Delegating useExistingPlayer for player \(playerPointer)")
-        playerManager.useExistingPlayer(player)
-    }
-
-    func play() {
-        if let player = playerManager.player {
-            let playerPointer = String(describing: ObjectIdentifier(player))
-            let itemStatus = player.currentItem?.status.rawValue ?? -1
-            Logger.videoPlayback.debug("▶️ VP_MANAGER: Play requested for player \(playerPointer), item status: \(itemStatus)")
+    /// Configures the audio session for optimal playback
+    func setupAudioSession(forTrimming: Bool = false) {
+        if forTrimming {
+            audioSessionManager.configureForTrimming()
         } else {
-            Logger.videoPlayback.warning("▶️ VP_MANAGER: Play requested but player is nil")
+            audioSessionManager.configureForPlayback()
         }
-        playerManager.play()
-    }
-
-    func pause() {
-        if let player = playerManager.player {
-            let playerPointer = String(describing: ObjectIdentifier(player))
-            let itemStatus = player.currentItem?.status.rawValue ?? -1
-            Logger.videoPlayback.debug("⏸️ VP_MANAGER: Pause requested for player \(playerPointer), item status: \(itemStatus)")
-        } else {
-            Logger.videoPlayback.warning("⏸️ VP_MANAGER: Pause requested but player is nil")
-        }
-        playerManager.pause()
     }
     
-    func seek(to time: CMTime, completion: ((Bool) -> Void)? = nil) {
-        playerManager.seek(to: time, completion: completion)
+    /// Deactivates the audio session when done with playback
+    func deactivateAudioSession() {
+        audioSessionManager.deactivate()
     }
     
-    func seekToBeginning() {
-        playerManager.seekToBeginning()
-    }
+    // MARK: - Cleanup
     
-    func monitorBufferStatus(for playerItem: AVPlayerItem) async {
-        await playerManager.monitorBufferStatus(for: playerItem)
-    }
-    
+    /// Cleans up all player resources
     func cleanupPlayer() {
-        if let player = playerManager.player {
-            let playerPointer = String(describing: ObjectIdentifier(player))
-            let itemStatus = player.currentItem?.status.rawValue ?? -1
-            Logger.videoPlayback.debug("🧹 VP_MANAGER: Delegating cleanupPlayer for player \(playerPointer), item status: \(itemStatus)")
-        } else {
-            Logger.videoPlayback.debug("🧹 VP_MANAGER: Delegating cleanupPlayer but player is already nil")
+        // Get player identifier for logging before cleanup
+        var playerPointerStr = "nil"
+        var playerItemStatus = -1
+        if let existingPlayer = player {
+            playerPointerStr = String(describing: ObjectIdentifier(existingPlayer))
+            playerItemStatus = existingPlayer.currentItem?.status.rawValue ?? -1
         }
-        playerManager.cleanupPlayer()
-    }
-    
-    func setTemporaryPlaybackRate(rate: Float) {
-        playerManager.setTemporaryPlaybackRate(rate: rate)
-    }
-    
-    func resetPlaybackRate() {
-        playerManager.resetPlaybackRate()
+
+        Logger.videoPlayback.debug("🧹 VP_MANAGER: Starting cleanup for player \(playerPointerStr), item status: \(playerItemStatus)")
+
+        // Remove time observer
+        if let timeObserverToken = timeObserverToken, let player = player {
+            Logger.videoPlayback.debug("🧹 VP_MANAGER: Removing time observer")
+            player.removeTimeObserver(timeObserverToken)
+            self.timeObserverToken = nil
+        }
+
+        // Remove notification observers
+        if let currentItem = player?.currentItem {
+            Logger.videoPlayback.debug("🧹 VP_MANAGER: Removing notification observers for item with status: \(currentItem.status.rawValue)")
+            NotificationCenter.default.removeObserver(
+                self,
+                name: .AVPlayerItemDidPlayToEndTime,
+                object: currentItem
+            )
+        }
+
+        // Log URL before clearing
+        if let url = _currentVideoURL {
+            Logger.videoPlayback.debug("🧹 VP_MANAGER: Clearing URL: \(url.lastPathComponent)")
+        }
+
+        // Stop and clear player
+        Logger.videoPlayback.debug("🧹 VP_MANAGER: Pausing and replacing player item with nil")
+        player?.pause()
+        player?.replaceCurrentItem(with: nil)
+
+        Logger.videoPlayback.debug("🧹 VP_MANAGER: Setting player to nil and resetting state")
+        player = nil
+        isPlaying = false
+        currentTime = 0
+        videoDuration = 0
+        _currentVideoURL = nil
+
+        Logger.videoPlayback.debug("🧹 VP_MANAGER: Cleanup complete")
     }
 }

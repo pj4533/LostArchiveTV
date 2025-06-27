@@ -37,7 +37,7 @@ class TrimCoordinator: ObservableObject {
         logger.debug("🎬 TRIM_COORDINATOR: Starting view model preparation")
 
         do {
-            // Audio session is handled by PlayerManager, not needed here
+            // Audio session is handled by VideoPlaybackManager, not needed here
 
             // Prepare the view model (this initializes player and resources)
             logger.debug("🎬 TRIM_COORDINATOR: Calling view model prepareForTrimming")
