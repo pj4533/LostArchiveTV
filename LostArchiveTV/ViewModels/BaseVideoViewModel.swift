@@ -148,7 +148,7 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
             if let newPlayer = newValue {
                 playbackManager.useExistingPlayer(newPlayer)
             } else {
-                playbackManager.cleanupPlayer()
+                playbackManager.player = nil  // Direct assignment only, no cleanup
             }
         }
     }

@@ -11,7 +11,19 @@ import OSLog
 
 class VideoPlaybackManager: ObservableObject {
     // MARK: - Published Properties
-    @Published var player: AVPlayer?
+    @Published var player: AVPlayer? {
+        didSet {
+            if player == nil {
+                Logger.videoPlayback.debug("🎯 VP_MANAGER: Player set to nil - CALL STACK:")
+                let callStack = Thread.callStackSymbols
+                for (index, symbol) in callStack.enumerated() {
+                    Logger.videoPlayback.debug("🎯 VP_MANAGER: [\(index)] \(symbol)")
+                }
+            } else {
+                Logger.videoPlayback.debug("🎯 VP_MANAGER: Player set to non-nil value")
+            }
+        }
+    }
     @Published var isPlaying = false
     @Published var currentTime: Double = 0
     @Published var videoDuration: Double = 0
@@ -24,7 +36,12 @@ class VideoPlaybackManager: ObservableObject {
     
     // MARK: - Initialization
     init() {
-        Logger.videoPlayback.debug("VideoPlaybackManager initialized")
+        Logger.videoPlayback.debug("🚀 VP_MANAGER: VideoPlaybackManager initializing - CALL STACK:")
+        let callStack = Thread.callStackSymbols
+        for (index, symbol) in callStack.enumerated() {
+            Logger.videoPlayback.debug("🚀 VP_MANAGER: [\(index)] \(symbol)")
+        }
+        Logger.videoPlayback.debug("🚀 VP_MANAGER: VideoPlaybackManager initialized")
         // Configure audio session
         setupAudioSession()
     }
@@ -73,7 +90,11 @@ class VideoPlaybackManager: ObservableObject {
             playerItemStatus = existingPlayer.currentItem?.status.rawValue ?? -1
         }
 
-        Logger.videoPlayback.debug("🧹 VP_MANAGER: Starting resource cleanup for player \(playerPointerStr), item status: \(playerItemStatus)")
+        Logger.videoPlayback.debug("🧹 VP_MANAGER: Starting resource cleanup for player \(playerPointerStr), item status: \(playerItemStatus) - CALL STACK:")
+        let callStack = Thread.callStackSymbols
+        for (index, symbol) in callStack.enumerated() {
+            Logger.videoPlayback.debug("🧹 VP_MANAGER: [\(index)] \(symbol)")
+        }
 
         // Remove time observer
         if let timeObserverToken = timeObserverToken, let player = player {
@@ -109,7 +130,11 @@ class VideoPlaybackManager: ObservableObject {
             playerItemStatus = existingPlayer.currentItem?.status.rawValue ?? -1
         }
 
-        Logger.videoPlayback.debug("🧹 VP_MANAGER: Starting cleanup for player \(playerPointerStr), item status: \(playerItemStatus)")
+        Logger.videoPlayback.debug("🧹 VP_MANAGER: Starting cleanup for player \(playerPointerStr), item status: \(playerItemStatus) - CALL STACK:")
+        let callStack = Thread.callStackSymbols
+        for (index, symbol) in callStack.enumerated() {
+            Logger.videoPlayback.debug("🧹 VP_MANAGER: [\(index)] \(symbol)")
+        }
 
         // Remove time observer
         if let timeObserverToken = timeObserverToken, let player = player {
