@@ -70,9 +70,6 @@ extension VideoPlayerViewModel {
                 }
             }
             
-            // Clean up existing player if needed
-            playbackManager.cleanupPlayer()
-            
             // Load the video directly, bypassing cache
             Logger.videoPlayback.info("🔄 FAST START: Requesting video directly, bypassing cache")
             let videoInfo = try await videoLoadingService.loadFreshRandomVideo()
