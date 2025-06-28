@@ -71,18 +71,22 @@ struct BottomInfoPanel: View {
                         .padding(.trailing, 80) // Leave space for right-side buttons
                     }
                     
-                    // Swipe hint below indicators
-                    Text("Swipe up for next video")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.7))
-                        .shimmerEffect(active: showShimmerEffect)
-                        .onAppear {
-                            // Log what we're about to display to the user
-                            let currentReady = currentBufferingMonitor?.bufferState.isReady ?? false
-                            let nextReady = nextBufferingMonitor?.bufferState.isReady ?? false
-                            
-                            Logger.caching.info("🖥️ UI DISPLAY: Buffering indicators - current ready: \(currentReady), next ready: \(nextReady)")
-                        }
+                    // Swipe hint below indicators - always centered
+                    HStack {
+                        Spacer()
+                        Text("Swipe up for next video")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                            .shimmerEffect(active: showShimmerEffect)
+                            .onAppear {
+                                // Log what we're about to display to the user
+                                let currentReady = currentBufferingMonitor?.bufferState.isReady ?? false
+                                let nextReady = nextBufferingMonitor?.bufferState.isReady ?? false
+                                
+                                Logger.caching.info("🖥️ UI DISPLAY: Buffering indicators - current ready: \(currentReady), next ready: \(nextReady)")
+                            }
+                        Spacer()
+                    }
                 }
                 .padding(.bottom, 8)
             }
