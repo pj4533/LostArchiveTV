@@ -87,57 +87,9 @@ struct RetroEdgePreloadIndicator: View {
     }
     
     private func preloadedBorder(size: CGSize) -> some View {
-        // Static mesh gradient border without pulsing
-        Group {
-            if #available(iOS 18.0, *) {
-                MeshGradient(
-                    width: 3,
-                    height: 3,
-                    points: [
-                        // 3x3 grid of control points
-                        SIMD2<Float>(0.0, 0.0), SIMD2<Float>(0.5, 0.0), SIMD2<Float>(1.0, 0.0),
-                        SIMD2<Float>(0.0, 0.5), SIMD2<Float>(0.5, 0.5), SIMD2<Float>(1.0, 0.5),
-                        SIMD2<Float>(0.0, 1.0), SIMD2<Float>(0.5, 1.0), SIMD2<Float>(1.0, 1.0)
-                    ],
-                    colors: [
-                        Color(hue: 0.0, saturation: 0.8, brightness: 0.9),    // Red
-                        Color(hue: 0.125, saturation: 0.8, brightness: 0.9),  // Orange
-                        Color(hue: 0.25, saturation: 0.8, brightness: 0.9),   // Yellow
-                        Color(hue: 0.375, saturation: 0.8, brightness: 0.9),  // Yellow-Green
-                        Color(hue: 0.5, saturation: 0.8, brightness: 0.9),    // Cyan
-                        Color(hue: 0.625, saturation: 0.8, brightness: 0.9),  // Blue
-                        Color(hue: 0.75, saturation: 0.8, brightness: 0.9),   // Purple
-                        Color(hue: 0.875, saturation: 0.8, brightness: 0.9),  // Magenta
-                        Color(hue: 1.0, saturation: 0.8, brightness: 0.9)     // Red (full circle)
-                    ]
-                )
-                .mask {
-                    EdgeBorder(width: 2.5)
-                        .stroke(style: StrokeStyle(lineWidth: 2.5))
-                }
-                .blur(radius: 3.0)
-                .opacity(0.7)
-            } else {
-                // Fallback for older iOS versions - use multiple colors with gradient
-                EdgeBorder(width: 2.5)
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                Color(hue: 0.0, saturation: 0.8, brightness: 0.9),
-                                Color(hue: 0.25, saturation: 0.8, brightness: 0.9),
-                                Color(hue: 0.5, saturation: 0.8, brightness: 0.9),
-                                Color(hue: 0.75, saturation: 0.8, brightness: 0.9),
-                                Color(hue: 1.0, saturation: 0.8, brightness: 0.9)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 2.5
-                    )
-                    .blur(radius: 3.0)
-                    .opacity(0.7)
-            }
-        }
+        // Simple solid green border for preloaded state
+        EdgeBorder(width: 2.5)
+            .stroke(state.color, lineWidth: 2.5)
     }
     
     private func startTransition() {
