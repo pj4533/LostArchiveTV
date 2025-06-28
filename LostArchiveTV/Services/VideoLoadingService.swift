@@ -22,6 +22,8 @@ actor VideoLoadingService {
     /// - Parameter metadata: The archive metadata containing file information
     /// - Returns: The count of unique video files (grouped by base filename)
     static func calculateFileCount(from metadata: ArchiveMetadata) -> Int {
+        Logger.caching.debug("🔍 DEBUG: calculateFileCount called with \(metadata.files.count) total files")
+        
         // Filter for video files
         let allVideoFiles = metadata.files.filter {
             $0.name.hasSuffix(".mp4") ||
@@ -29,6 +31,8 @@ actor VideoLoadingService {
             $0.format == "h.264" ||
             $0.format == "MPEG4"
         }
+        
+        Logger.caching.debug("🔍 DEBUG: Found \(allVideoFiles.count) video files after filtering")
 
         // Count unique file base names
         var uniqueBaseNames = Set<String>()
@@ -36,6 +40,8 @@ actor VideoLoadingService {
             let baseName = file.name.replacingOccurrences(of: "\\.mp4$", with: "", options: .regularExpression)
             uniqueBaseNames.insert(baseName)
         }
+        
+        Logger.caching.debug("🔍 DEBUG: Calculated \(uniqueBaseNames.count) unique video files")
 
         return uniqueBaseNames.count
     }

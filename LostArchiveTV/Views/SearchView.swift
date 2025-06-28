@@ -194,40 +194,30 @@ struct SearchResultCell: View {
             }
             .aspectRatio(1, contentMode: .fill)
             
-            // Metadata overlay with gradient
-            VStack {
-                Spacer()
+            // Metadata overlay with simple black background
+            VStack(alignment: .leading, spacing: 4) {
+                // Title
+                Text(result.title)
+                    .lineLimit(2)
+                    .font(.caption)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 
-                VStack(alignment: .leading, spacing: 4) {
-                    // Title
-                    Text(result.title)
-                        .lineLimit(2)
-                        .font(.caption)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    
-                    // File count
-                    if let count = fileCount {
-                        Text(count == 1 ? "1 file" : "\(count) files")
-                            .font(.caption2)
-                            .foregroundColor(.white.opacity(0.8))
-                    } else if isLoadingMetadata {
-                        Text("Loading...")
-                            .font(.caption2)
-                            .foregroundColor(.white.opacity(0.8))
-                    }
+                // File count
+                if let count = fileCount {
+                    Text(count == 1 ? "1 file" : "\(count) files")
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.8))
+                } else if isLoadingMetadata {
+                    Text("Loading...")
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.8))
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    LinearGradient(
-                        gradient: Gradient(colors: [.clear, .black.opacity(0.8)]),
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
             }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.black.opacity(0.7))
         }
         .frame(minWidth: 0, maxWidth: .infinity, minHeight: 160)
         .clipped()
@@ -240,21 +230,16 @@ struct SearchResultCell: View {
     }
     
     private func loadFileCount() {
-        guard fileCount == nil && !isLoadingMetadata else { return }
+        guard fileCount == nil && !isLoadingMetadata else { 
+            return 
+        }
         
         isLoadingMetadata = true
         
-        Task {
-            if let count = await viewModel.fetchFileCount(for: result.identifier.identifier) {
-                await MainActor.run {
-                    self.fileCount = count
-                    self.isLoadingMetadata = false
-                }
-            } else {
-                await MainActor.run {
-                    self.isLoadingMetadata = false
-                }
-            }
+        Task { @MainActor in
+            let count = await viewModel.fetchFileCount(for: result.identifier.identifier)
+            self.fileCount = count
+            self.isLoadingMetadata = false
         }
     }
 }

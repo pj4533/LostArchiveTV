@@ -144,27 +144,31 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
     /// - Parameter identifier: The archive identifier
     /// - Returns: The file count, or nil if there was an error
     func fetchFileCount(for identifier: String) async -> Int? {
+        Logger.caching.debug("🔍 DEBUG: fetchFileCount called for: \(identifier)")
+        
         // Check cache first
         if let cachedCount = fileCountCache[identifier] {
-            Logger.caching.info("File count cache hit for \(identifier): \(cachedCount)")
+            Logger.caching.info("🔍 DEBUG: File count cache hit for \(identifier): \(cachedCount)")
             return cachedCount
         }
         
         do {
             // Fetch metadata to calculate file count
-            Logger.caching.info("Fetching file count for \(identifier)")
+            Logger.caching.info("🔍 DEBUG: Fetching metadata for file count calculation: \(identifier)")
             let metadata = try await archiveService.fetchMetadata(for: identifier)
+            Logger.caching.debug("🔍 DEBUG: Got metadata with \(metadata.files.count) files")
             
             // Use the static method from VideoLoadingService to calculate file count
             let fileCount = VideoLoadingService.calculateFileCount(from: metadata)
+            Logger.caching.debug("🔍 DEBUG: calculateFileCount returned: \(fileCount)")
             
             // Cache the result
             fileCountCache[identifier] = fileCount
-            Logger.caching.info("Cached file count for \(identifier): \(fileCount)")
+            Logger.caching.info("🔍 DEBUG: Cached file count for \(identifier): \(fileCount)")
             
             return fileCount
         } catch {
-            Logger.caching.error("Failed to fetch file count for \(identifier): \(error.localizedDescription)")
+            Logger.caching.error("🔍 DEBUG: Failed to fetch file count for \(identifier): \(error.localizedDescription)")
             return nil
         }
     }
