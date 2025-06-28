@@ -36,6 +36,27 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
                 }
                 
+                // Advanced settings section
+                Section(header: Text("Advanced")) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "gearshape.2")
+                            .foregroundColor(.blue)
+                            .frame(width: 28, height: 28)
+                            .background(Color.blue.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                        
+                        Toggle("Show Buffer Indicators", isOn: Binding(
+                            get: {
+                                PlaybackPreferences.showBufferIndicators
+                            },
+                            set: { newValue in
+                                PlaybackPreferences.showBufferIndicators = newValue
+                            }
+                        ))
+                    }
+                    .padding(.vertical, 4)
+                }
+                
                 // about should always be at the bottom of the settingsview
                 Section(header: Text("About")) {
                     HStack(spacing: 12) {

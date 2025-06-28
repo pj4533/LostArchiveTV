@@ -14,6 +14,14 @@ struct FavoritesVideoLayerContent: View {
     @ObservedObject var viewModel: FavoritesViewModel
     var isPresented: Binding<Bool>?
     
+    // MARK: - Helper Functions
+    
+    private func getNextVideoTitle() -> String? {
+        // For favorites, we could get the next video in the favorites list
+        // For now, return nil as favorites don't have a clear "next" video concept
+        return nil
+    }
+    
     var body: some View {
         // Use the same layout as the main player
         ZStack {
@@ -48,7 +56,9 @@ struct FavoritesVideoLayerContent: View {
                         currentTime: player.currentItem != nil ? player.currentTime().seconds : nil,
                         duration: viewModel.videoDuration,
                         totalFiles: viewModel.totalFiles,
-                        cacheStatuses: viewModel.cacheStatuses
+                        currentBufferingMonitor: viewModel.currentBufferingMonitor,
+                        nextBufferingMonitor: viewModel.nextBufferingMonitor,
+                        nextVideoTitle: getNextVideoTitle()
                     )
                     .id("\(viewModel.totalFiles)-\(Date())") // Force refresh periodically and when totalFiles changes
                 }

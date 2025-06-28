@@ -29,20 +29,25 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
     @Published var currentFilename: String?
     @Published var videoDuration: Double = 0
     @Published var totalFiles: Int = 0
-    @Published var cacheStatuses: [CacheStatus] = [.notCached, .notCached, .notCached]
     
-    // MARK: - Cache Status Update Timer
-    private var cacheStatusTask: Task<Void, Never>?
-    private var cacheStatusPaused = false
+    // MARK: - Buffering Monitors
+    @Published var currentBufferingMonitor: BufferingMonitor?
+    @Published var nextBufferingMonitor: BufferingMonitor?
+    @Published var previousBufferingMonitor: BufferingMonitor?
+    
     
     // MARK: - Combine
     private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Initialization
     init() {
+        // Initialize buffering monitors
+        currentBufferingMonitor = BufferingMonitor()
+        nextBufferingMonitor = BufferingMonitor()
+        previousBufferingMonitor = BufferingMonitor()
+        
         setupAudioSession()
         setupDurationObserver()
-        startCacheStatusUpdates()
 
         // Listen for cache status changes using Combine
         TransitionPreloadManager.cacheStatusPublisher
@@ -51,10 +56,11 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
                 // Log that we received the notification
                 Logger.caching.info("📱 RECEIVED COMBINE EVENT: CacheStatusChanged in \(String(describing: type(of: self)))")
 
-                // Update cache status immediately when notification received
+                // Update buffering monitors for preloaded videos
                 Task {
-                    Logger.caching.info("🔄 UPDATING UI: updateCacheStatuses called due to Combine event")
-                    await self?.updateCacheStatuses()
+                    await MainActor.run {
+                        self?.updatePreloadedBufferingMonitors()
+                    }
                 }
             }
             .store(in: &cancellables)
@@ -70,7 +76,7 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
             Logger.caching.warning("🚨 RECOVERY: Received CacheSystemNeedsRestart notification")
 
             // Only the VideoPlayerViewModel has all the components needed to restart caching
-            if let videoPlayerViewModel = self as? VideoPlayerViewModel,
+            if let _ = self as? VideoPlayerViewModel,
                let cacheableProvider = self as? CacheableProvider {
                 Task {
                     Logger.caching.warning("🔄 FORCE RESTART: Attempting emergency cache restart in BaseVideoViewModel")
@@ -90,41 +96,6 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
         }
     }
 
-    private func startCacheStatusUpdates() {
-        cacheStatusTask?.cancel()
-
-        cacheStatusTask = Task {
-            // Update every second - less frequently to reduce log noise
-            while !Task.isCancelled {
-                // Only update if not paused
-                if !cacheStatusPaused {
-                    await updateCacheStatuses()
-                }
-
-                // Wait before checking again
-                do {
-                    try await Task.sleep(for: .seconds(1))
-                } catch {
-                    break
-                }
-            }
-        }
-    }
-
-    /// Pauses background operations like cache status updates
-    func pauseBackgroundOperations() async {
-        Logger.caching.info("⏸️ PAUSE: BaseVideoViewModel pausing background operations")
-        cacheStatusPaused = true
-    }
-
-    /// Resumes background operations that were paused
-    func resumeBackgroundOperations() async {
-        Logger.caching.info("▶️ RESUME: BaseVideoViewModel resuming background operations")
-        cacheStatusPaused = false
-
-        // Immediately update cache status when resuming
-        await updateCacheStatuses()
-    }
     
     // MARK: - Setup Functions
     
@@ -147,7 +118,11 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
         set {
             if let newPlayer = newValue {
                 playbackManager.useExistingPlayer(newPlayer)
+                // Connect the buffering monitor to the new player
+                playbackManager.connectBufferingMonitor(currentBufferingMonitor)
             } else {
+                // Disconnect monitor before cleanup
+                playbackManager.disconnectBufferingMonitor(currentBufferingMonitor)
                 playbackManager.cleanupPlayer()
             }
         }
@@ -195,14 +170,19 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
     func cleanup() {
         // Stop playback immediately
         playbackManager.pause()
+        
+        // Disconnect buffering monitor before cleanup
+        playbackManager.disconnectBufferingMonitor(currentBufferingMonitor)
+        
         playbackManager.cleanupPlayer()
 
-        // Cancel the cache status update task
-        cacheStatusTask?.cancel()
-        cacheStatusTask = nil
-
-        // Remove notification observer
-        NotificationCenter.default.removeObserver(self, name: Notification.Name("CacheStatusChanged"), object: nil)
+        // Cancel Combine subscriptions
+        cancellables.removeAll()
+        
+        // Stop all buffering monitors
+        currentBufferingMonitor?.stopMonitoring()
+        nextBufferingMonitor?.stopMonitoring()
+        previousBufferingMonitor?.stopMonitoring()
 
         // Other async cleanup can be done in a Task
         Task {
@@ -298,8 +278,10 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
                 Logger.caching.info("BaseVideoViewModel.ensureVideosAreCached: Using transition manager's unified caching")
                 await transitionManager.ensureAllVideosCached(provider: videoProvider)
 
-                // Update cache statuses
-                await updateCacheStatuses()
+                // Update buffering monitors for preloaded videos
+                await MainActor.run {
+                    updatePreloadedBufferingMonitors()
+                }
             } else {
                 // Fallback to just preloading next and previous videos
                 Logger.caching.warning("BaseVideoViewModel.ensureVideosAreCached: No transition manager available, using basic preloading")
@@ -309,45 +291,67 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
                 async let prevTask = videoProvider.getPreviousVideo()
                 _ = await (nextTask, prevTask)
 
-                // Update cache statuses
-                await updateCacheStatuses()
+                // Update buffering monitors for preloaded videos
+                await MainActor.run {
+                    updatePreloadedBufferingMonitors()
+                }
             }
         } else {
             Logger.caching.error("BaseVideoViewModel.ensureVideosAreCached: Failed - not a VideoProvider")
         }
     }
 
-    /// Updates the cache statuses based on the current video and cache state
-    /// This method should be called whenever the cache state changes
-    func updateCacheStatuses() async {
-        guard let identifier = currentIdentifier else {
+    
+    // MARK: - Buffering Monitor Management
+    
+    /// Updates buffering monitors for preloaded videos
+    /// Call this when preloaded videos change
+    func updatePreloadedBufferingMonitors() {
+        guard let videoProvider = self as? VideoProvider,
+              let transitionManager = videoProvider.transitionManager else {
             return
         }
-
-        if let cacheableProvider = self as? CacheableProvider {
-            // Get transition manager if provider conforms to VideoProvider
-            var transitionManager: VideoTransitionManager? = nil
-            if let videoProvider = self as? VideoProvider {
-                transitionManager = videoProvider.transitionManager
-
-                // DEBUG: Log the transition manager identity to help debug issues
-                if let manager = transitionManager {
-                    Logger.caching.info("🔍 USING TRANSITION MANAGER: \(String(describing: ObjectIdentifier(manager))), nextReady=\(manager.nextVideoReady), prevReady=\(manager.prevVideoReady)")
-                }
-            }
-
-            // Get cache statuses from the cache manager with transition manager context
-            // The VideoCacheManager.getCacheStatuses implementation now directly uses
-            // transition manager's nextVideoReady state for the UI indicators
-            let statuses = await cacheableProvider.cacheManager.getCacheStatuses(
-                currentVideoIdentifier: identifier,
-                transitionManager: transitionManager
-            )
-
-            // Update on the main thread since we're modifying @Published properties
-            await MainActor.run {
-                self.cacheStatuses = statuses
-            }
+        
+        // Connect monitors to preloaded players
+        if let nextPlayer = transitionManager.nextPlayer {
+            Logger.videoPlayback.debug("🔍 Connecting next video buffering monitor")
+            nextBufferingMonitor?.stopMonitoring()
+            nextBufferingMonitor?.startMonitoring(nextPlayer)
+        } else {
+            nextBufferingMonitor?.stopMonitoring()
         }
+        
+        if let prevPlayer = transitionManager.prevPlayer {
+            Logger.videoPlayback.debug("🔍 Connecting previous video buffering monitor")
+            previousBufferingMonitor?.stopMonitoring()
+            previousBufferingMonitor?.startMonitoring(prevPlayer)
+        } else {
+            previousBufferingMonitor?.stopMonitoring()
+        }
+    }
+    
+    // MARK: - Helper Properties for UI
+    
+    /// Current video title for display in BufferingIndicatorView
+    var currentVideoTitle: String {
+        return currentTitle ?? "Unknown Video"
+    }
+    
+    /// Next video title for display in BufferingIndicatorView
+    var nextVideoTitle: String {
+        guard let videoProvider = self as? VideoProvider,
+              let transitionManager = videoProvider.transitionManager else {
+            return "Next Video"
+        }
+        return transitionManager.nextTitle.isEmpty ? "Next Video" : transitionManager.nextTitle
+    }
+    
+    /// Previous video title for display in BufferingIndicatorView
+    var previousVideoTitle: String {
+        guard let videoProvider = self as? VideoProvider,
+              let transitionManager = videoProvider.transitionManager else {
+            return "Previous Video"
+        }
+        return transitionManager.prevTitle.isEmpty ? "Previous Video" : transitionManager.prevTitle
     }
 }
