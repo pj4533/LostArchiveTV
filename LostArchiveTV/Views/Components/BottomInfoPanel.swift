@@ -59,7 +59,8 @@ struct BottomInfoPanel: View {
                 // Buffering indicators with swipe hint below
                 VStack(spacing: 12) {
                     // Buffering indicators with padding to avoid button overlap
-                    if let currentMonitor = currentBufferingMonitor {
+                    if PlaybackPreferences.showBufferIndicators,
+                       let currentMonitor = currentBufferingMonitor {
                         BufferingIndicatorView(
                             currentVideoMonitor: currentMonitor,
                             nextVideoMonitor: nextBufferingMonitor,
