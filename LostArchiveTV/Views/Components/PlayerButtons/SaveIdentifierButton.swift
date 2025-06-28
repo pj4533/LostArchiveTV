@@ -5,12 +5,15 @@ struct SaveIdentifierButton: View {
     var disabled: Bool
 
     var body: some View {
-        Button(action: action) {
-            Image(systemName: "plus")
-                .font(.system(size: 22))
-                .foregroundColor(disabled ? .gray : .white)
-        }
-        .disabled(disabled)
-        .frame(width: 40, height: 40)
+        PlayerButton(
+            icon: .system("plus"),
+            size: .font(22),
+            style: .minimal,
+            color: .white,
+            action: action,
+            disabled: disabled,
+            showShadow: false,
+            touchTargetSize: 40
+        )
     }
 }

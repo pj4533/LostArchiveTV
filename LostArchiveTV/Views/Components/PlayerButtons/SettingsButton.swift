@@ -5,16 +5,10 @@ struct SettingsButton: View {
     var disabled: Bool
     
     var body: some View {
-        OverlayButton(
+        PlayerButton.system(
+            "gearshape.fill",
             action: action,
             disabled: disabled
-        ) {
-            Image(systemName: "gearshape.fill")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 22, height: 22)
-                .foregroundColor(.white)
-                .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
-        }
+        )
     }
 }
