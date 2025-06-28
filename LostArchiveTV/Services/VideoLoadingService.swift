@@ -18,6 +18,34 @@ actor VideoLoadingService {
         self.cacheManager = cacheManager
     }
     
+    /// Calculates the unique file count from archive metadata
+    /// - Parameter metadata: The archive metadata containing file information
+    /// - Returns: The count of unique video files (grouped by base filename)
+    static func calculateFileCount(from metadata: ArchiveMetadata) -> Int {
+        Logger.caching.debug("🔍 DEBUG: calculateFileCount called with \(metadata.files.count) total files")
+        
+        // Filter for video files
+        let allVideoFiles = metadata.files.filter {
+            $0.name.hasSuffix(".mp4") ||
+            $0.format == "h.264 IA" ||
+            $0.format == "h.264" ||
+            $0.format == "MPEG4"
+        }
+        
+        Logger.caching.debug("🔍 DEBUG: Found \(allVideoFiles.count) video files after filtering")
+
+        // Count unique file base names
+        var uniqueBaseNames = Set<String>()
+        for file in allVideoFiles {
+            let baseName = file.name.replacingOccurrences(of: "\\.mp4$", with: "", options: .regularExpression)
+            uniqueBaseNames.insert(baseName)
+        }
+        
+        Logger.caching.debug("🔍 DEBUG: Calculated \(uniqueBaseNames.count) unique video files")
+
+        return uniqueBaseNames.count
+    }
+    
     func loadIdentifiers() async throws -> [ArchiveIdentifier] {
         return try await archiveService.loadArchiveIdentifiers()
     }
@@ -169,20 +197,8 @@ actor VideoLoadingService {
         let startAtBeginning = PlaybackPreferences.alwaysStartAtBeginning
         let startPosition = startAtBeginning ? 0.0 : (safeMaxStartTime > 10 ? Double.random(in: 0..<safeMaxStartTime) : 0)
         
-        // Count unique video files for this item
-        let allVideoFiles = metadata.files.filter {
-            $0.name.hasSuffix(".mp4") ||
-            $0.format == "h.264 IA" ||
-            $0.format == "h.264" ||
-            $0.format == "MPEG4"
-        }
-
-        // Count unique file base names
-        var uniqueBaseNames = Set<String>()
-        for file in allVideoFiles {
-            let baseName = file.name.replacingOccurrences(of: "\\.mp4$", with: "", options: .regularExpression)
-            uniqueBaseNames.insert(baseName)
-        }
+        // Count unique video files for this item using the static method
+        let fileCount = Self.calculateFileCount(from: metadata)
 
         // Create and return the cached video
         let cachedVideo = CachedVideo(
@@ -195,7 +211,7 @@ actor VideoLoadingService {
             playerItem: playerItem,
             startPosition: startPosition,
             addedToFavoritesAt: nil,
-            totalFiles: uniqueBaseNames.count
+            totalFiles: fileCount
         )
         
         Logger.caching.info("Successfully created CachedVideo for \(identifier.identifier)")
