@@ -10,13 +10,15 @@ struct BottomInfoPanel: View {
     let currentTime: Double?
     let duration: Double
     let totalFiles: Int?
-    let cacheStatuses: [CacheStatus]
+    let currentBufferingMonitor: BufferingMonitor?
+    let nextBufferingMonitor: BufferingMonitor?
+    let nextVideoTitle: String?
     
     // Animation state
     @State private var animationTriggered = false
     @State private var showShimmerEffect = false
 
-    init(title: String?, collection: String?, description: String?, identifier: String?, filename: String? = nil, currentTime: Double?, duration: Double, totalFiles: Int? = nil, cacheStatuses: [CacheStatus] = [.notCached, .notCached, .notCached]) {
+    init(title: String?, collection: String?, description: String?, identifier: String?, filename: String? = nil, currentTime: Double?, duration: Double, totalFiles: Int? = nil, currentBufferingMonitor: BufferingMonitor? = nil, nextBufferingMonitor: BufferingMonitor? = nil, nextVideoTitle: String? = nil) {
         self.title = title
         self.collection = collection
         self.description = description
@@ -24,7 +26,9 @@ struct BottomInfoPanel: View {
         self.filename = filename
         self.currentTime = currentTime
         self.totalFiles = totalFiles
-        self.cacheStatuses = cacheStatuses
+        self.currentBufferingMonitor = currentBufferingMonitor
+        self.nextBufferingMonitor = nextBufferingMonitor
+        self.nextVideoTitle = nextVideoTitle
         // Ensure duration is valid (not NaN or infinity)
         if duration.isNaN || duration.isInfinite {
             self.duration = 0
@@ -52,7 +56,7 @@ struct BottomInfoPanel: View {
                 )
                 .id(duration) // Force view refresh when duration updates
 
-                // Swipe hint with cache status indicators
+                // Swipe hint with buffering indicators
                 HStack {
                     Spacer()
                     Text("Swipe up for next video")
@@ -61,19 +65,20 @@ struct BottomInfoPanel: View {
                         .shimmerEffect(active: showShimmerEffect)
                         .onAppear {
                             // Log what we're about to display to the user
-                            let readyStatus = cacheStatuses.count > 0 && cacheStatuses[0] == .preloaded
-                            let statusSymbols = cacheStatuses.map { status -> String in
-                                switch status {
-                                    case .preloaded: return "●" // solid circle
-                                    case .cached: return "○"    // outline
-                                    case .notCached: return "▢" // empty box
-                                }
-                            }
-                            let statusDisplay = statusSymbols.joined(separator: " ")
-
-                            Logger.caching.info("🖥️ UI DISPLAY: Cache indicators: [\(statusDisplay)], first indicator ready: \(readyStatus)")
+                            let currentReady = currentBufferingMonitor?.bufferState.isReady ?? false
+                            let nextReady = nextBufferingMonitor?.bufferState.isReady ?? false
+                            
+                            Logger.caching.info("🖥️ UI DISPLAY: Buffering indicators - current ready: \(currentReady), next ready: \(nextReady)")
                         }
-                    CacheStatusIndicator(cacheStatuses: cacheStatuses)
+                    
+                    if let currentMonitor = currentBufferingMonitor {
+                        BufferingIndicatorView(
+                            currentVideoMonitor: currentMonitor,
+                            nextVideoMonitor: nextBufferingMonitor,
+                            currentVideoTitle: title ?? "Current Video",
+                            nextVideoTitle: nextVideoTitle
+                        )
+                    }
                     Spacer()
                 }
                 .padding(.bottom, 8)
@@ -100,13 +105,12 @@ struct BottomInfoPanel: View {
                 animationTriggered = true
             }
         }
-        // Watch for changes to CacheStatusChanged notification
+        // Watch for changes to buffering state
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("CacheStatusChanged"))) { _ in
             // Direct simple check when notification is received
             if !animationTriggered,  // Only if animation hasn't been triggered yet
-               let sharedViewModel = SharedViewModelProvider.shared.videoPlayerViewModel,
-               let transitionManager = sharedViewModel.transitionManager,
-               transitionManager.nextVideoReady {  // Direct check of the flag
+               let nextMonitor = nextBufferingMonitor,
+               nextMonitor.bufferState.isReady {  // Check if next video is ready
                 
                 Logger.ui.notice("🎉 Triggering one-time shimmer for next video")
                 animationTriggered = true  // Set flag so it only happens once

@@ -49,7 +49,9 @@ struct SearchVideoLayerContent: View {
                         currentTime: player.currentItem != nil ? player.currentTime().seconds : nil,
                         duration: viewModel.videoDuration,
                         totalFiles: viewModel.totalFiles,
-                        cacheStatuses: viewModel.cacheStatuses
+                        currentBufferingMonitor: viewModel.currentBufferingMonitor,
+                        nextBufferingMonitor: viewModel.nextBufferingMonitor,
+                        nextVideoTitle: viewModel.nextVideoTitle
                     )
                     .id("\(viewModel.totalFiles)-\(Date())") // Force refresh periodically and when totalFiles changes
                 }
