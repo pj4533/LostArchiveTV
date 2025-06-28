@@ -118,7 +118,24 @@ actor ArchiveService {
         let session = URLSession(configuration: config)
         
         let requestStartTime = CFAbsoluteTimeGetCurrent()
-        let (data, response) = try await session.data(from: metadataURL)
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await session.data(from: metadataURL)
+        } catch let urlError as URLError {
+            // Map URLError cases to appropriate NetworkError types
+            Logger.network.error("URL error occurred: \(urlError.localizedDescription)")
+            switch urlError.code {
+            case .notConnectedToInternet:
+                throw NetworkError.noInternetConnection
+            case .timedOut:
+                throw NetworkError.timeout
+            case .cannotFindHost, .cannotConnectToHost, .networkConnectionLost:
+                throw NetworkError.connectionError(message: urlError.localizedDescription)
+            default:
+                // For other URLError cases, wrap in a generic connection error
+                throw NetworkError.connectionError(message: "Network request failed: \(urlError.localizedDescription)")
+            }
+        }
         let requestTime = CFAbsoluteTimeGetCurrent() - requestStartTime
         
         if let httpResponse = response as? HTTPURLResponse {

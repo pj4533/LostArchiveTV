@@ -217,7 +217,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
         // Create a new search task
         searchTask = Task {
             isSearching = true
-            errorMessage = nil
+            clearError()
             
             do {
                 guard !Task.isCancelled else { return }
@@ -260,7 +260,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
                 }
                 
                 await MainActor.run {
-                    errorMessage = "Search failed: \(error.localizedDescription)"
+                    handleError(error)
                     Logger.network.error("Search failed: \(error.localizedDescription)")
                     isSearching = false
                 }
@@ -335,7 +335,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
             
             isLoading = false
         } catch {
-            errorMessage = "Failed to load video: \(error.localizedDescription)"
+            handleError(error)
             Logger.caching.error("Failed to load video: \(error.localizedDescription)")
             isLoading = false
         }

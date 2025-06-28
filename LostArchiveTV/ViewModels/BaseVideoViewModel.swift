@@ -285,6 +285,55 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
         playbackManager.resetPlaybackRate()
     }
     
+    // MARK: - Error Handling
+    
+    /// Handles errors with improved user messaging, especially for connection issues
+    /// - Parameter error: The error to handle and display to the user
+    func handleError(_ error: Error) {
+        Logger.videoPlayback.error("Handling error: \(error.localizedDescription)")
+        
+        // Check if it's a NetworkError for specialized handling
+        if let networkError = error as? NetworkError {
+            switch networkError {
+            case .connectionError, .timeout, .noInternetConnection:
+                // For connection errors, provide actionable feedback
+                errorMessage = networkError.localizedDescription
+            case .serverError(let statusCode, _):
+                // For server errors, provide status code context
+                if statusCode >= 500 {
+                    errorMessage = "Server is temporarily unavailable. Please try again in a moment."
+                } else if statusCode == 404 {
+                    errorMessage = "The requested video could not be found. Trying another video..."
+                } else {
+                    errorMessage = networkError.localizedDescription
+                }
+            default:
+                // For other network errors, use the localized description
+                errorMessage = networkError.localizedDescription
+            }
+        } else {
+            // For non-network errors, provide generic message
+            errorMessage = "Error loading video: \(error.localizedDescription)"
+        }
+    }
+    
+    /// Clears any existing error message
+    func clearError() {
+        errorMessage = nil
+    }
+    
+    /// Checks if the current error is a connection-related error
+    /// - Returns: True if the error indicates a connection issue
+    var hasConnectionError: Bool {
+        guard let errorMessage = errorMessage else { return false }
+        let lowercaseMessage = errorMessage.lowercased()
+        return lowercaseMessage.contains("connection") || 
+               lowercaseMessage.contains("internet") || 
+               lowercaseMessage.contains("network") ||
+               lowercaseMessage.contains("timed out") ||
+               lowercaseMessage.contains("timeout")
+    }
+    
     // MARK: - Video Caching
 
     /// Ensures videos are properly cached for smooth playback

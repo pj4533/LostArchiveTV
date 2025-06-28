@@ -14,6 +14,9 @@ enum NetworkError: Error {
     case parsingError(message: String)
     case invalidURL
     case noData
+    case connectionError(message: String)
+    case timeout
+    case noInternetConnection
 }
 
 extension NetworkError: LocalizedError {
@@ -29,6 +32,12 @@ extension NetworkError: LocalizedError {
             return "The URL is invalid"
         case .noData:
             return "No data was returned from the server"
+        case .connectionError(let message):
+            return "Connection failed: \(message)"
+        case .timeout:
+            return "The request timed out. Please check your connection and try again."
+        case .noInternetConnection:
+            return "No internet connection. Please check your network settings and try again."
         }
     }
 }

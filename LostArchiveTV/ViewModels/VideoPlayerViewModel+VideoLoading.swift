@@ -19,7 +19,7 @@ extension VideoPlayerViewModel {
             Logger.metadata.info("Successfully loaded \(self.identifiers.count) identifiers with user preferences")
         } catch {
             Logger.metadata.error("Failed to load identifiers: \(error.localizedDescription)")
-            self.errorMessage = "Failed to load video identifiers: \(error.localizedDescription)"
+            handleError(error)
             isInitializing = false
         }
     }
@@ -64,7 +64,8 @@ extension VideoPlayerViewModel {
                 // Check again after loading
                 if identifiers.isEmpty {
                     Logger.metadata.error("❌ FAST START: Failed to load identifiers, cannot continue")
-                    errorMessage = "No identifiers available. Make sure the identifiers.sqlite database is in the app bundle."
+                    let noDataError = NSError(domain: "VideoLoadingError", code: 1, userInfo: [NSLocalizedDescriptionKey: "No identifiers available. Make sure the identifiers.sqlite database is in the app bundle."])
+                    handleError(noDataError)
                     isInitializing = false
                     return
                 }
@@ -127,7 +128,7 @@ extension VideoPlayerViewModel {
             Logger.videoPlayback.info("🏁 FAST START: First video ready in \(totalTime.formatted(.number.precision(.fractionLength(4)))) seconds")
         } catch {
             Logger.videoPlayback.error("❌ FAST START: Failed to load first video: \(error.localizedDescription)")
-            errorMessage = "Error loading video: \(error.localizedDescription)"
+            handleError(error)
             isInitializing = false
         }
     }
@@ -139,7 +140,7 @@ extension VideoPlayerViewModel {
         // Only update UI loading state if we're showing immediately
         if showImmediately {
             isLoading = true
-            errorMessage = nil
+            clearError()
         }
         
         // Ensure we have identifiers loaded
@@ -150,7 +151,8 @@ extension VideoPlayerViewModel {
             // Check again after loading
             if identifiers.isEmpty {
                 Logger.metadata.error("❌ LOADING: Failed to load identifiers, cannot continue")
-                errorMessage = "No identifiers available. Make sure the identifiers.sqlite database is in the app bundle."
+                let noDataError = NSError(domain: "VideoLoadingError", code: 1, userInfo: [NSLocalizedDescriptionKey: "No identifiers available. Make sure the identifiers.sqlite database is in the app bundle."])
+                handleError(noDataError)
                 isLoading = false
                 isInitializing = false
                 return
@@ -241,7 +243,7 @@ extension VideoPlayerViewModel {
             
             if showImmediately {
                 isLoading = false
-                errorMessage = "Error loading video: \(error.localizedDescription)"
+                handleError(error)
             }
             
             // Always exit initialization mode on error to prevent being stuck in loading
