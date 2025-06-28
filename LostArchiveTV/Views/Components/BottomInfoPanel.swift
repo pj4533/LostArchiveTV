@@ -56,9 +56,19 @@ struct BottomInfoPanel: View {
                 )
                 .id(duration) // Force view refresh when duration updates
 
-                // Swipe hint with buffering indicators
-                HStack {
-                    Spacer()
+                // Buffering indicators with swipe hint below
+                VStack(spacing: 12) {
+                    // Buffering indicators centered
+                    if let currentMonitor = currentBufferingMonitor {
+                        BufferingIndicatorView(
+                            currentVideoMonitor: currentMonitor,
+                            nextVideoMonitor: nextBufferingMonitor,
+                            currentVideoTitle: title ?? "Current Video",
+                            nextVideoTitle: nextVideoTitle
+                        )
+                    }
+                    
+                    // Swipe hint below indicators
                     Text("Swipe up for next video")
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.7))
@@ -70,16 +80,6 @@ struct BottomInfoPanel: View {
                             
                             Logger.caching.info("🖥️ UI DISPLAY: Buffering indicators - current ready: \(currentReady), next ready: \(nextReady)")
                         }
-                    
-                    if let currentMonitor = currentBufferingMonitor {
-                        BufferingIndicatorView(
-                            currentVideoMonitor: currentMonitor,
-                            nextVideoMonitor: nextBufferingMonitor,
-                            currentVideoTitle: title ?? "Current Video",
-                            nextVideoTitle: nextVideoTitle
-                        )
-                    }
-                    Spacer()
                 }
                 .padding(.bottom, 8)
             }
