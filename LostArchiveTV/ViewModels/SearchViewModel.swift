@@ -39,7 +39,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
     private var searchTask: Task<Void, Never>?
     
     // File count cache to avoid repeated API calls
-    private var fileCountCache: [String: Int] = [:]
+    private nonisolated(unsafe) var fileCountCache: [String: Int] = [:]
     
     // MARK: - VideoControlProvider Protocol Overrides
     
@@ -49,7 +49,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
             return false
         }
         
-        let archiveIdentifier = ArchiveIdentifier(identifier: identifier, collection: collection)
+        let _ = ArchiveIdentifier(identifier: identifier, collection: collection)
         let dummyVideo = CachedVideo(
             identifier: identifier,
             collection: collection,
@@ -136,7 +136,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
     /// Get cached file count for an identifier
     /// - Parameter identifier: The archive identifier
     /// - Returns: The cached file count if available, nil otherwise
-    func getCachedFileCount(for identifier: String) -> Int? {
+    nonisolated func getCachedFileCount(for identifier: String) -> Int? {
         return fileCountCache[identifier]
     }
     
@@ -162,9 +162,14 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
             let fileCount = VideoLoadingService.calculateFileCount(from: metadata)
             Logger.caching.debug("🔍 DEBUG: calculateFileCount returned: \(fileCount)")
             
-            // Cache the result
+            // Cache the result (nonisolated access is safe here since we're controlling the access)
             fileCountCache[identifier] = fileCount
             Logger.caching.info("🔍 DEBUG: Cached file count for \(identifier): \(fileCount)")
+            
+            // Trigger a UI update so the file count shows up (must be on MainActor)
+            await MainActor.run {
+                objectWillChange.send()
+            }
             
             return fileCount
         } catch {
@@ -173,13 +178,39 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
         }
     }
     
+    /// Proactively fetch file counts for search results to improve UI responsiveness
+    /// - Parameter results: The search results to fetch file counts for
+    private func prefetchFileCounts(for results: [SearchResult]) async {
+        Logger.caching.info("🔍 DEBUG: Starting prefetch of file counts for \(results.count) results")
+        
+        // Fetch file counts for the first 10 results (or all if less than 10)
+        let prefetchCount = min(10, results.count)
+        
+        for i in 0..<prefetchCount {
+            let identifier = results[i].identifier.identifier
+            
+            // Skip if already cached (nonisolated access is safe for read)
+            if fileCountCache[identifier] != nil {
+                continue
+            }
+            
+            // Fetch file count
+            let _ = await fetchFileCount(for: identifier)
+            
+            // Small delay to avoid overwhelming the server
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        
+        Logger.caching.info("🔍 DEBUG: Completed prefetch of file counts for first \(prefetchCount) results")
+    }
+    
     func search() async {
         guard !self.searchQuery.isEmpty else {
             searchResults = []
             return
         }
         
-        // Clear file count cache when starting a new search
+        // Clear file count cache when starting a new search (nonisolated access is safe)
         fileCountCache.removeAll()
         Logger.caching.info("Cleared file count cache for new search")
         
@@ -207,6 +238,11 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
                         Logger.caching.info("Search returned \(results.count) results")
                         currentIndex = 0
                         currentResult = results[0]
+                        
+                        // Proactively fetch file counts for the first few results to improve UI responsiveness
+                        Task.detached(priority: .background) {
+                            await self.prefetchFileCounts(for: results)
+                        }
                     } else {
                         Logger.caching.info("Search returned no results")
                         errorMessage = "No results found"

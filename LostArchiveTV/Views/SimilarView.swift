@@ -69,12 +69,22 @@ struct SimilarView: View {
             )
             
             // Convert to SearchFeedItems and update the view model
-            let items = results.map { SearchFeedItem(searchResult: $0) }
+            let items = results.map { SearchFeedItem(searchResult: $0, searchViewModel: viewModel.searchViewModel) }
             viewModel.items = items
             
             // Also update the searchViewModel for player functionality
             viewModel.searchViewModel.searchResults = results
             viewModel.searchViewModel.searchQuery = "Similar to \(referenceIdentifier)"
+            
+            // Proactively fetch file counts for similar video results
+            Task.detached(priority: .background) {
+                let prefetchCount = min(10, results.count)
+                for i in 0..<prefetchCount {
+                    let _ = await viewModel.searchViewModel.fetchFileCount(for: results[i].identifier.identifier)
+                    // Small delay to avoid overwhelming the server
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
+            }
             
             // Store the query context for pagination
             viewModel.currentPage = 1  // We've loaded page 0, next will be page 1

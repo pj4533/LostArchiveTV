@@ -62,13 +62,23 @@ class SearchFeedViewModel: BaseFeedViewModel<SearchFeedItem> {
                 guard !Task.isCancelled else { return }
                 
                 // Convert to feed items
-                let newItems = results.map { SearchFeedItem(searchResult: $0) }
+                let newItems = results.map { SearchFeedItem(searchResult: $0, searchViewModel: searchViewModel) }
                 
                 // Update items
                 items = newItems
                 
                 // Store the full results in the search view model for later use
                 searchViewModel.searchResults = results
+                
+                // Proactively fetch file counts for search results
+                Task.detached(priority: .background) {
+                    let prefetchCount = min(10, results.count)
+                    for i in 0..<prefetchCount {
+                        let _ = await self.searchViewModel.fetchFileCount(for: results[i].identifier.identifier)
+                        // Small delay to avoid overwhelming the server
+                        try? await Task.sleep(for: .milliseconds(100))
+                    }
+                }
                 
                 // Update pagination state
                 currentPage = 1  // We've loaded page 0, so next will be page 1
@@ -138,13 +148,22 @@ class SearchFeedViewModel: BaseFeedViewModel<SearchFeedItem> {
             )
             
             // Convert to feed items
-            let newItems = results.map { SearchFeedItem(searchResult: $0) }
+            let newItems = results.map { SearchFeedItem(searchResult: $0, searchViewModel: searchViewModel) }
             
             // Add to existing items
             items.append(contentsOf: newItems)
             
             // Add to the search view model's results too
             searchViewModel.searchResults.append(contentsOf: results)
+            
+            // Proactively fetch file counts for new results
+            Task.detached(priority: .background) {
+                for result in results {
+                    let _ = await self.searchViewModel.fetchFileCount(for: result.identifier.identifier)
+                    // Small delay to avoid overwhelming the server
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
+            }
             
             // Update pagination state
             currentPage += 1
