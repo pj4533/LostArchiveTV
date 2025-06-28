@@ -29,6 +29,8 @@ struct SearchResult: Identifiable, Equatable {
 struct SearchFilter {
     var startYear: Int? = nil
     var endYear: Int? = nil
+    var minFileCount: Int? = nil
+    var maxFileCount: Int? = nil
     
     // Convert filter to Pinecone query format
     func toPineconeFilter() -> [String: Any]? {

@@ -151,13 +151,23 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
                 // Check if task was cancelled during network operation
                 guard !Task.isCancelled else { return }
                 
+                // Apply file count filtering if specified
+                let filteredResults: [SearchResult]
+                if searchFilter.minFileCount != nil || searchFilter.maxFileCount != nil {
+                    Logger.caching.info("Applying file count filter to \(results.count) results")
+                    filteredResults = await filterResultsByFileCount(results: results, filter: searchFilter)
+                    Logger.caching.info("File count filtering reduced results from \(results.count) to \(filteredResults.count)")
+                } else {
+                    filteredResults = results
+                }
+                
                 await MainActor.run {
-                    self.searchResults = results
+                    self.searchResults = filteredResults
                     
-                    if !results.isEmpty {
-                        Logger.caching.info("Search returned \(results.count) results")
+                    if !filteredResults.isEmpty {
+                        Logger.caching.info("Search returned \(filteredResults.count) results")
                         currentIndex = 0
-                        currentResult = results[0]
+                        currentResult = filteredResults[0]
                     } else {
                         Logger.caching.info("Search returned no results")
                         errorMessage = "No results found"
@@ -184,6 +194,88 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
                 }
             }
         }
+    }
+    
+    /// Filters search results by file count
+    /// - Parameters:
+    ///   - results: The search results to filter
+    ///   - filter: The search filter containing minFileCount and maxFileCount
+    /// - Returns: Filtered search results that meet the file count criteria
+    private func filterResultsByFileCount(results: [SearchResult], filter: SearchFilter) async -> [SearchResult] {
+        // Early return if no file count filtering is needed
+        guard filter.minFileCount != nil || filter.maxFileCount != nil else {
+            return results
+        }
+        
+        // Process results in parallel for better performance
+        let resultFileCounts = await withTaskGroup(of: (SearchResult, Int?).self) { group in
+            for result in results {
+                group.addTask {
+                    // Check for task cancellation
+                    if Task.isCancelled { return (result, nil) }
+                    
+                    do {
+                        // Fetch metadata for this result
+                        let metadata = try await self.archiveService.fetchMetadata(for: result.identifier.identifier)
+                        
+                        // Count unique video files using the same logic as VideoLoadingService
+                        let allVideoFiles = metadata.files.filter {
+                            $0.name.hasSuffix(".mp4") ||
+                            $0.format == "h.264 IA" ||
+                            $0.format == "h.264" ||
+                            $0.format == "MPEG4"
+                        }
+                        
+                        // Count unique file base names
+                        var uniqueBaseNames = Set<String>()
+                        for file in allVideoFiles {
+                            let baseName = file.name.replacingOccurrences(of: "\\.mp4$", with: "", options: .regularExpression)
+                            uniqueBaseNames.insert(baseName)
+                        }
+                        
+                        Logger.caching.debug("Item \(result.identifier.identifier) has \(uniqueBaseNames.count) unique video files")
+                        return (result, uniqueBaseNames.count)
+                    } catch {
+                        Logger.caching.error("Failed to fetch metadata for \(result.identifier.identifier): \(error.localizedDescription)")
+                        // Return nil file count if we couldn't fetch metadata
+                        return (result, nil)
+                    }
+                }
+            }
+            
+            // Collect all results
+            var resultFileCounts: [(SearchResult, Int?)] = []
+            for await resultWithCount in group {
+                resultFileCounts.append(resultWithCount)
+            }
+            return resultFileCounts
+        }
+        
+        // Filter results based on file count
+        let filteredResults = resultFileCounts.compactMap { (result, fileCount) -> SearchResult? in
+            // Skip results where we couldn't determine file count
+            guard let fileCount = fileCount else {
+                Logger.caching.warning("Skipping result \(result.identifier.identifier) - could not determine file count")
+                return nil
+            }
+            
+            // Check against minimum file count
+            if let minFileCount = filter.minFileCount, fileCount < minFileCount {
+                Logger.caching.debug("Filtering out \(result.identifier.identifier) - file count \(fileCount) < min \(minFileCount)")
+                return nil
+            }
+            
+            // Check against maximum file count
+            if let maxFileCount = filter.maxFileCount, fileCount > maxFileCount {
+                Logger.caching.debug("Filtering out \(result.identifier.identifier) - file count \(fileCount) > max \(maxFileCount)")
+                return nil
+            }
+            
+            return result
+        }
+        
+        Logger.caching.info("File count filtering complete: \(results.count) -> \(filteredResults.count) results")
+        return filteredResults
     }
     
     func playVideoAt(index: Int) {
