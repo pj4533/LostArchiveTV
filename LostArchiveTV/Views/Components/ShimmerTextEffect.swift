@@ -55,7 +55,7 @@ struct ShimmerTextEffect: ViewModifier {
             )
             // Apply single scaling to whole content
             .scaleEffect(animation.scale)
-            .onChange(of: animationActive) { isActive in
+            .onChange(of: animationActive) { oldValue, isActive in
                 // Only trigger when animation becomes active
                 guard isActive else { return }
                 

@@ -8,7 +8,7 @@
 import Foundation
 import AVKit
 
-struct CachedVideo: Identifiable, Equatable {
+struct CachedVideo: Identifiable, Equatable, @unchecked Sendable {
     let identifier: String
     let collection: String
     let metadata: ArchiveMetadata

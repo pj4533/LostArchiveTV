@@ -1,6 +1,6 @@
 import Foundation
 
-protocol FeedItem: Identifiable {
+protocol FeedItem: Identifiable, Sendable {
     var id: String { get }
     var title: String { get }
     var description: String? { get }

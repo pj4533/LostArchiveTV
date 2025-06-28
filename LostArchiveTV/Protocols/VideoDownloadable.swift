@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 protocol VideoDownloadable {
     // Required properties
     var currentIdentifier: String? { get }

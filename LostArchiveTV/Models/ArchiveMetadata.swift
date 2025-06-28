@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct ArchiveMetadata: Codable {
+struct ArchiveMetadata: Codable, Sendable {
     let files: [ArchiveFile]
     let metadata: ItemMetadata?
 }

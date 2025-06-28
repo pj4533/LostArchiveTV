@@ -46,7 +46,7 @@ struct LostArchiveTVApp: App {
         WindowGroup {
             ContentView()
         }
-        .onChange(of: scenePhase) { newPhase in
+        .onChange(of: scenePhase) { oldPhase, newPhase in
             switch newPhase {
             case .active:
                 Logger.network.info("App became active")

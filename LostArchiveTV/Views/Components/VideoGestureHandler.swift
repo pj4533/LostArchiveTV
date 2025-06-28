@@ -11,7 +11,7 @@ import CoreHaptics
 
 struct VideoGestureHandler: ViewModifier {
     let transitionManager: VideoTransitionManager
-    let provider: VideoProvider
+    let provider: any VideoProvider
     let geometry: GeometryProxy
     
     // Binding values for animation state
@@ -29,7 +29,7 @@ struct VideoGestureHandler: ViewModifier {
     // Initialize with all dependencies
     init(
         transitionManager: VideoTransitionManager,
-        provider: VideoProvider,
+        provider: any VideoProvider,
         geometry: GeometryProxy,
         dragOffset: Binding<CGFloat>,
         isDragging: Binding<Bool>,
@@ -61,7 +61,7 @@ struct VideoGestureHandler: ViewModifier {
                 isLongPressing = false
                 showIndicator = false
                 
-                if let controlProvider = provider as? VideoControlProvider {
+                if let controlProvider = provider as? any VideoControlProvider {
                     Logger.videoPlayback.debug("⏩ Resetting speed due to trim mode activation")
                     controlProvider.resetPlaybackRate()
                 }
@@ -127,7 +127,7 @@ struct VideoGestureHandler: ViewModifier {
                     if shouldComplete && transitionManager.nextVideoReady {
                         // If we're in 2x speed mode, reset it before transitioning
                         if isLongPressing {
-                            if let controlProvider = provider as? VideoControlProvider {
+                            if let controlProvider = provider as? any VideoControlProvider {
                                 Logger.videoPlayback.debug("⏩ Transitioning while in 2x mode - resetting speed")
                                 controlProvider.resetPlaybackRate()
                                 isLongPressing = false
@@ -158,7 +158,7 @@ struct VideoGestureHandler: ViewModifier {
                     if shouldComplete && transitionManager.prevVideoReady {
                         // If we're in 2x speed mode, reset it before transitioning
                         if isLongPressing {
-                            if let controlProvider = provider as? VideoControlProvider {
+                            if let controlProvider = provider as? any VideoControlProvider {
                                 Logger.videoPlayback.debug("⏩ Transitioning while in 2x mode - resetting speed")
                                 controlProvider.resetPlaybackRate()
                                 isLongPressing = false
@@ -205,7 +205,7 @@ struct VideoGestureHandler: ViewModifier {
                 impactGenerator.impactOccurred()
                 
                 // Cast to VideoControlProvider to access the rate control methods
-                if let controlProvider = provider as? VideoControlProvider {
+                if let controlProvider = provider as? any VideoControlProvider {
                     controlProvider.setTemporaryPlaybackRate(rate: 2.0)
                     Logger.videoPlayback.debug("🎬 Set playback rate to 2.0 on \(type(of: controlProvider))")
                     
@@ -232,7 +232,7 @@ struct VideoGestureHandler: ViewModifier {
                     showIndicator = false
                     
                     // Cast to VideoControlProvider to access the rate control methods
-                    if let controlProvider = provider as? VideoControlProvider {
+                    if let controlProvider = provider as? any VideoControlProvider {
                         controlProvider.resetPlaybackRate()
                         Logger.videoPlayback.debug("🎬 Reset playback rate on \(type(of: controlProvider))")
                         
@@ -279,7 +279,7 @@ struct VideoGestureHandler: ViewModifier {
 extension View {
     func addVideoGestures(
         transitionManager: VideoTransitionManager,
-        provider: VideoProvider,
+        provider: any VideoProvider,
         geometry: GeometryProxy,
         dragOffset: Binding<CGFloat>,
         isDragging: Binding<Bool>,

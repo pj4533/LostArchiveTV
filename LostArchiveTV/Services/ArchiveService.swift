@@ -21,9 +21,10 @@ actor ArchiveService {
         self.dbService = DatabaseService.shared
 
         // Try to initialize database and collections
+        // Note: We cannot call actor-isolated methods from init
+        // The collections will be loaded lazily on first access
         do {
             try dbService.openDatabase()
-            try loadCollections()
         } catch {
             Logger.metadata.error("Failed to initialize SQLite database: \(error.localizedDescription)")
         }
@@ -36,6 +37,13 @@ actor ArchiveService {
     private func loadCollections() throws {
         // Load collections once during initialization - they'll be cached in DatabaseService
         collections = try dbService.loadCollections()
+    }
+    
+    // Ensure collections are loaded before use
+    private func ensureCollectionsLoaded() throws {
+        if collections.isEmpty {
+            try loadCollections()
+        }
     }
 
     // Method to clear all caches when preferences change
@@ -56,9 +64,7 @@ actor ArchiveService {
         Logger.metadata.debug("Loading archive identifiers from SQLite database")
 
         // Ensure collections are loaded
-        if collections.isEmpty {
-            try loadCollections()
-        }
+        try ensureCollectionsLoaded()
 
         var identifiers: [ArchiveIdentifier] = []
 
@@ -134,6 +140,15 @@ actor ArchiveService {
     }
     
     func getRandomIdentifier(from identifiers: [ArchiveIdentifier]) -> ArchiveIdentifier? {
+        // Ensure collections are loaded before using them
+        do {
+            try ensureCollectionsLoaded()
+        } catch {
+            Logger.metadata.error("Failed to load collections: \(error.localizedDescription)")
+            // If we can't load collections, still try to return a random identifier
+            return identifiers.randomElement()
+        }
+        
         // Delegate the selection logic to the dedicated IdentifierSelectionService
         // This provides a clear centralized place for all identifier selection logic
         return IdentifierSelectionService.shared.selectRandomIdentifier(

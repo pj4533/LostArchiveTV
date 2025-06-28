@@ -110,24 +110,26 @@ extension VideoTrimViewModel {
 
         // Create a timer that fires 10 times per second
         playheadUpdateTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
+            Task { @MainActor in
+                guard let self = self else { return }
 
-            // Capture the current state inside timer callback to avoid Sendable warnings
-            let isCurrentlyPlaying = self.isPlaying
-            guard isCurrentlyPlaying, let player = self.playbackManager.player else { return }
+                // Capture the current state inside timer callback to avoid Sendable warnings
+                let isCurrentlyPlaying = self.isPlaying
+                guard isCurrentlyPlaying, let player = self.playbackManager.player else { return }
 
-            // Update our currentTime property with the player's current time
-            let time = player.currentTime()
-            self.currentTime = time
+                // Update our currentTime property with the player's current time
+                let time = player.currentTime()
+                self.currentTime = time
 
-            // Capture endTrimTime locally to avoid Sendable issues
-            let endTime = self.endTrimTime
+                // Capture endTrimTime locally to avoid Sendable issues
+                let endTime = self.endTrimTime
 
-            // Check if we've reached the end of the trim range
-            if CMTimeCompare(time, endTime) >= 0 {
-                self.logger.debug("⏱️ TRIM_LOOP: Reached end of trim section, looping back")
-                let startTime = self.startTrimTime
-                self.seekToTime(startTime)
+                // Check if we've reached the end of the trim range
+                if CMTimeCompare(time, endTime) >= 0 {
+                    self.logger.debug("⏱️ TRIM_LOOP: Reached end of trim section, looping back")
+                    let startTime = self.startTrimTime
+                    self.seekToTime(startTime)
+                }
             }
         }
     }
@@ -164,24 +166,26 @@ extension VideoTrimViewModel {
         player.seek(to: validTime,
                    toleranceBefore: .zero,
                    toleranceAfter: .zero) { [weak self] completed in
-            guard let self = self else {
-                return
-            }
+            Task { @MainActor in
+                guard let self = self else {
+                    return
+                }
 
-            if !completed {
-                self.logger.error("trim: seek operation did not complete")
-                // Continue even if seek didn't complete
-            }
+                if !completed {
+                    self.logger.error("trim: seek operation did not complete")
+                    // Continue even if seek didn't complete
+                }
 
-            self.logger.debug("trim: seek completed to \(validTime.seconds) seconds")
+                self.logger.debug("trim: seek completed to \(validTime.seconds) seconds")
 
-            // Update UI to reflect the actual position after seeking
-            self.currentTime = player.currentTime()
+                // Update UI to reflect the actual position after seeking
+                self.currentTime = player.currentTime()
 
-            // Only restart playback if already in playing state
-            if self.isPlaying {
-                self.playbackManager.player?.play()
-                self.logger.debug("trim: playback resumed after seek")
+                // Only restart playback if already in playing state
+                if self.isPlaying {
+                    self.playbackManager.player?.play()
+                    self.logger.debug("trim: playback resumed after seek")
+                }
             }
         }
     }

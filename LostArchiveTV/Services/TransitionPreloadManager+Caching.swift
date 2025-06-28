@@ -112,7 +112,7 @@ extension TransitionPreloadManager {
         Logger.caching.info("  → Current status: nextVideoReady: \(self.nextVideoReady), prevVideoReady: \(self.prevVideoReady)")
 
         // Only proceed to phase 2 if we have identifiers to cache
-        let identifiers = cacheableProvider.getIdentifiersForGeneralCaching()
+        let identifiers = await cacheableProvider.getIdentifiersForGeneralCaching()
 
         if identifiers.isEmpty {
             Logger.caching.warning("⚠️ CACHING: Provider returned no identifiers for general caching")
@@ -147,8 +147,8 @@ extension TransitionPreloadManager {
                     // Now that preloading is complete, we can safely advance the cache window
                     Logger.caching.info("🔄 CACHE WINDOW: Starting cache advancement after preloading is complete")
                     await cacheableProvider.cacheManager.advanceCacheWindow(
-                        archiveService: cacheableProvider.archiveService,
-                        identifiers: cacheableProvider.getIdentifiersForGeneralCaching()
+                        archiveService: await cacheableProvider.archiveService,
+                        identifiers: await cacheableProvider.getIdentifiersForGeneralCaching()
                     )
 
                     break
@@ -179,8 +179,8 @@ extension TransitionPreloadManager {
                 // Now that preloading is complete (or timed out), we can safely advance the cache window
                 Logger.caching.info("🔄 CACHE WINDOW: Starting cache advancement after preloading timeout")
                 await cacheableProvider.cacheManager.advanceCacheWindow(
-                    archiveService: cacheableProvider.archiveService,
-                    identifiers: cacheableProvider.getIdentifiersForGeneralCaching()
+                    archiveService: await cacheableProvider.archiveService,
+                    identifiers: await cacheableProvider.getIdentifiersForGeneralCaching()
                 )
             }
 
@@ -188,7 +188,7 @@ extension TransitionPreloadManager {
             Logger.caching.info("🔄 PHASE 2: Starting general cache filling with \(identifiers.count) identifiers")
 
             // Check current cache state
-            let cacheManager = cacheableProvider.cacheManager
+            let cacheManager = await cacheableProvider.cacheManager
             let currentCacheCount = await cacheManager.cacheCount()
             let maxCacheSize = await cacheManager.getMaxCacheSize()
 
@@ -207,8 +207,8 @@ extension TransitionPreloadManager {
                 // For the main player, use VideoCacheService
                 Logger.caching.info("🔄 CACHING: Starting general cache filling via VideoCacheService")
                 await cacheableProvider.cacheService.ensureVideosAreCached(
-                    cacheManager: cacheableProvider.cacheManager,
-                    archiveService: cacheableProvider.archiveService,
+                    cacheManager: await cacheableProvider.cacheManager,
+                    archiveService: await cacheableProvider.archiveService,
                     identifiers: identifiers
                 )
             } else {
@@ -216,7 +216,7 @@ extension TransitionPreloadManager {
                 Logger.caching.info("🔄 CACHING: Using VideoCacheManager directly for \(String(describing: type(of: provider)))")
                 await cacheableProvider.cacheManager.ensureVideosAreCached(
                     identifiers: identifiers,
-                    using: cacheableProvider.archiveService
+                    using: await cacheableProvider.archiveService
                 )
             }
         }

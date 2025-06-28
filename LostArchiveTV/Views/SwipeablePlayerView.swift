@@ -5,7 +5,7 @@
 //  Created by Claude on 4/24/25.
 //
 
-import SwiftUI
+@preconcurrency import SwiftUI
 import AVKit
 import AVFoundation
 import OSLog
@@ -141,7 +141,7 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
     
     // Helper function to preload videos for swiping
     private func preloadVideos() {
-        Task {
+        Task { @MainActor in
             Logger.caching.info("SwipeablePlayerView: Preloading videos for bidirectional swiping")
             
             // Load both directions concurrently

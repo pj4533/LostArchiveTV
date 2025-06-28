@@ -5,7 +5,7 @@
 //  Created by PJ Gray on 5/31/25.
 //
 
-import SwiftUI
+@preconcurrency import SwiftUI
 import AVKit
 import AVFoundation
 import OSLog
@@ -55,10 +55,10 @@ struct TrimOverlayView<Provider: VideoProvider & ObservableObject>: View {
                             playbackManager: (baseViewModel as? VideoPlayerViewModel)?.playbackManager ?? VideoPlaybackManager()
                         )
                         .onAppear {
-                            handleTrimViewAppear(baseViewModel: baseViewModel)
+                            handleTrimViewAppear(baseViewModel: baseViewModel, provider: provider)
                         }
                         .onDisappear {
-                            handleTrimViewDisappear(baseViewModel: baseViewModel)
+                            handleTrimViewDisappear(baseViewModel: baseViewModel, provider: provider)
                         }
                     }
                     Spacer()
@@ -69,9 +69,9 @@ struct TrimOverlayView<Provider: VideoProvider & ObservableObject>: View {
         }
     }
     
-    private func handleTrimViewAppear(baseViewModel: BaseVideoViewModel) {
+    private func handleTrimViewAppear(baseViewModel: BaseVideoViewModel, provider: Provider) {
         // IMPORTANT: Give the trim view a longer delay to initialize
-        Task {
+        Task { @MainActor in
             // First explicitly pause the current player to avoid conflicts
             if let player = baseViewModel.player {
                 let playerID = String(describing: ObjectIdentifier(player))
@@ -127,9 +127,9 @@ struct TrimOverlayView<Provider: VideoProvider & ObservableObject>: View {
         }
     }
     
-    private func handleTrimViewDisappear(baseViewModel: BaseVideoViewModel) {
+    private func handleTrimViewDisappear(baseViewModel: BaseVideoViewModel, provider: Provider) {
         // Resume all background operations when trim view is dismissed
-        Task {
+        Task { @MainActor in
             // First get current audio session state for debugging
             let audioSession = AVAudioSession.sharedInstance()
             let category = audioSession.category.rawValue

@@ -127,13 +127,16 @@ actor VideoLoadingService {
         do {
             if isH264IA {
                 // For h.264 IA files, just load the playable key
-                try await asset.loadValues(forKeys: ["playable"])
+                let isPlayable = try await asset.load(.isPlayable)
+                Logger.videoPlayback.debug("Asset playable: \(isPlayable)")
             } else if isH264 {
                 // For regular h.264, load minimal keys
-                try await asset.loadValues(forKeys: ["playable"])
+                let isPlayable = try await asset.load(.isPlayable)
+                Logger.videoPlayback.debug("Asset playable: \(isPlayable)")
             } else {
                 // For MPEG4, preload essential metadata
-                try await asset.loadValues(forKeys: ["tracks", "duration"])
+                let (tracks, duration) = try await asset.load(.tracks, .duration)
+                Logger.videoPlayback.debug("Asset tracks: \(tracks.count), duration: \(duration.seconds)")
             }
         } catch {
             Logger.videoPlayback.warning("Failed to preload asset keys: \(error.localizedDescription)")
@@ -314,13 +317,16 @@ actor VideoLoadingService {
         do {
             if isH264IA {
                 // For h.264 IA files, just load the playable key
-                try await asset.loadValues(forKeys: ["playable"])
+                let isPlayable = try await asset.load(.isPlayable)
+                Logger.videoPlayback.debug("Asset playable: \(isPlayable)")
             } else if isH264 {
                 // For regular h.264, load minimal keys
-                try await asset.loadValues(forKeys: ["playable"])
+                let isPlayable = try await asset.load(.isPlayable)
+                Logger.videoPlayback.debug("Asset playable: \(isPlayable)")
             } else {
                 // For MPEG4, preload essential metadata
-                try await asset.loadValues(forKeys: ["tracks", "duration"])
+                let (tracks, duration) = try await asset.load(.tracks, .duration)
+                Logger.videoPlayback.debug("Asset tracks: \(tracks.count), duration: \(duration.seconds)")
             }
         } catch {
             Logger.videoPlayback.warning("Failed to preload asset keys: \(error.localizedDescription)")

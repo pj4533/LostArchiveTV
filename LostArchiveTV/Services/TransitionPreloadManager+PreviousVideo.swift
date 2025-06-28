@@ -84,8 +84,9 @@ extension TransitionPreloadManager {
                     // 1. isPlaybackLikelyToKeepUp is true
                     // 2. At least 1 second of video is actually buffered
                     if playerItem?.isPlaybackLikelyToKeepUp == true && bufferedSeconds >= 1.0 {
+                        let bufferedValue = bufferedSeconds
                         await MainActor.run {
-                            Logger.caching.info("✅ PRELOAD PREV: Buffer ready for \(previousVideo.identifier) (buffered: \(bufferedSeconds)s)")
+                            Logger.caching.info("✅ PRELOAD PREV: Buffer ready for \(previousVideo.identifier) (buffered: \(bufferedValue)s)")
                             // Update dot to be solid green by setting ready flag
                             prevVideoReady = true
                         }

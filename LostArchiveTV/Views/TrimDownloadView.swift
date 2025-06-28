@@ -1,7 +1,8 @@
-import SwiftUI
+@preconcurrency import SwiftUI
 import OSLog
 import AVFoundation
 
+@MainActor
 struct TrimDownloadView<Provider: VideoProvider & ObservableObject>: View {
     @ObservedObject var provider: Provider
     var onDownloadComplete: (URL?) -> Void
@@ -105,8 +106,9 @@ struct TrimDownloadView<Provider: VideoProvider & ObservableObject>: View {
     }
     
     private func downloadVideoForTrimming() {
-        Task {
-            guard let identifier = currentIdentifier else {
+        let identifier = currentIdentifier
+        Task { @MainActor in
+            guard let identifier = identifier else {
                 self.error = "No video selected for trimming"
                 self.isDownloading = false
                 return
@@ -155,7 +157,7 @@ struct TrimDownloadView<Provider: VideoProvider & ObservableObject>: View {
     private func downloadDirectURL(videoURL: URL, destinationURL: URL) async throws {
         return try await withCheckedThrowingContinuation { continuation in
             // Start the process
-            Task {
+            Task { @MainActor in
                 // Now download to our specific location with cookie header
                 var request = URLRequest(url: videoURL)
                 if EnvironmentService.shared.hasArchiveCookie {
@@ -219,8 +221,9 @@ struct TrimDownloadView<Provider: VideoProvider & ObservableObject>: View {
 
                 // Track download progress
                 let observation = downloadTask.progress.observe(\.fractionCompleted) { progress, _ in
+                    let progressValue = Float(progress.fractionCompleted)
                     Task { @MainActor in
-                        self.downloadProgress = Float(progress.fractionCompleted)
+                        self.downloadProgress = progressValue
                     }
                 }
 
@@ -237,7 +240,7 @@ struct TrimDownloadView<Provider: VideoProvider & ObservableObject>: View {
             let archiveService = ArchiveService()
 
             // Start the process
-            Task {
+            Task { @MainActor in
                 do {
                     // Get metadata
                     let metadata = try await archiveService.fetchMetadata(for: identifier)
@@ -313,8 +316,9 @@ struct TrimDownloadView<Provider: VideoProvider & ObservableObject>: View {
                     
                     // Track download progress
                     let observation = downloadTask.progress.observe(\.fractionCompleted) { progress, _ in
+                        let progressValue = Float(progress.fractionCompleted)
                         Task { @MainActor in
-                            self.downloadProgress = Float(progress.fractionCompleted)
+                            self.downloadProgress = progressValue
                         }
                     }
                     

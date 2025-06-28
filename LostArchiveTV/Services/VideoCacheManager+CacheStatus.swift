@@ -6,9 +6,10 @@ extension VideoCacheManager {
     /// The first item is the first video in the cache after the current video, and so on
     /// - Parameter currentVideoIdentifier: The identifier of the current video being played
     /// - Returns: An array of CacheStatus values (up to 3)
+    @MainActor
     func getCacheStatuses(currentVideoIdentifier: String, transitionManager: VideoTransitionManager? = nil) async -> [CacheStatus] {
         // Get current cache state
-        let cachedVideos = self.getCachedVideos()
+        let cachedVideos = await self.getCachedVideos()
         let cacheCount = cachedVideos.count
 
         // Initialize default status array

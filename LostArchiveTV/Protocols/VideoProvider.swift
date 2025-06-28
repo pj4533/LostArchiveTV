@@ -2,6 +2,7 @@ import Foundation
 import AVFoundation
 import OSLog
 
+@MainActor
 protocol VideoProvider: AnyObject {
     // Video transition manager for swipe handling and preloading
     var transitionManager: VideoTransitionManager? { get }

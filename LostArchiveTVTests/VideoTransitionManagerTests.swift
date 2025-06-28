@@ -10,6 +10,7 @@ import AVKit
 import SwiftUI
 @testable import LATV
 
+@MainActor
 struct VideoTransitionManagerTests {
     
     @Test

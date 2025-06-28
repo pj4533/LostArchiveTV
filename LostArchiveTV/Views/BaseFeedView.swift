@@ -49,8 +49,9 @@ struct BaseFeedView<Item: FeedItem, ViewModel: BaseFeedViewModel<Item>>: View {
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
             Button("Try Again") {
-                Task {
-                    await viewModel.refreshItems()
+                let capturedViewModel = viewModel
+                Task { @MainActor in
+                    await capturedViewModel.refreshItems()
                 }
             }
             .padding()
@@ -80,8 +81,9 @@ struct BaseFeedView<Item: FeedItem, ViewModel: BaseFeedViewModel<Item>>: View {
                 }
                 .listRowBackground(Color.black)
                 .onAppear {
-                    Task {
-                        await viewModel.loadMoreItems()
+                    let capturedViewModel = viewModel
+                    Task { @MainActor in
+                        await capturedViewModel.loadMoreItems()
                     }
                 }
             }

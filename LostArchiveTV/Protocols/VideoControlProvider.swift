@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 
+@MainActor
 protocol VideoControlProvider: ObservableObject, VideoDownloadable {
     // Required video properties
     var player: AVPlayer? { get }

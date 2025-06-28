@@ -1,4 +1,4 @@
-import SwiftUI
+@preconcurrency import SwiftUI
 
 struct PlayerButtonPanel<Provider: VideoControlProvider>: View {
     @ObservedObject var provider: Provider
@@ -17,7 +17,7 @@ struct PlayerButtonPanel<Provider: VideoControlProvider>: View {
                 if showSettingsButton, let settingsAction = settingsAction {
                     SettingsButton(
                         action: {
-                            Task {
+                            Task { @MainActor in
                                 await provider.pausePlayback()
                                 settingsAction()
                             }
@@ -42,7 +42,7 @@ struct PlayerButtonPanel<Provider: VideoControlProvider>: View {
                 // Save identifier button
                 SaveIdentifierButton(
                     action: {
-                        Task {
+                        Task { @MainActor in
                             await provider.saveIdentifier()
                         }
                     },
@@ -59,7 +59,7 @@ struct PlayerButtonPanel<Provider: VideoControlProvider>: View {
                 SimilarButton(
                     action: {
                         // Pause playback before navigating
-                        Task {
+                        Task { @MainActor in
                             await provider.pausePlayback()
                             // Navigate to similar videos if an identifier exists
                             if let identifier = provider.currentIdentifier {
@@ -77,7 +77,7 @@ struct PlayerButtonPanel<Provider: VideoControlProvider>: View {
                 // Trim button
                 TrimButton(
                     action: {
-                        Task {
+                        Task { @MainActor in
                             await provider.pausePlayback()
                             trimAction()
                         }

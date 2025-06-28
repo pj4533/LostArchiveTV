@@ -70,7 +70,7 @@ struct RetroEdgePreloadIndicator: View {
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
-            .onChange(of: state) { newValue in
+            .onChange(of: state) { oldValue, newValue in
                 Logger.ui.debug("State changed from \(String(describing: previousState)) to \(String(describing: newValue))")
                 
                 // Detect preloading -> preloaded transition
@@ -246,7 +246,7 @@ struct AnimatedBorderView: View {
             // Start both pulse and color animations
             startAnimations()
         }
-        .onChange(of: isTransitioning) { transitioning in
+        .onChange(of: isTransitioning) { oldValue, transitioning in
             // If we just finished transitioning, restart the animations
             if !transitioning {
                 startAnimations()

@@ -10,6 +10,7 @@ import AVKit
 import OSLog
 import Mixpanel
 
+@MainActor
 class VideoTransitionManager: ObservableObject {
     // State tracking
     @Published var isTransitioning = false

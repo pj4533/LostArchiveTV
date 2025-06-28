@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct ArchiveFile: Codable {
+struct ArchiveFile: Codable, Sendable {
     let name: String
     let format: String?
     let size: String?

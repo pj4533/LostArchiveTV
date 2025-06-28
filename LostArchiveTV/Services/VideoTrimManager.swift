@@ -30,7 +30,7 @@ class VideoTrimManager {
         }
         
         // Create the asset
-        let asset = AVAsset(url: url)
+        let asset = AVURLAsset(url: url)
         
         // Launch async task to perform the trim
         Task {
@@ -100,11 +100,12 @@ class VideoTrimManager {
             // Log detailed export information
             self.logger.info("Starting export: start=\(startTime.seconds)s, end=\(endTime.seconds)s, duration=\(rangeDuration.seconds)s")
             
-            // Export and wait for completion
-            try await exportSession.export()
-            
-            // Validate export was successful
-            if exportSession.status == .completed {
+            // Export and wait for completion using the new API
+            if #available(iOS 18.0, *) {
+                // Use the new export API for iOS 18+
+                try await exportSession.export(to: outputURL, as: .mp4)
+                
+                // If we get here, export succeeded
                 if FileManager.default.fileExists(atPath: outputURL.path) {
                     // Get file size for logging
                     let attributes = try FileManager.default.attributesOfItem(atPath: outputURL.path)
@@ -116,22 +117,41 @@ class VideoTrimManager {
                         NSLocalizedDescriptionKey: "Export completed but file not found"
                     ])
                 }
-            } else if exportSession.status == .cancelled {
-                throw NSError(domain: "VideoTrimManager", code: 6, userInfo: [
-                    NSLocalizedDescriptionKey: "Export cancelled"
-                ])
-            } else if exportSession.status == .failed {
-                if let error = exportSession.error {
-                    throw error
-                } else {
-                    throw NSError(domain: "VideoTrimManager", code: 7, userInfo: [
-                        NSLocalizedDescriptionKey: "Export failed with unknown error"
+            } else {
+                // Fallback to the old API for iOS 17 and earlier
+                await exportSession.export()
+                
+                // Check status using the old API
+                switch exportSession.status {
+                case .completed:
+                    if FileManager.default.fileExists(atPath: outputURL.path) {
+                        // Get file size for logging
+                        let attributes = try FileManager.default.attributesOfItem(atPath: outputURL.path)
+                        let fileSize = attributes[.size] as? UInt64 ?? 0
+                        self.logger.info("Export completed successfully. File size: \(fileSize) bytes")
+                        return
+                    } else {
+                        throw NSError(domain: "VideoTrimManager", code: 5, userInfo: [
+                            NSLocalizedDescriptionKey: "Export completed but file not found"
+                        ])
+                    }
+                case .cancelled:
+                    throw NSError(domain: "VideoTrimManager", code: 6, userInfo: [
+                        NSLocalizedDescriptionKey: "Export cancelled"
+                    ])
+                case .failed:
+                    if let error = exportSession.error {
+                        throw error
+                    } else {
+                        throw NSError(domain: "VideoTrimManager", code: 7, userInfo: [
+                            NSLocalizedDescriptionKey: "Export failed with unknown error"
+                        ])
+                    }
+                default:
+                    throw NSError(domain: "VideoTrimManager", code: 8, userInfo: [
+                        NSLocalizedDescriptionKey: "Export ended with unexpected status"
                     ])
                 }
-            } else {
-                throw NSError(domain: "VideoTrimManager", code: 8, userInfo: [
-                    NSLocalizedDescriptionKey: "Export ended with unexpected status: \(exportSession.status.rawValue)"
-                ])
             }
         } catch {
             self.logger.error("Trim operation failed: \(error.localizedDescription)")

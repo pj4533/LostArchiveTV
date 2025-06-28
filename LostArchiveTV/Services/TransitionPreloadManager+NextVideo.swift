@@ -88,8 +88,9 @@ extension TransitionPreloadManager {
                     // 1. isPlaybackLikelyToKeepUp is true
                     // 2. At least 1 second of video is actually buffered
                     if playerItem?.isPlaybackLikelyToKeepUp == true && bufferedSeconds >= 1.0 {
+                        let bufferedValue = bufferedSeconds
                         await MainActor.run {
-                            Logger.caching.info("✅ PRELOAD NEXT: Buffer ready for \(nextVideo.identifier) (buffered: \(bufferedSeconds)s)")
+                            Logger.caching.info("✅ PRELOAD NEXT: Buffer ready for \(nextVideo.identifier) (buffered: \(bufferedValue)s)")
                             // Update dot to be solid green by setting ready flag
                             nextVideoReady = true
                         }
@@ -147,7 +148,9 @@ extension TransitionPreloadManager {
                 let videoInfo = try await service.loadRandomVideo()
                 
                 // Create a new player for the asset
-                let freshPlayerItem = AVPlayerItem(asset: videoInfo.asset)
+                let freshPlayerItem = await MainActor.run {
+                    AVPlayerItem(asset: videoInfo.asset)
+                }
                 let player = AVPlayer(playerItem: freshPlayerItem)
                 
                 // Prepare player but keep it paused and muted
@@ -198,8 +201,9 @@ extension TransitionPreloadManager {
                         // 1. isPlaybackLikelyToKeepUp is true
                         // 2. At least 1 second of video is actually buffered
                         if playerItem?.isPlaybackLikelyToKeepUp == true && bufferedSeconds >= 1.0 {
+                            let bufferedValue = bufferedSeconds
                             await MainActor.run {
-                                Logger.caching.info("✅ PRELOAD RAND: Buffer ready for \(videoInfo.identifier) (buffered: \(bufferedSeconds)s)")
+                                Logger.caching.info("✅ PRELOAD RAND: Buffer ready for \(videoInfo.identifier) (buffered: \(bufferedValue)s)")
                                 // Update dot to be solid green by setting ready flag
                                 nextVideoReady = true
                             }
@@ -300,8 +304,9 @@ extension TransitionPreloadManager {
                             // 1. isPlaybackLikelyToKeepUp is true
                             // 2. At least 1 second of video is actually buffered
                             if playerItem?.isPlaybackLikelyToKeepUp == true && bufferedSeconds >= 1.0 {
+                                let bufferedValue = bufferedSeconds
                                 await MainActor.run {
-                                    Logger.caching.info("✅ PRELOAD FAV: Buffer ready for \(nextVideo.identifier) (buffered: \(bufferedSeconds)s)")
+                                    Logger.caching.info("✅ PRELOAD FAV: Buffer ready for \(nextVideo.identifier) (buffered: \(bufferedValue)s)")
                                     // Update dot to be solid green by setting ready flag
                                     nextVideoReady = true
                                 }

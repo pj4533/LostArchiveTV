@@ -11,6 +11,7 @@ import OSLog
 import Foundation
 import Combine
 
+@MainActor
 class TransitionPreloadManager: ObservableObject {
     /// Publisher for cache status changes
     static var cacheStatusPublisher = PassthroughSubject<Void, Never>()

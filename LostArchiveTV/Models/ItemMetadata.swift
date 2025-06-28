@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct ItemMetadata: Codable {
+struct ItemMetadata: Codable, Sendable {
     let identifier: String?
     let title: String?
     let description: String?

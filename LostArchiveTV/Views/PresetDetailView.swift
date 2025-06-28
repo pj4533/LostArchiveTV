@@ -81,7 +81,9 @@ struct PresetDetailView: View {
                 queue: .main
             ) { [weak identifiersViewModel] _ in
                 // Reload identifiers when the notification is received
-                identifiersViewModel?.loadIdentifiers()
+                Task { @MainActor in
+                    identifiersViewModel?.loadIdentifiers()
+                }
             }
         }
         .onDisappear {

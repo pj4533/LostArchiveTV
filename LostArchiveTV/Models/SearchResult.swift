@@ -1,6 +1,6 @@
 import Foundation
 
-struct SearchResult: Identifiable, Equatable {
+struct SearchResult: Identifiable, Equatable, Sendable {
     let id = UUID()
     let identifier: ArchiveIdentifier
     let score: Float

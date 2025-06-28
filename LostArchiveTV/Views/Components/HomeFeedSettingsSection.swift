@@ -20,7 +20,7 @@ struct HomeFeedSettingsSection: View {
         // Default Collections Toggle Section
         Section {
             Toggle("Use Default", isOn: $useDefault)
-                .onChange(of: useDefault) { newValue in
+                .onChange(of: useDefault) { oldValue, newValue in
                     // Track the toggle event
                     Mixpanel.mainInstance().track(event: "Toggle Feed Default", properties: [
                         "enabled": newValue

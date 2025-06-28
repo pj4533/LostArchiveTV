@@ -8,6 +8,7 @@
 import Foundation
 
 /// Protocol that extends VideoProvider to add caching capabilities
+@MainActor
 protocol CacheableProvider: VideoProvider {
     /// The cache service used for video caching
     var cacheService: VideoCacheService { get }
