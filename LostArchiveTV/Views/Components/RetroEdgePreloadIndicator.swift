@@ -169,7 +169,7 @@ struct TransitionOverlay: View {
     }
 }
 
-// Dedicated animated view that handles its own animation lifecycle - mostly unchanged from original
+// Dedicated animated view that handles its own animation lifecycle using MeshGradient
 struct AnimatedBorderView: View {
     let width: CGFloat
     let height: CGFloat
@@ -179,13 +179,11 @@ struct AnimatedBorderView: View {
     
     // Animation controls
     @State private var pulsing = false
-    @State private var colorPhase: Double = 0.0
-    @State private var colorIndex: Int = 0
+    @State private var meshPhase: Double = 0.0
     
-    // Define a set of pleasing colors to cycle through
-    private let colors: [Color] = [
+    // Define base colors for the mesh gradient
+    private let baseColors: [Color] = [
         Color(hue: 0.0, saturation: 0.7, brightness: 0.9),   // Red
-        Color(hue: 0.1, saturation: 0.7, brightness: 0.9),   // Orange-Red
         Color(hue: 0.17, saturation: 0.7, brightness: 0.9),  // Orange
         Color(hue: 0.33, saturation: 0.7, brightness: 0.9),  // Yellow-Green
         Color(hue: 0.45, saturation: 0.7, brightness: 0.9),  // Green
@@ -195,37 +193,63 @@ struct AnimatedBorderView: View {
         Color(hue: 0.95, saturation: 0.7, brightness: 0.9)   // Magenta
     ]
     
-    // Calculate current color from interpolation
-    private var currentRainbowColor: Color {
-        let fromColor = colors[colorIndex]
-        let toColor = colors[(colorIndex + 1) % colors.count]
-        return Color.interpolate(from: fromColor, to: toColor, fraction: colorPhase)
+    // Generate animated colors for the 3x3 mesh control points
+    private func meshColor(at index: Int) -> Color {
+        let colorIndex = (index + Int(meshPhase * 8)) % baseColors.count
+        return baseColors[colorIndex]
     }
     
-    // Secondary color is a slightly darker version of the current color
-    private var secondaryRainbowColor: Color {
-        let fromColor = colors[colorIndex].opacity(0.85)
-        let toColor = colors[(colorIndex + 1) % colors.count].opacity(0.85)
-        return Color.interpolate(from: fromColor, to: toColor, fraction: colorPhase)
+    // Generate secondary (darker) colors for the inner glow mesh
+    private func secondaryMeshColor(at index: Int) -> Color {
+        return meshColor(at: index).opacity(0.85)
     }
     
     var body: some View {
-        // We use the timelineView with direct state animations
         ZStack {
-            // Primary glow - directly animating properties but never fading to black
-            EdgeBorder(width: pulsing ? 4.5 : 2.0)
-                .stroke(currentRainbowColor, lineWidth: pulsing ? 4.5 : 2.0)
-                .blur(radius: pulsing ? 6.0 : 3.0)
-                .opacity(pulsing ? 0.9 : 0.6)
+            // Primary glow using MeshGradient as mask
+            MeshGradient(
+                width: 3,
+                height: 3,
+                points: [
+                    [0.0, 0.0], [0.5, 0.0], [1.0, 0.0],
+                    [0.0, 0.5], [0.5, 0.5], [1.0, 0.5],
+                    [0.0, 1.0], [0.5, 1.0], [1.0, 1.0]
+                ],
+                colors: [
+                    meshColor(at: 0), meshColor(at: 1), meshColor(at: 2),
+                    meshColor(at: 3), meshColor(at: 4), meshColor(at: 5),
+                    meshColor(at: 6), meshColor(at: 7), meshColor(at: 8)
+                ]
+            )
+            .mask(
+                EdgeBorder(width: pulsing ? 4.5 : 2.0)
+            )
+            .blur(radius: pulsing ? 6.0 : 3.0)
+            .opacity(pulsing ? 0.9 : 0.6)
             
-            // Secondary inner glow for depth effect
-            EdgeBorder(width: pulsing ? 2.5 : 1.5)
-                .stroke(secondaryRainbowColor, lineWidth: pulsing ? 3.5 : 2.0)
-                .blur(radius: pulsing ? 4.0 : 2.0)
-                .opacity(pulsing ? 0.8 : 0.5)
+            // Secondary inner glow using MeshGradient for depth effect
+            MeshGradient(
+                width: 3,
+                height: 3,
+                points: [
+                    [0.0, 0.0], [0.5, 0.0], [1.0, 0.0],
+                    [0.0, 0.5], [0.5, 0.5], [1.0, 0.5],
+                    [0.0, 1.0], [0.5, 1.0], [1.0, 1.0]
+                ],
+                colors: [
+                    secondaryMeshColor(at: 0), secondaryMeshColor(at: 1), secondaryMeshColor(at: 2),
+                    secondaryMeshColor(at: 3), secondaryMeshColor(at: 4), secondaryMeshColor(at: 5),
+                    secondaryMeshColor(at: 6), secondaryMeshColor(at: 7), secondaryMeshColor(at: 8)
+                ]
+            )
+            .mask(
+                EdgeBorder(width: pulsing ? 2.5 : 1.5)
+            )
+            .blur(radius: pulsing ? 4.0 : 2.0)
+            .opacity(pulsing ? 0.8 : 0.5)
         }
         .onAppear {
-            // Start both pulse and color animations
+            // Start both pulse and mesh animations
             startAnimations()
         }
         .onChange(of: isTransitioning) { transitioning in
@@ -234,23 +258,12 @@ struct AnimatedBorderView: View {
                 startAnimations()
             }
         }
-        // Add a timer to cycle through colors
-        .onReceive(Timer.publish(every: 0.03, on: .main, in: .common).autoconnect()) { _ in
-            // Increment the color phase
-            colorPhase += 0.02
-            
-            // When we reach 1.0, move to the next color in our cycle
-            if colorPhase >= 1.0 {
-                colorPhase = 0.0
-                colorIndex = (colorIndex + 1) % colors.count
-            }
-        }
     }
     
     private func startAnimations() {
         // Reset animation state
         pulsing = false
-        colorPhase = 0.0
+        meshPhase = 0.0
         
         // Start the pulse animation
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
@@ -258,6 +271,11 @@ struct AnimatedBorderView: View {
             withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
                 pulsing = true
             }
+        }
+        
+        // Start the mesh gradient animation
+        withAnimation(.linear(duration: 8.0).repeatForever(autoreverses: false)) {
+            meshPhase = 1.0
         }
     }
 }
