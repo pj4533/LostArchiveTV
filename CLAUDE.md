@@ -101,3 +101,16 @@ xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhon
 - API keys go in `Secrets.swift` (copy from `SecretsTemplate.swift`)
 - Mixpanel token uses `MIXPANEL_TOKEN` environment variable
 - See `docs/` for detailed feature documentation
+
+## Documentation References
+
+### Swift Language Guides
+- **docs/modern-swift.md** - Modern Swift patterns and best practices
+- **docs/swift-concurrency.md** - Swift concurrency (async/await, actors, tasks)
+- **docs/swift6-migration.mdc** - Swift 6 migration guide and data race safety
+- **docs/swiftui.md** - SwiftUI patterns and common solutions
+
+### Framework-Specific Guides
+- **docs/swift-argument-parser.mdc** - Command-line argument parsing in Swift
+- **docs/swift-observable.mdc** - Observable framework patterns (@Observable, @ObservationTracked)
+- **docs/swift-observation.mdc** - Swift Observation framework details
