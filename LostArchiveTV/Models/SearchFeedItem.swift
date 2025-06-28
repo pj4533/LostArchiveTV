@@ -16,6 +16,9 @@ struct SearchFeedItem: FeedItem {
         if !searchResult.collections.isEmpty {
             result["Collection"] = searchResult.collections.first!
         }
+        if let fileCount = searchResult.fileCount {
+            result["Files"] = fileCount == 1 ? "1 file" : "\(fileCount) files"
+        }
         return result
     }
 }
