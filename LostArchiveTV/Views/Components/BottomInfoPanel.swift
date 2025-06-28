@@ -66,7 +66,8 @@ struct BottomInfoPanel: View {
                             currentVideoTitle: title ?? "Current Video",
                             nextVideoTitle: nextVideoTitle
                         )
-                        .padding(.horizontal, 80) // Leave space for right-side buttons
+                        .padding(.leading, 20) // 20px from left edge
+                        .padding(.trailing, 80) // Leave space for right-side buttons
                     }
                     
                     // Swipe hint below indicators
