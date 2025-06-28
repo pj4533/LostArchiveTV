@@ -5,6 +5,7 @@ struct SearchResult: Identifiable, Equatable {
     let identifier: ArchiveIdentifier
     let score: Float
     let metadata: [String: String]
+    var fileCount: Int?
     
     // Computed properties for UI display
     var title: String { metadata["title"] ?? identifier.identifier }
@@ -22,7 +23,8 @@ struct SearchResult: Identifiable, Equatable {
     static func == (lhs: SearchResult, rhs: SearchResult) -> Bool {
         return lhs.identifier == rhs.identifier &&
                lhs.score == rhs.score &&
-               lhs.metadata == rhs.metadata
+               lhs.metadata == rhs.metadata &&
+               lhs.fileCount == rhs.fileCount
     }
 }
 

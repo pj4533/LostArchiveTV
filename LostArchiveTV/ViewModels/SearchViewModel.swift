@@ -38,6 +38,11 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
     // Task management for proper cancellation
     private var searchTask: Task<Void, Never>?
     
+    // File count cache to avoid repeated API calls
+    // Using dual approach: nonisolated storage for synchronous reads + Published for UI updates
+    private nonisolated(unsafe) var _fileCountCache: [String: Int] = [:]
+    @Published var fileCountCacheVersion: Int = 0
+    
     // MARK: - VideoControlProvider Protocol Overrides
     
     /// Checks if the current video is a favorite
@@ -46,7 +51,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
             return false
         }
         
-        let archiveIdentifier = ArchiveIdentifier(identifier: identifier, collection: collection)
+        let _ = ArchiveIdentifier(identifier: identifier, collection: collection)
         let dummyVideo = CachedVideo(
             identifier: identifier,
             collection: collection,
@@ -68,8 +73,6 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
         Task {
             if let cachedVideo = await createCachedVideoFromCurrentState() {
                 favoritesManager.toggleFavorite(cachedVideo)
-                // Force UI refresh
-                objectWillChange.send()
             }
         }
     }
@@ -128,11 +131,85 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
         super.cleanup()
     }
     
+    // MARK: - File Count Cache Methods
+    
+    /// Get cached file count for an identifier
+    /// - Parameter identifier: The archive identifier
+    /// - Returns: The cached file count if available, nil otherwise
+    nonisolated func getCachedFileCount(for identifier: String) -> Int? {
+        return _fileCountCache[identifier]
+    }
+    
+    /// Fetch file count for an identifier and cache the result
+    /// - Parameter identifier: The archive identifier
+    /// - Returns: The file count, or nil if there was an error
+    func fetchFileCount(for identifier: String) async -> Int? {
+        Logger.caching.debug("🔍 DEBUG: fetchFileCount called for: \(identifier)")
+        
+        // Check cache first
+        if let cachedCount = _fileCountCache[identifier] {
+            Logger.caching.info("🔍 DEBUG: File count cache hit for \(identifier): \(cachedCount)")
+            return cachedCount
+        }
+        
+        do {
+            // Fetch metadata to calculate file count
+            Logger.caching.info("🔍 DEBUG: Fetching metadata for file count calculation: \(identifier)")
+            let metadata = try await archiveService.fetchMetadata(for: identifier)
+            Logger.caching.debug("🔍 DEBUG: Got metadata with \(metadata.files.count) files")
+            
+            // Use the static method from VideoLoadingService to calculate file count
+            let fileCount = VideoLoadingService.calculateFileCount(from: metadata)
+            Logger.caching.debug("🔍 DEBUG: calculateFileCount returned: \(fileCount)")
+            
+            // Cache the result and trigger UI updates
+            _fileCountCache[identifier] = fileCount
+            fileCountCacheVersion += 1  // Trigger UI update through @Published
+            Logger.caching.info("🔍 DEBUG: Cached file count for \(identifier): \(fileCount)")
+            
+            return fileCount
+        } catch {
+            Logger.caching.error("🔍 DEBUG: Failed to fetch file count for \(identifier): \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    /// Proactively fetch file counts for search results to improve UI responsiveness
+    /// - Parameter results: The search results to fetch file counts for
+    private func prefetchFileCounts(for results: [SearchResult]) async {
+        Logger.caching.info("🔍 DEBUG: Starting prefetch of file counts for \(results.count) results")
+        
+        // Fetch file counts for the first 10 results (or all if less than 10)
+        let prefetchCount = min(10, results.count)
+        
+        for i in 0..<prefetchCount {
+            let identifier = results[i].identifier.identifier
+            
+            // Skip if already cached
+            if _fileCountCache[identifier] != nil {
+                continue
+            }
+            
+            // Fetch file count
+            let _ = await fetchFileCount(for: identifier)
+            
+            // Small delay to avoid overwhelming the server
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        
+        Logger.caching.info("🔍 DEBUG: Completed prefetch of file counts for first \(prefetchCount) results")
+    }
+    
     func search() async {
         guard !self.searchQuery.isEmpty else {
             searchResults = []
             return
         }
+        
+        // Clear file count cache when starting a new search
+        _fileCountCache.removeAll()
+        fileCountCacheVersion += 1  // Trigger UI update
+        Logger.caching.info("Cleared file count cache for new search")
         
         // Cancel any previously running search task
         searchTask?.cancel()
@@ -158,6 +235,11 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
                         Logger.caching.info("Search returned \(results.count) results")
                         currentIndex = 0
                         currentResult = results[0]
+                        
+                        // Proactively fetch file counts for the first few results to improve UI responsiveness
+                        Task.detached(priority: .background) {
+                            await self.prefetchFileCounts(for: results)
+                        }
                     } else {
                         Logger.caching.info("Search returned no results")
                         errorMessage = "No results found"
