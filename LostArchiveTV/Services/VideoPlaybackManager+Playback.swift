@@ -1,8 +1,8 @@
 //
-//  PlayerManager+Playback.swift
+//  VideoPlaybackManager+Playback.swift
 //  LostArchiveTV
 //
-//  Created by PJ Gray on 5/31/25.
+//  Created by VideoPlaybackManager split on 6/27/25.
 //
 
 import Foundation
@@ -10,24 +10,41 @@ import AVFoundation
 import OSLog
 
 // MARK: - Playback Control
-extension PlayerManager {
+extension VideoPlaybackManager {
+    
     /// Starts or resumes playback
     func play() {
-        Logger.videoPlayback.debug("Playing video")
+        if let player = player {
+            let playerPointer = String(describing: ObjectIdentifier(player))
+            let itemStatus = player.currentItem?.status.rawValue ?? -1
+            Logger.videoPlayback.debug("▶️ VP_MANAGER: Play requested for player \(playerPointer), item status: \(itemStatus)")
+        } else {
+            Logger.videoPlayback.warning("▶️ VP_MANAGER: Play requested but player is nil")
+        }
+        
+        Logger.videoPlayback.debug("▶️ VP_MANAGER: Playing video")
         player?.play()
         isPlaying = true
     }
-    
+
     /// Pauses playback
     func pause() {
-        Logger.videoPlayback.debug("Pausing video")
+        if let player = player {
+            let playerPointer = String(describing: ObjectIdentifier(player))
+            let itemStatus = player.currentItem?.status.rawValue ?? -1
+            Logger.videoPlayback.debug("⏸️ VP_MANAGER: Pause requested for player \(playerPointer), item status: \(itemStatus)")
+        } else {
+            Logger.videoPlayback.warning("⏸️ VP_MANAGER: Pause requested but player is nil")
+        }
+        
+        Logger.videoPlayback.debug("⏸️ VP_MANAGER: Pausing video")
         player?.pause()
         isPlaying = false
     }
     
     /// Seeks to a specific time in the video
     func seek(to time: CMTime, completion: ((Bool) -> Void)? = nil) {
-        Logger.videoPlayback.debug("Seeking to time: \(time.seconds)")
+        Logger.videoPlayback.debug("🎯 VP_MANAGER: Seeking to time: \(time.seconds)")
         player?.seek(to: time, toleranceBefore: CMTime(seconds: 0.1, preferredTimescale: 600), 
                    toleranceAfter: CMTime(seconds: 0.1, preferredTimescale: 600)) { finished in
             completion?(finished)
@@ -36,7 +53,7 @@ extension PlayerManager {
     
     /// Seeks to the beginning of the video and starts playback
     func seekToBeginning() {
-        Logger.videoPlayback.info("Seeking to beginning of video and playing")
+        Logger.videoPlayback.info("🎯 VP_MANAGER: Seeking to beginning of video and playing")
         player?.seek(to: CMTime.zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] completed in
             if completed {
                 self?.player?.play()
@@ -47,7 +64,7 @@ extension PlayerManager {
     
     /// Sets a temporary playback rate, storing the current rate for later restoration
     func setTemporaryPlaybackRate(rate: Float) {
-        Logger.videoPlayback.debug("Setting temporary playback rate to \(rate)")
+        Logger.videoPlayback.debug("⚡ VP_MANAGER: Setting temporary playback rate to \(rate)")
         guard let player = player else { return }
         
         // Store the current rate before changing it (if we haven't already)
@@ -61,7 +78,7 @@ extension PlayerManager {
     
     /// Resets the playback rate to the previously stored normal rate
     func resetPlaybackRate() {
-        Logger.videoPlayback.debug("Resetting playback rate to \(self.normalPlaybackRate)")
+        Logger.videoPlayback.debug("⚡ VP_MANAGER: Resetting playback rate to \(self.normalPlaybackRate)")
         guard let player = player else { return }
         
         // Only reset if we're not already at the normal rate
