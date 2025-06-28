@@ -113,7 +113,7 @@ struct BottomInfoPanel: View {
             }
         }
         // Watch for changes to buffering state
-        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("CacheStatusChanged"))) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BufferStatusChanged"))) { _ in
             // Direct simple check when notification is received
             if !animationTriggered,  // Only if animation hasn't been triggered yet
                let nextMonitor = nextBufferingMonitor,

@@ -41,19 +41,19 @@ struct PreloadingIndicatorManagerTests {
         // Arrange
         let manager = PreloadingIndicatorManager.shared
         
-        // Test 1: When in preloading state and no transition manager available
+        // Test 1: When in preloading state with low buffer
         manager.state = .preloading
-        manager.updateStateFromTransitionManager()
+        manager.updateStateFromTransitionManager(bufferState: .low)
         
-        // Should remain in preloading state without SharedViewModelProvider
+        // Should remain in preloading state with low buffer
         #expect(manager.state == .preloading)
         
-        // Test 2: From notPreloading state
-        manager.state = .notPreloading
-        manager.updateStateFromTransitionManager()
+        // Test 2: When in preloading state with sufficient buffer
+        manager.state = .preloading
+        manager.updateStateFromTransitionManager(bufferState: .sufficient)
         
-        // Should remain notPreloading without transition manager
-        #expect(manager.state == .notPreloading)
+        // Should transition to preloaded with sufficient buffer
+        #expect(manager.state == .preloaded)
     }
     
     @Test
@@ -116,10 +116,10 @@ struct PreloadingIndicatorManagerTests {
         #expect(manager.state == .notPreloading)
     }
     
-    // MARK: - CacheStatusChanged Notification Tests
+    // MARK: - BufferStatusChanged Notification Tests
     
     @Test
-    func cacheStatusChangedNotification_triggersUpdateFromTransitionManager() async {
+    func bufferStatusChangedNotification_triggersUpdateFromTransitionManager() async {
         await setupCleanState()
         
         // Arrange
@@ -127,7 +127,7 @@ struct PreloadingIndicatorManagerTests {
         
         // Act
         NotificationCenter.default.post(
-            name: Notification.Name("CacheStatusChanged"),
+            name: Notification.Name("BufferStatusChanged"),
             object: nil
         )
         
@@ -148,7 +148,7 @@ struct PreloadingIndicatorManagerTests {
         
         // Send multiple notifications in sequence
         VideoCacheService.preloadingStatusPublisher.send(.started)
-        TransitionPreloadManager.cacheStatusPublisher.send()
+        TransitionPreloadManager.bufferStatusPublisher.send(.sufficient)
         VideoCacheService.preloadingStatusPublisher.send(.completed)
         
         // Wait for all notifications

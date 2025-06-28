@@ -49,12 +49,12 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
         setupAudioSession()
         setupDurationObserver()
 
-        // Listen for cache status changes using Combine
-        TransitionPreloadManager.cacheStatusPublisher
+        // Listen for buffer status changes using Combine
+        TransitionPreloadManager.bufferStatusPublisher
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
+            .sink { [weak self] bufferState in
                 // Log that we received the notification
-                Logger.caching.info("📱 RECEIVED COMBINE EVENT: CacheStatusChanged in \(String(describing: type(of: self)))")
+                Logger.caching.info("📱 RECEIVED COMBINE EVENT: BufferStatusChanged to \(bufferState.description) in \(String(describing: type(of: self)))")
 
                 // Update buffering monitors for preloaded videos
                 Task {

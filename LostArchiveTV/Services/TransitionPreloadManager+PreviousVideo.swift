@@ -50,7 +50,7 @@ extension TransitionPreloadManager {
             await MainActor.run {
                 // Update previous video metadata
                 prevTitle = previousVideo.title
-                prevCollection = previousVideo.collection ?? ""
+                prevCollection = previousVideo.collection
                 prevDescription = previousVideo.description
                 prevIdentifier = previousVideo.identifier
                 prevFilename = previousVideo.mp4File.name
@@ -80,12 +80,24 @@ extension TransitionPreloadManager {
                         bufferedSeconds = firstRange.duration.seconds
                     }
 
+                    // Calculate buffer state
+                    let bufferState = BufferState.from(seconds: bufferedSeconds)
+                    
+                    // Update buffer state
+                    await MainActor.run {
+                        self.updatePrevBufferState(bufferState)
+                    }
+                    
                     // Check if buffer is ready - requires both conditions:
                     // 1. isPlaybackLikelyToKeepUp is true
-                    // 2. At least 1 second of video is actually buffered
-                    if playerItem?.isPlaybackLikelyToKeepUp == true && bufferedSeconds >= 1.0 {
+                    // 2. Buffer state is ready (sufficient, good, or excellent)
+                    if playerItem?.isPlaybackLikelyToKeepUp == true && bufferState.isReady {
+                        // Capture values for logging
+                        let currentBufferedSeconds = bufferedSeconds
+                        let currentBufferState = bufferState
+                        
                         await MainActor.run {
-                            Logger.caching.info("✅ PRELOAD PREV: Buffer ready for \(previousVideo.identifier) (buffered: \(bufferedSeconds)s)")
+                            Logger.caching.info("✅ PRELOAD PREV: Buffer ready for \(previousVideo.identifier) (buffered: \(currentBufferedSeconds)s, state: \(currentBufferState.description))")
                             // Update dot to be solid green by setting ready flag
                             prevVideoReady = true
                         }
@@ -103,7 +115,7 @@ extension TransitionPreloadManager {
                     }
 
                     // If not ready yet, wait briefly and check again
-                    Logger.caching.debug("⏳ PRELOAD PREV: Buffer not yet ready for \(previousVideo.identifier) (buffered: \(bufferedSeconds)s)")
+                    Logger.caching.debug("⏳ PRELOAD PREV: Buffer not yet ready for \(previousVideo.identifier) (buffered: \(bufferedSeconds)s, state: \(bufferState.description))")
                     try? await Task.sleep(for: .seconds(0.5))
                 }
             }

@@ -35,6 +35,7 @@ class VideoTransitionManager: ObservableObject {
     var nextIdentifier: String { preloadManager.nextIdentifier }
     var nextFilename: String { preloadManager.nextFilename }
     var nextTotalFiles: Int { preloadManager.nextTotalFiles }
+    var nextBufferState: BufferState { preloadManager.currentNextBufferState }
 
     var prevVideoReady: Bool { preloadManager.prevVideoReady }
     var prevPlayer: AVPlayer? { preloadManager.prevPlayer }
@@ -44,6 +45,7 @@ class VideoTransitionManager: ObservableObject {
     var prevIdentifier: String { preloadManager.prevIdentifier }
     var prevFilename: String { preloadManager.prevFilename }
     var prevTotalFiles: Int { preloadManager.prevTotalFiles }
+    var prevBufferState: BufferState { preloadManager.currentPrevBufferState }
     
     // MARK: - Transition Methods
     
