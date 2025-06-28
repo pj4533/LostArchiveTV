@@ -119,15 +119,15 @@ struct TransitionOverlay: View {
     var body: some View {
         ZStack {
             // Outer explosion
-            EdgeBorder(width: 25)
-                .stroke(transitionColor, lineWidth: 25)
+            EdgeBorderMask(width: 25)
+                .fill(transitionColor)
                 .blur(radius: 40)
                 .opacity(opacity)
                 .scaleEffect(scale)
             
             // Inner explosion
-            EdgeBorder(width: 15)
-                .stroke(transitionSecondaryColor, lineWidth: 15)
+            EdgeBorderMask(width: 15)
+                .fill(transitionSecondaryColor)
                 .blur(radius: 30)
                 .opacity(opacity * 0.9)
                 .scaleEffect(scale * 0.9)
@@ -180,6 +180,7 @@ struct AnimatedBorderView: View {
     // Animation controls
     @State private var pulsing = false
     @State private var meshPhase: Double = 0.0
+    @State private var pointOffset: Double = 0.0
     
     // Define base colors for the mesh gradient
     private let baseColors: [Color] = [
@@ -204,49 +205,61 @@ struct AnimatedBorderView: View {
         return meshColor(at: index).opacity(0.85)
     }
     
+    // Animated mesh points that subtly move the control points
+    private var animatedMeshPoints: [SIMD2<Float>] {
+        let baseOffset = Float(pointOffset) * 0.05 // Small movement range
+        return [
+            [0.0 + sin(Float.pi * 2 * baseOffset) * 0.02, 0.0 + cos(Float.pi * 2 * baseOffset) * 0.02],
+            [0.5 + cos(Float.pi * 2 * baseOffset * 1.5) * 0.015, 0.0 + sin(Float.pi * 2 * baseOffset * 1.5) * 0.015],
+            [1.0 + sin(Float.pi * 2 * baseOffset * 0.8) * 0.02, 0.0 + cos(Float.pi * 2 * baseOffset * 0.8) * 0.02],
+            
+            [0.0 + cos(Float.pi * 2 * baseOffset * 1.2) * 0.015, 0.5 + sin(Float.pi * 2 * baseOffset * 1.2) * 0.015],
+            [0.5 + sin(Float.pi * 2 * baseOffset * 0.9) * 0.01, 0.5 + cos(Float.pi * 2 * baseOffset * 0.9) * 0.01],
+            [1.0 + cos(Float.pi * 2 * baseOffset * 1.3) * 0.015, 0.5 + sin(Float.pi * 2 * baseOffset * 1.3) * 0.015],
+            
+            [0.0 + sin(Float.pi * 2 * baseOffset * 0.7) * 0.02, 1.0 + cos(Float.pi * 2 * baseOffset * 0.7) * 0.02],
+            [0.5 + cos(Float.pi * 2 * baseOffset * 1.1) * 0.015, 1.0 + sin(Float.pi * 2 * baseOffset * 1.1) * 0.015],
+            [1.0 + sin(Float.pi * 2 * baseOffset * 1.4) * 0.02, 1.0 + cos(Float.pi * 2 * baseOffset * 1.4) * 0.02]
+        ]
+    }
+    
     var body: some View {
         ZStack {
-            // Primary glow using MeshGradient as mask
-            MeshGradient(
-                width: 3,
-                height: 3,
-                points: [
-                    [0.0, 0.0], [0.5, 0.0], [1.0, 0.0],
-                    [0.0, 0.5], [0.5, 0.5], [1.0, 0.5],
-                    [0.0, 1.0], [0.5, 1.0], [1.0, 1.0]
-                ],
-                colors: [
-                    meshColor(at: 0), meshColor(at: 1), meshColor(at: 2),
-                    meshColor(at: 3), meshColor(at: 4), meshColor(at: 5),
-                    meshColor(at: 6), meshColor(at: 7), meshColor(at: 8)
-                ]
-            )
-            .mask(
-                EdgeBorder(width: pulsing ? 4.5 : 2.0)
-            )
-            .blur(radius: pulsing ? 6.0 : 3.0)
-            .opacity(pulsing ? 0.9 : 0.6)
+            // Primary glow - stroke the EdgeBorder shape with MeshGradient
+            EdgeBorder(width: pulsing ? 4.5 : 2.0)
+                .stroke(
+                    MeshGradient(
+                        width: 3,
+                        height: 3,
+                        points: animatedMeshPoints,
+                        colors: [
+                            meshColor(at: 0), meshColor(at: 1), meshColor(at: 2),
+                            meshColor(at: 3), meshColor(at: 4), meshColor(at: 5),
+                            meshColor(at: 6), meshColor(at: 7), meshColor(at: 8)
+                        ]
+                    ),
+                    lineWidth: pulsing ? 4.5 : 2.0
+                )
+                .blur(radius: pulsing ? 6.0 : 3.0)
+                .opacity(pulsing ? 0.9 : 0.6)
             
-            // Secondary inner glow using MeshGradient for depth effect
-            MeshGradient(
-                width: 3,
-                height: 3,
-                points: [
-                    [0.0, 0.0], [0.5, 0.0], [1.0, 0.0],
-                    [0.0, 0.5], [0.5, 0.5], [1.0, 0.5],
-                    [0.0, 1.0], [0.5, 1.0], [1.0, 1.0]
-                ],
-                colors: [
-                    secondaryMeshColor(at: 0), secondaryMeshColor(at: 1), secondaryMeshColor(at: 2),
-                    secondaryMeshColor(at: 3), secondaryMeshColor(at: 4), secondaryMeshColor(at: 5),
-                    secondaryMeshColor(at: 6), secondaryMeshColor(at: 7), secondaryMeshColor(at: 8)
-                ]
-            )
-            .mask(
-                EdgeBorder(width: pulsing ? 2.5 : 1.5)
-            )
-            .blur(radius: pulsing ? 4.0 : 2.0)
-            .opacity(pulsing ? 0.8 : 0.5)
+            // Secondary inner glow - stroke with a secondary mesh gradient for depth
+            EdgeBorder(width: pulsing ? 2.5 : 1.5)
+                .stroke(
+                    MeshGradient(
+                        width: 3,
+                        height: 3,
+                        points: animatedMeshPoints,
+                        colors: [
+                            secondaryMeshColor(at: 0), secondaryMeshColor(at: 1), secondaryMeshColor(at: 2),
+                            secondaryMeshColor(at: 3), secondaryMeshColor(at: 4), secondaryMeshColor(at: 5),
+                            secondaryMeshColor(at: 6), secondaryMeshColor(at: 7), secondaryMeshColor(at: 8)
+                        ]
+                    ),
+                    lineWidth: pulsing ? 2.5 : 1.5
+                )
+                .blur(radius: pulsing ? 4.0 : 2.0)
+                .opacity(pulsing ? 0.8 : 0.5)
         }
         .onAppear {
             // Start both pulse and mesh animations
@@ -264,6 +277,7 @@ struct AnimatedBorderView: View {
         // Reset animation state
         pulsing = false
         meshPhase = 0.0
+        pointOffset = 0.0
         
         // Start the pulse animation
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
@@ -273,9 +287,14 @@ struct AnimatedBorderView: View {
             }
         }
         
-        // Start the mesh gradient animation
+        // Start the mesh gradient color animation
         withAnimation(.linear(duration: 8.0).repeatForever(autoreverses: false)) {
             meshPhase = 1.0
+        }
+        
+        // Start the mesh point animation (slower, subtler movement)
+        withAnimation(.linear(duration: 12.0).repeatForever(autoreverses: false)) {
+            pointOffset = 1.0
         }
     }
 }
@@ -310,7 +329,7 @@ extension Color {
     }
 }
 
-// Custom shape to draw only the edge border
+// Custom shape to draw only the edge border outline
 struct EdgeBorder: Shape {
     let width: CGFloat
     
@@ -324,7 +343,26 @@ struct EdgeBorder: Shape {
         // Get the device corner radius from our service
         let cornerRadius = ScreenCornerService.shared.cornerRadius
         
-        // Use our helper to create a path with the correct device corner radius
+        // Create a simple outline path for stroking (not a filled border path)
+        return DeviceScreenShape.path(in: rect, cornerRadius: cornerRadius)
+    }
+}
+
+// Alternative shape for mask-based borders (used in TransitionOverlay)
+struct EdgeBorderMask: Shape {
+    let width: CGFloat
+    
+    // Add animation support
+    var animatableData: CGFloat {
+        get { width }
+        set { }  // Read-only, just for animation
+    }
+    
+    func path(in rect: CGRect) -> Path {
+        // Get the device corner radius from our service
+        let cornerRadius = ScreenCornerService.shared.cornerRadius
+        
+        // Use the border path for masking operations
         return DeviceScreenShape.borderPath(in: rect, cornerRadius: cornerRadius, lineWidth: width)
     }
 }
