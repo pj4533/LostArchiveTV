@@ -39,7 +39,9 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
     private var searchTask: Task<Void, Never>?
     
     // File count cache to avoid repeated API calls
-    private nonisolated(unsafe) var fileCountCache: [String: Int] = [:]
+    // Using dual approach: nonisolated storage for synchronous reads + Published for UI updates
+    private nonisolated(unsafe) var _fileCountCache: [String: Int] = [:]
+    @Published var fileCountCacheVersion: Int = 0
     
     // MARK: - VideoControlProvider Protocol Overrides
     
@@ -71,8 +73,6 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
         Task {
             if let cachedVideo = await createCachedVideoFromCurrentState() {
                 favoritesManager.toggleFavorite(cachedVideo)
-                // Force UI refresh
-                objectWillChange.send()
             }
         }
     }
@@ -137,7 +137,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
     /// - Parameter identifier: The archive identifier
     /// - Returns: The cached file count if available, nil otherwise
     nonisolated func getCachedFileCount(for identifier: String) -> Int? {
-        return fileCountCache[identifier]
+        return _fileCountCache[identifier]
     }
     
     /// Fetch file count for an identifier and cache the result
@@ -147,7 +147,7 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
         Logger.caching.debug("🔍 DEBUG: fetchFileCount called for: \(identifier)")
         
         // Check cache first
-        if let cachedCount = fileCountCache[identifier] {
+        if let cachedCount = _fileCountCache[identifier] {
             Logger.caching.info("🔍 DEBUG: File count cache hit for \(identifier): \(cachedCount)")
             return cachedCount
         }
@@ -162,14 +162,10 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
             let fileCount = VideoLoadingService.calculateFileCount(from: metadata)
             Logger.caching.debug("🔍 DEBUG: calculateFileCount returned: \(fileCount)")
             
-            // Cache the result (nonisolated access is safe here since we're controlling the access)
-            fileCountCache[identifier] = fileCount
+            // Cache the result and trigger UI updates
+            _fileCountCache[identifier] = fileCount
+            fileCountCacheVersion += 1  // Trigger UI update through @Published
             Logger.caching.info("🔍 DEBUG: Cached file count for \(identifier): \(fileCount)")
-            
-            // Trigger a UI update so the file count shows up (must be on MainActor)
-            await MainActor.run {
-                objectWillChange.send()
-            }
             
             return fileCount
         } catch {
@@ -189,8 +185,8 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
         for i in 0..<prefetchCount {
             let identifier = results[i].identifier.identifier
             
-            // Skip if already cached (nonisolated access is safe for read)
-            if fileCountCache[identifier] != nil {
+            // Skip if already cached
+            if _fileCountCache[identifier] != nil {
                 continue
             }
             
@@ -210,8 +206,9 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
             return
         }
         
-        // Clear file count cache when starting a new search (nonisolated access is safe)
-        fileCountCache.removeAll()
+        // Clear file count cache when starting a new search
+        _fileCountCache.removeAll()
+        fileCountCacheVersion += 1  // Trigger UI update
         Logger.caching.info("Cleared file count cache for new search")
         
         // Cancel any previously running search task
