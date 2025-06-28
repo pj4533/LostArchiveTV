@@ -38,6 +38,9 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
     // Task management for proper cancellation
     private var searchTask: Task<Void, Never>?
     
+    // File count cache to avoid repeated API calls
+    private var fileCountCache: [String: Int] = [:]
+    
     // MARK: - VideoControlProvider Protocol Overrides
     
     /// Checks if the current video is a favorite
@@ -128,11 +131,53 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
         super.cleanup()
     }
     
+    // MARK: - File Count Cache Methods
+    
+    /// Get cached file count for an identifier
+    /// - Parameter identifier: The archive identifier
+    /// - Returns: The cached file count if available, nil otherwise
+    func getCachedFileCount(for identifier: String) -> Int? {
+        return fileCountCache[identifier]
+    }
+    
+    /// Fetch file count for an identifier and cache the result
+    /// - Parameter identifier: The archive identifier
+    /// - Returns: The file count, or nil if there was an error
+    func fetchFileCount(for identifier: String) async -> Int? {
+        // Check cache first
+        if let cachedCount = fileCountCache[identifier] {
+            Logger.caching.info("File count cache hit for \(identifier): \(cachedCount)")
+            return cachedCount
+        }
+        
+        do {
+            // Fetch metadata to calculate file count
+            Logger.caching.info("Fetching file count for \(identifier)")
+            let metadata = try await archiveService.fetchMetadata(for: identifier)
+            
+            // Use the static method from VideoLoadingService to calculate file count
+            let fileCount = VideoLoadingService.calculateFileCount(from: metadata)
+            
+            // Cache the result
+            fileCountCache[identifier] = fileCount
+            Logger.caching.info("Cached file count for \(identifier): \(fileCount)")
+            
+            return fileCount
+        } catch {
+            Logger.caching.error("Failed to fetch file count for \(identifier): \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
     func search() async {
         guard !self.searchQuery.isEmpty else {
             searchResults = []
             return
         }
+        
+        // Clear file count cache when starting a new search
+        fileCountCache.removeAll()
+        Logger.caching.info("Cleared file count cache for new search")
         
         // Cancel any previously running search task
         searchTask?.cancel()

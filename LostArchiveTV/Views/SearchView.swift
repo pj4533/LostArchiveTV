@@ -166,8 +166,11 @@ struct SearchResultCell: View {
     let index: Int
     let viewModel: SearchViewModel
     
+    @State private var fileCount: Int?
+    @State private var isLoadingMetadata = false
+    
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
+        ZStack(alignment: .bottom) {
             // Image placeholder or actual thumbnail
             AsyncImage(url: URL(string: "https://archive.org/services/img/\(result.identifier.identifier)")) { phase in
                 if let image = phase.image {
@@ -191,21 +194,67 @@ struct SearchResultCell: View {
             }
             .aspectRatio(1, contentMode: .fill)
             
-            // Title overlay at bottom
-            VStack(alignment: .leading) {
+            // Metadata overlay with gradient
+            VStack {
                 Spacer()
-                Text(result.title)
-                    .lineLimit(2)
-                    .font(.caption)
-                    .padding(6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.black.opacity(0.7))
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    // Title
+                    Text(result.title)
+                        .lineLimit(2)
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    // File count
+                    if let count = fileCount {
+                        Text(count == 1 ? "1 file" : "\(count) files")
+                            .font(.caption2)
+                            .foregroundColor(.white.opacity(0.8))
+                    } else if isLoadingMetadata {
+                        Text("Loading...")
+                            .font(.caption2)
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    LinearGradient(
+                        gradient: Gradient(colors: [.clear, .black.opacity(0.8)]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
             }
         }
         .frame(minWidth: 0, maxWidth: .infinity, minHeight: 160)
         .clipped()
         .onTapGesture {
             viewModel.playVideoAt(index: index)
+        }
+        .onAppear {
+            loadFileCount()
+        }
+    }
+    
+    private func loadFileCount() {
+        guard fileCount == nil && !isLoadingMetadata else { return }
+        
+        isLoadingMetadata = true
+        
+        Task {
+            if let count = await viewModel.fetchFileCount(for: result.identifier.identifier) {
+                await MainActor.run {
+                    self.fileCount = count
+                    self.isLoadingMetadata = false
+                }
+            } else {
+                await MainActor.run {
+                    self.isLoadingMetadata = false
+                }
+            }
         }
     }
 }
