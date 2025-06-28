@@ -38,7 +38,9 @@ struct VideoInfoOverlay: View {
                 currentTime: viewModel.player?.currentTime().seconds,
                 duration: viewModel.videoDuration,
                 totalFiles: viewModel.totalFiles,
-                cacheStatuses: viewModel.cacheStatuses
+                currentBufferingMonitor: viewModel.currentBufferingMonitor,
+                nextBufferingMonitor: viewModel.nextBufferingMonitor,
+                nextVideoTitle: getNextVideoTitle()
             )
             .id("\(viewModel.totalFiles)-\(Date())") // Force refresh periodically and when totalFiles changes
             
@@ -121,6 +123,17 @@ struct VideoInfoOverlay: View {
                     .foregroundColor(.white)
             }
         }
+    }
+    
+    // MARK: - Helper Functions
+    
+    private func getNextVideoTitle() -> String? {
+        // Try to get next video title from transition manager
+        if let transitionManager = viewModel.transitionManager,
+           !transitionManager.nextTitle.isEmpty {
+            return transitionManager.nextTitle
+        }
+        return nil
     }
     
     // MARK: - Actions
