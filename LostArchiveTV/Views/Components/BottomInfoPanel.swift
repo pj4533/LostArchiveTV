@@ -58,7 +58,7 @@ struct BottomInfoPanel: View {
 
                 // Buffering indicators with swipe hint below
                 VStack(spacing: 12) {
-                    // Buffering indicators centered
+                    // Buffering indicators with padding to avoid button overlap
                     if let currentMonitor = currentBufferingMonitor {
                         BufferingIndicatorView(
                             currentVideoMonitor: currentMonitor,
@@ -66,6 +66,7 @@ struct BottomInfoPanel: View {
                             currentVideoTitle: title ?? "Current Video",
                             nextVideoTitle: nextVideoTitle
                         )
+                        .padding(.horizontal, 80) // Leave space for right-side buttons
                     }
                     
                     // Swipe hint below indicators

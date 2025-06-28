@@ -19,7 +19,7 @@ struct BufferingIndicatorView: View {
     
     // MARK: - Constants
     
-    private let barSpacing: CGFloat = 20
+    private let barSpacing: CGFloat = 8
     private let nextVideoOpacity: Double = 0.6
     
     // MARK: - Body
