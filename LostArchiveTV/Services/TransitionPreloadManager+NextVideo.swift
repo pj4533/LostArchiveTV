@@ -256,7 +256,11 @@ extension TransitionPreloadManager {
         let prefix = isRandom ? "RAND" : "NEXT"
         Logger.caching.info("🔄 PRELOAD \(prefix): Starting buffer monitoring via BufferingMonitor for \(videoId)")
         
+        // Give the monitor a moment to stabilize
+        try? await Task.sleep(for: .milliseconds(300))
+        
         // Wait for the monitor to be ready
+        var consecutiveReadyChecks = 0
         while !Task.isCancelled {
             // Get the buffer state from the monitor (single source of truth)
             let bufferState = await MainActor.run {
@@ -273,19 +277,24 @@ extension TransitionPreloadManager {
                 self.updateNextBufferState(bufferState)
             }
             
-            // Check if buffer is ready
+            // Check if buffer is ready - require 2 consecutive ready states to avoid false positives
             if bufferState.isReady {
-                await MainActor.run {
-                    Logger.caching.info("✅ PRELOAD \(prefix): Buffer ready for \(videoId) (buffered: \(bufferSeconds)s, state: \(bufferState.description))")
-                    self.nextVideoReady = true
+                consecutiveReadyChecks += 1
+                if consecutiveReadyChecks >= 2 {
+                    await MainActor.run {
+                        Logger.caching.info("✅ PRELOAD \(prefix): Buffer ready for \(videoId) (buffered: \(bufferSeconds)s, state: \(bufferState.description))")
+                        self.nextVideoReady = true
+                    }
+                    
+                    // Calculate and log preloading completion time
+                    let preloadEndTime = CFAbsoluteTimeGetCurrent()
+                    let preloadDuration = preloadEndTime - preloadStart
+                    Logger.caching.info("⏱️ TIMING: \(prefix) video preloading completed in \(preloadDuration.formatted(.number.precision(.fractionLength(3)))) seconds")
+                    
+                    break
                 }
-                
-                // Calculate and log preloading completion time
-                let preloadEndTime = CFAbsoluteTimeGetCurrent()
-                let preloadDuration = preloadEndTime - preloadStart
-                Logger.caching.info("⏱️ TIMING: \(prefix) video preloading completed in \(preloadDuration.formatted(.number.precision(.fractionLength(3)))) seconds")
-                
-                break
+            } else {
+                consecutiveReadyChecks = 0
             }
             
             // Wait briefly before checking again
