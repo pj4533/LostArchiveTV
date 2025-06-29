@@ -16,4 +16,5 @@ extension Logger {
     static let caching = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "caching")
     static let files = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "files")
     static let ui = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "ui")
+    static let preloading = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "preloading")
 }

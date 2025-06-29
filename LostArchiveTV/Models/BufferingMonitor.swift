@@ -51,6 +51,11 @@ final class BufferingMonitor: ObservableObject {
     private var lastBufferUpdate: Date?
     private var lastBufferSeconds: Double = 0.0
     
+    // For stabilization of initial readings
+    private var isStabilized: Bool = false
+    private var stabilizationReadings: [Double] = []
+    private let stabilizationThreshold = 3 // Number of consistent readings needed
+    
     // MARK: - Initialization
     
     init() {
@@ -58,9 +63,7 @@ final class BufferingMonitor: ObservableObject {
     }
     
     deinit {
-        Task { @MainActor in
-            cleanup()
-        }
+        // Cleanup will be handled by the caller
     }
     
     // MARK: - Public Methods
@@ -72,9 +75,27 @@ final class BufferingMonitor: ObservableObject {
         self.player = player
         
         logger.info("Starting buffer monitoring for player")
+        Logger.preloading.info("🔌 BUFFER MONITOR: Started monitoring player \(String(describing: Unmanaged.passUnretained(player).toOpaque()))")
+        
+        // Reset stabilization state
+        isStabilized = false
+        stabilizationReadings.removeAll()
         
         setupObservations()
+        
+        // Perform initial buffer check immediately
         updateBufferMetrics()
+        
+        // Schedule additional stabilization checks
+        Task {
+            // Wait a moment for player to settle
+            try? await Task.sleep(for: .milliseconds(100))
+            updateBufferMetrics()
+            
+            // Another check after a short delay
+            try? await Task.sleep(for: .milliseconds(200))
+            updateBufferMetrics()
+        }
     }
     
     /// Stop monitoring and clean up resources
@@ -173,6 +194,27 @@ final class BufferingMonitor: ObservableObject {
         // Calculate available buffer from loaded time ranges
         let availableBuffer = calculateAvailableBuffer(for: currentItem, currentTime: currentTime)
         
+        // Handle stabilization for initial readings
+        if !isStabilized {
+            stabilizationReadings.append(availableBuffer)
+            
+            // Check if we have enough readings
+            if self.stabilizationReadings.count >= self.stabilizationThreshold {
+                // Check if readings are consistent (not all zero)
+                let nonZeroReadings = stabilizationReadings.filter { $0 > 0 }
+                if nonZeroReadings.count >= 2 || stabilizationReadings.count >= 5 {
+                    isStabilized = true
+                    Logger.preloading.info("✅ BUFFER MONITOR: Stabilized with \(nonZeroReadings.count) non-zero readings")
+                }
+            }
+            
+            // If not stabilized and buffer is reported as 0, don't update state yet
+            if availableBuffer == 0 && !isStabilized {
+                Logger.preloading.debug("⏳ BUFFER MONITOR: Waiting for stabilization (reading \(self.stabilizationReadings.count)/\(self.stabilizationThreshold))")
+                return
+            }
+        }
+        
         // Update buffer seconds
         bufferSeconds = availableBuffer
         
@@ -186,6 +228,11 @@ final class BufferingMonitor: ObservableObject {
         updateFillRate(currentBuffer: availableBuffer)
         
         logger.debug("Buffer updated: \(availableBuffer, format: .fixed(precision: 1))s (\(Int(self.bufferProgress * 100))%), state: \(self.bufferState.description)")
+        
+        // Log to preloading category when buffer reaches excellent
+        if self.bufferState == .excellent {
+            Logger.preloading.notice("💚 BUFFER MONITOR: Buffer reached EXCELLENT (\(availableBuffer)s, progress=\(self.bufferProgress))")
+        }
     }
     
     private func calculateAvailableBuffer(for item: AVPlayerItem, currentTime: CMTime) -> Double {
@@ -254,6 +301,8 @@ final class BufferingMonitor: ObservableObject {
         bufferFillRate = 0.0
         lastBufferUpdate = nil
         lastBufferSeconds = 0.0
+        isStabilized = false
+        stabilizationReadings.removeAll()
     }
     
     private func cleanup() {

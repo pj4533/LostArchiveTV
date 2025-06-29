@@ -12,8 +12,17 @@ import Foundation
 import Combine
 
 class TransitionPreloadManager: ObservableObject {
-    /// Publisher for cache status changes
-    static var cacheStatusPublisher = PassthroughSubject<Void, Never>()
+    /// Publisher for buffer status changes - publishes the combined buffer state
+    static var bufferStatusPublisher = PassthroughSubject<BufferState, Never>()
+    
+    // Buffer state tracking
+    private var nextBufferState: BufferState = .unknown
+    private var prevBufferState: BufferState = .unknown
+    
+    // Public accessors for buffer states
+    var currentNextBufferState: BufferState { nextBufferState }
+    var currentPrevBufferState: BufferState { prevBufferState }
+    
     // Next (down) video properties
     @Published var nextVideoReady = false {
         didSet {
@@ -28,8 +37,17 @@ class TransitionPreloadManager: ObservableObject {
                 // Always post notification when nextVideoReady changes to ensure UI updates
                 // This helps prevent mismatch between UI and actual swipe availability
                 DispatchQueue.main.async {
-                    Logger.caching.info("🚨 AUTO NOTIFICATION: Publishing CacheStatusChanged due to nextVideoReady change")
-                    TransitionPreloadManager.cacheStatusPublisher.send()
+                    Logger.caching.info("🚨 AUTO NOTIFICATION: Publishing BufferStatusChanged due to nextVideoReady change")
+                    // When ready changes, update the buffer state accordingly
+                    if self.nextVideoReady {
+                        // If marked as ready, assume at least sufficient buffer
+                        self.nextBufferState = .sufficient
+                    } else {
+                        // If not ready, reset to unknown
+                        self.nextBufferState = .unknown
+                    }
+                    let combinedState = self.computeCombinedBufferState()
+                    TransitionPreloadManager.bufferStatusPublisher.send(combinedState)
                 }
             }
         }
@@ -52,8 +70,17 @@ class TransitionPreloadManager: ObservableObject {
                 // Always post notification when prevVideoReady changes to ensure UI updates
                 // This helps prevent mismatch between UI and actual swipe availability
                 DispatchQueue.main.async {
-                    Logger.caching.info("🚨 AUTO NOTIFICATION: Publishing CacheStatusChanged due to prevVideoReady change")
-                    TransitionPreloadManager.cacheStatusPublisher.send()
+                    Logger.caching.info("🚨 AUTO NOTIFICATION: Publishing BufferStatusChanged due to prevVideoReady change")
+                    // When ready changes, update the buffer state accordingly
+                    if self.prevVideoReady {
+                        // If marked as ready, assume at least sufficient buffer
+                        self.prevBufferState = .sufficient
+                    } else {
+                        // If not ready, reset to unknown
+                        self.prevBufferState = .unknown
+                    }
+                    let combinedState = self.computeCombinedBufferState()
+                    TransitionPreloadManager.bufferStatusPublisher.send(combinedState)
                 }
             }
         }
@@ -65,4 +92,57 @@ class TransitionPreloadManager: ObservableObject {
     @Published var prevIdentifier: String = ""
     @Published var prevFilename: String = ""
     @Published var prevTotalFiles: Int = 0
+    
+    // MARK: - Buffer State Management
+    
+    /// Computes the combined buffer state based on next and previous buffer states
+    private func computeCombinedBufferState() -> BufferState {
+        // If both are unknown, return unknown
+        if nextBufferState == .unknown && prevBufferState == .unknown {
+            return .unknown
+        }
+        
+        // If either is unknown, use the other
+        if nextBufferState == .unknown {
+            return prevBufferState
+        }
+        if prevBufferState == .unknown {
+            return nextBufferState
+        }
+        
+        // Return the worse of the two states
+        let nextIndex = BufferState.allCases.firstIndex(of: nextBufferState) ?? 0
+        let prevIndex = BufferState.allCases.firstIndex(of: prevBufferState) ?? 0
+        
+        return nextIndex < prevIndex ? nextBufferState : prevBufferState
+    }
+    
+    /// Updates the buffer state for next video and publishes if changed
+    func updateNextBufferState(_ state: BufferState) {
+        guard nextBufferState != state else { return }
+        
+        Logger.preloading.info("📈 TRANSITION MGR: Updating nextBufferState from \(self.nextBufferState.rawValue) to \(state.rawValue)")
+        nextBufferState = state
+        let combinedState = computeCombinedBufferState()
+        
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            Logger.caching.info("🚨 BUFFER STATE: Publishing combined state \(combinedState.description) (next: \(state.description))")
+            Logger.preloading.info("📢 TRANSITION MGR: Published buffer state - Combined: \(combinedState.rawValue), Next: \(state.rawValue), Prev: \(self.prevBufferState.rawValue)")
+            TransitionPreloadManager.bufferStatusPublisher.send(combinedState)
+        }
+    }
+    
+    /// Updates the buffer state for previous video and publishes if changed
+    func updatePrevBufferState(_ state: BufferState) {
+        guard prevBufferState != state else { return }
+        
+        prevBufferState = state
+        let combinedState = computeCombinedBufferState()
+        
+        DispatchQueue.main.async {
+            Logger.caching.info("🚨 BUFFER STATE: Publishing combined state \(combinedState.description) (prev: \(state.description))")
+            TransitionPreloadManager.bufferStatusPublisher.send(combinedState)
+        }
+    }
 }

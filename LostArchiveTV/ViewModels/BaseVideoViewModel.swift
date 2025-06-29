@@ -49,12 +49,12 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
         setupAudioSession()
         setupDurationObserver()
 
-        // Listen for cache status changes using Combine
-        TransitionPreloadManager.cacheStatusPublisher
+        // Listen for buffer status changes using Combine
+        TransitionPreloadManager.bufferStatusPublisher
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
+            .sink { [weak self] bufferState in
                 // Log that we received the notification
-                Logger.caching.info("📱 RECEIVED COMBINE EVENT: CacheStatusChanged in \(String(describing: type(of: self)))")
+                Logger.caching.info("📱 RECEIVED COMBINE EVENT: BufferStatusChanged to \(bufferState.description) in \(String(describing: type(of: self)))")
 
                 // Update buffering monitors for preloaded videos
                 Task {
@@ -364,17 +364,21 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
         // Connect monitors to preloaded players
         if let nextPlayer = transitionManager.nextPlayer {
             Logger.videoPlayback.debug("🔍 Connecting next video buffering monitor")
+            Logger.preloading.info("🔗 MONITOR CONNECTION: Connecting nextBufferingMonitor to nextPlayer \(String(describing: Unmanaged.passUnretained(nextPlayer).toOpaque()))")
             nextBufferingMonitor?.stopMonitoring()
             nextBufferingMonitor?.startMonitoring(nextPlayer)
         } else {
+            Logger.preloading.warning("⚠️ MONITOR CONNECTION: No nextPlayer available to connect monitor")
             nextBufferingMonitor?.stopMonitoring()
         }
         
         if let prevPlayer = transitionManager.prevPlayer {
             Logger.videoPlayback.debug("🔍 Connecting previous video buffering monitor")
+            Logger.preloading.info("🔗 MONITOR CONNECTION: Connecting previousBufferingMonitor to prevPlayer")
             previousBufferingMonitor?.stopMonitoring()
             previousBufferingMonitor?.startMonitoring(prevPlayer)
         } else {
+            Logger.preloading.warning("⚠️ MONITOR CONNECTION: No prevPlayer available to connect monitor")
             previousBufferingMonitor?.stopMonitoring()
         }
     }

@@ -21,7 +21,11 @@ extension VideoTransitionManager {
         isDragging: Binding<Bool>,
         animationDuration: Double
     ) {
-        guard nextVideoReady, let nextPlayer = nextPlayer else { return }
+        // Check buffer readiness using the buffer state
+        guard preloadManager.currentNextBufferState.isReady, let nextPlayer = nextPlayer else {
+            Logger.caching.info("⚠️ TRANSITION: Cannot complete next transition - buffer not ready (\(self.preloadManager.currentNextBufferState.description)) or player nil")
+            return
+        }
         
         // Track the swipe next event
         Mixpanel.mainInstance().track(event: "Swipe Next")
@@ -164,9 +168,10 @@ extension VideoTransitionManager {
                 self.preloadManager.nextVideoReady = false
                 self.preloadManager.nextPlayer = nil
 
-                // Post a notification to update UI cache status immediately
-                Logger.caching.info("🔔 POSTING NOTIFICATION: CacheStatusChanged - nextVideoReady is now \(self.preloadManager.nextVideoReady)")
-                TransitionPreloadManager.cacheStatusPublisher.send()
+                // Post a notification to update UI buffer status immediately
+                Logger.caching.info("🔔 POSTING NOTIFICATION: BufferStatusChanged - nextVideoReady is now \(self.preloadManager.nextVideoReady)")
+                // When clearing next player, reset buffer state to unknown
+                self.preloadManager.updateNextBufferState(.unknown)
             }
             
             // Preload the next videos in both directions and advance cache window

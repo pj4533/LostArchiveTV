@@ -14,9 +14,12 @@ struct AppContainer<Content: View>: View {
             // Main app content
             content
             
-            // Preloading indicator overlay
-            RetroEdgePreloadIndicator(state: preloadingIndicatorManager.state)
-                .allowsHitTesting(false) // Ensure the indicator doesn't block interaction
+            // Preloading indicator overlay with buffer state
+            RetroEdgePreloadIndicator(
+                state: preloadingIndicatorManager.state,
+                bufferState: preloadingIndicatorManager.currentBufferState
+            )
+            .allowsHitTesting(false) // Ensure the indicator doesn't block interaction
         }
     }
 }

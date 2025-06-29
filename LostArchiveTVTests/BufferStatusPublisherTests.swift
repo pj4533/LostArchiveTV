@@ -12,15 +12,15 @@ extension VideoCacheService {
 
 extension TransitionPreloadManager {
     static func resetForTesting() {
-        cacheStatusPublisher = PassthroughSubject<Void, Never>()
+        bufferStatusPublisher = PassthroughSubject<BufferState, Never>()
     }
 }
 
-/// Tests for Combine-based cache status publisher conversions
+/// Tests for Combine-based buffer status publisher conversions
 /// Note: These tests use static publishers and must be run serially to avoid interference
 @MainActor
 @Suite(.serialized)
-struct CacheStatusPublisherTests {
+struct BufferStatusPublisherTests {
     
     // Note: We don't reset publishers in init() to avoid interference between tests
     // Each test that needs isolation should handle its own setup
@@ -33,7 +33,7 @@ struct CacheStatusPublisherTests {
         Thread.sleep(forTimeInterval: 0.05)
     }
     
-    // MARK: - Cache Status Publisher Tests
+    // MARK: - Buffer Status Publisher Tests
     
     // MARK: - Preloading Status Publisher Tests
     

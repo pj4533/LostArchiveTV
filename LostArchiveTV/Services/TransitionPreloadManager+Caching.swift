@@ -49,6 +49,7 @@ extension TransitionPreloadManager {
         // Include timestamp for better tracking of operations
         let startTime = CFAbsoluteTimeGetCurrent()
         Logger.caching.info("🔄 CACHING: Starting unified caching for \(String(describing: type(of: provider))) at \(startTime)")
+        Logger.preloading.notice("🅲️ ENSURE ALL: ensureAllVideosCached called on TransitionPreloadManager")
 
         // Only proceed with caching if we have a cacheable provider
         guard let cacheableProvider = provider as? CacheableProvider else {

@@ -64,6 +64,7 @@ extension VideoCacheService {
     // Method to signal that preloading has started and caching should wait
     func setPreloadingStarted() {
         Logger.caching.info("⚠️ PRIORITY: Preloading started, activating hard block on ALL caching operations")
+        Logger.preloading.notice("🚨 SIGNAL CHECK: setPreloadingStarted() called - should this trigger PreloadingIndicatorManager?")
 
         // Set the hard block flag first
         isPreloadingInProgress = true
@@ -81,6 +82,11 @@ extension VideoCacheService {
         // Update the completion flag to prevent new caching tasks from starting
         isPreloadingComplete = false
         Logger.caching.info("⚠️ PRIORITY: isPreloadingComplete set to \(self.isPreloadingComplete)")
+        
+        // NOTE: We do NOT send a preloading notification here because this is just
+        // blocking cache operations during a transition. The actual preloading
+        // notification should only be sent when we start preloading NEW videos.
+        Logger.preloading.notice("🚫 SIGNAL: NOT sending preloading notification from setPreloadingStarted() - this is just a cache block")
     }
     
     func cancelCaching() {

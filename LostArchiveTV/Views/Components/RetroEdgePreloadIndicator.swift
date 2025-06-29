@@ -33,6 +33,7 @@ enum PreloadingState: Equatable {
 
 struct RetroEdgePreloadIndicator: View {
     let state: PreloadingState
+    let bufferState: BufferState?
     
     // Track previous state to detect transitions
     @State private var previousState: PreloadingState = .notPreloading
@@ -40,27 +41,29 @@ struct RetroEdgePreloadIndicator: View {
     // Control the transition effect
     @State private var isTransitioning = false
     
+    // Default initializer for backward compatibility
+    init(state: PreloadingState, bufferState: BufferState? = nil) {
+        self.state = state
+        self.bufferState = bufferState
+    }
+    
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Only show the animation when preloading or preloaded
-                if state != .notPreloading {
-                    Group {
-                        if state == .preloading {
-                            // Use the original pulsing border when in preloading state
-                            AnimatedBorderView(
-                                width: geometry.size.width,
-                                height: geometry.size.height,
-                                color: state.color,
-                                secondaryColor: state.secondaryColor,
-                                isTransitioning: isTransitioning
-                            )
-                        } else if state == .preloaded {
-                            // Use the static border with corner indicator when preloaded
-                            preloadedBorder(size: geometry.size)
-                        }
-                    }
-                    .allowsHitTesting(false) // Make sure it doesn't interfere with touch events
+                // Always show something - never go black/transparent
+                if state == .preloaded {
+                    // Use the static green border when preloaded (only when buffer is excellent)
+                    preloadedBorder(size: geometry.size)
+                } else {
+                    // For any other state (including .notPreloading), show the loading animation
+                    AnimatedBorderView(
+                        width: geometry.size.width,
+                        height: geometry.size.height,
+                        color: PreloadingState.preloading.color,
+                        secondaryColor: PreloadingState.preloading.secondaryColor,
+                        isTransitioning: isTransitioning,
+                        bufferState: bufferState
+                    )
                 }
                 
                 // Add the transition overlay when transitioning
@@ -70,6 +73,7 @@ struct RetroEdgePreloadIndicator: View {
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
+            .allowsHitTesting(false) // Make sure it doesn't interfere with touch events
             .onChange(of: state) { newValue in
                 Logger.ui.debug("State changed from \(String(describing: previousState)) to \(String(describing: newValue))")
                 
@@ -87,28 +91,13 @@ struct RetroEdgePreloadIndicator: View {
     }
     
     private func preloadedBorder(size: CGSize) -> some View {
-        ZStack {
-            // Static glowing border
-            EdgeBorder(width: 2.5)
-                .stroke(state.color, lineWidth: 2.5)
-                .blur(radius: 2.0)
-                .opacity(0.9)
-            
-            // Green indicator dot in the corner
-            VStack {
-                HStack {
-                    Spacer()
-                    Circle()
-                        .fill(Color.green)
-                        .frame(width: 10, height: 10)
-                        .blur(radius: 1.5)
-                        .opacity(1.0)
-                        .padding(12)
-                }
-                Spacer()
-            }
-        }
+        // Simple static green border - no dots or indicators
+        EdgeBorder(width: 2.5)
+            .stroke(Color.green.opacity(0.8), lineWidth: 2.5)
+            .blur(radius: 2.0)
+            .opacity(0.9)
     }
+    
     
     private func startTransition() {
         // Begin the transition
@@ -194,6 +183,7 @@ struct AnimatedBorderView: View {
     let color: Color
     let secondaryColor: Color
     let isTransitioning: Bool
+    let bufferState: BufferState?
     
     // Animation controls
     @State private var pulsing = false
@@ -246,9 +236,9 @@ struct AnimatedBorderView: View {
             // Start both pulse and color animations
             startAnimations()
         }
-        .onChange(of: isTransitioning) { transitioning in
+        .onChange(of: isTransitioning) { oldValue, newValue in
             // If we just finished transitioning, restart the animations
-            if !transitioning {
+            if !newValue {
                 startAnimations()
             }
         }
@@ -338,6 +328,7 @@ struct RetroEdgePreloadIndicator_Previews: PreviewProvider {
     // Preview helper that cycles through states
     struct PreviewAnimator: View {
         @State private var state: PreloadingState = .preloading
+        @State private var bufferState: BufferState = .low
         
         var body: some View {
             ZStack {
@@ -347,18 +338,47 @@ struct RetroEdgePreloadIndicator_Previews: PreviewProvider {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 
-                RetroEdgePreloadIndicator(state: state)
+                RetroEdgePreloadIndicator(state: state, bufferState: bufferState)
                 
                 VStack {
                     Spacer()
                     
-                    Button("Trigger Transition") {
-                        state = state == .preloading ? .preloaded : .preloading
+                    HStack(spacing: 20) {
+                        VStack {
+                            Text("State")
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.7))
+                            Button(state == .preloading ? "Preloading" : "Preloaded") {
+                                state = state == .preloading ? .preloaded : .preloading
+                            }
+                            .padding()
+                            .background(Color.white.opacity(0.2))
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                        }
+                        
+                        VStack {
+                            Text("Buffer")
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.7))
+                            Button(bufferState.description) {
+                                // Cycle through buffer states
+                                switch bufferState {
+                                case .unknown: bufferState = .empty
+                                case .empty: bufferState = .critical
+                                case .critical: bufferState = .low
+                                case .low: bufferState = .sufficient
+                                case .sufficient: bufferState = .good
+                                case .good: bufferState = .excellent
+                                case .excellent: bufferState = .unknown
+                                }
+                            }
+                            .padding()
+                            .background(Color.white.opacity(0.2))
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                        }
                     }
-                    .padding()
-                    .background(Color.white.opacity(0.2))
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
                     .padding(.bottom, 50)
                 }
             }

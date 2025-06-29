@@ -2,31 +2,31 @@ import Foundation
 import Combine
 
 extension PreloadingIndicatorManager {
-    /// Receive cache status change notifications that drive the indicator
-    func setupCacheStatusObserver() {
-        // Listen for cache status changes using Combine
-        TransitionPreloadManager.cacheStatusPublisher
+    /// Receive buffer status change notifications that drive the indicator
+    func setupBufferStateObserver() {
+        // Listen for buffer status changes using Combine
+        TransitionPreloadManager.bufferStatusPublisher
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.updateStateFromTransitionManager()
+            .sink { [weak self] bufferState in
+                self?.updateStateFromTransitionManager(bufferState: bufferState)
             }
             .store(in: &cancellables)
     }
     
-    /// Update indicator state based on the TransitionManager's nextVideoReady state
+    /// Update indicator state based on the buffer state
     @MainActor
-    func updateStateFromTransitionManager() {
-        // Get the main VideoPlayerViewModel's TransitionManager from ContentView
-        // We need to ensure we're using the same shared instance
-        if let videoPlayerViewModel = SharedViewModelProvider.shared.videoPlayerViewModel,
-           let transitionManager = videoPlayerViewModel.transitionManager {
-            // TransitionManager's nextVideoReady property directly drives the first indicator dot
-            if transitionManager.nextVideoReady {
-                state = .preloaded
-            } else if state != .notPreloading {
-                // If already in a preloading state, stay in preloading state
+    func updateStateFromTransitionManager(bufferState: BufferState) {
+        // Update indicator state based on buffer state
+        // Only show green (preloaded) when buffer is excellent
+        switch bufferState {
+        case .unknown, .empty, .critical, .low, .sufficient, .good:
+            // Not excellent yet, show preloading state
+            if state != .notPreloading {
                 state = .preloading
             }
+        case .excellent:
+            // Buffer is excellent, show green
+            state = .preloaded
         }
     }
 }
