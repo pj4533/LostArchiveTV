@@ -32,7 +32,8 @@ class PreloadingIndicatorManager: ObservableObject {
                 switch status {
                 case .started:
                     Logger.preloading.info("📍 PRELOAD: VideoCacheService signaled preloading started")
-                    self?.setPreloading()
+                    // Default to next direction - the actual preloading code should have already set this
+                    self?.setPreloading(direction: .next)
                     // Start monitoring immediately - now using single source of truth
                     self?.startBufferStateMonitoring()
                 case .completed:
@@ -104,15 +105,24 @@ class PreloadingIndicatorManager: ObservableObject {
             return
         }
         
+        // Get current player address for comparison
+        let currentPlayerAddress = viewModel.player.map { String(describing: Unmanaged.passUnretained($0).toOpaque()) } ?? "nil"
+        
         // Check both the buffering monitor and transition manager buffer states
         let monitor = preloadingDirection == .next 
             ? viewModel.nextBufferingMonitor 
             : viewModel.previousBufferingMonitor
         
-        Logger.preloading.debug("🔍 PRELOAD CHECK: Direction=\(self.preloadingDirection == .next ? "next" : "prev"), Monitor exists=\(monitor != nil)")
+        Logger.preloading.debug("🔍 PRELOAD CHECK: Direction=\(self.preloadingDirection == .next ? "next" : "prev"), Monitor exists=\(monitor != nil), Current player=\(currentPlayerAddress)")
         
         if let monitor = monitor {
-            Logger.preloading.debug("📊 PRELOAD MONITOR: State=\(monitor.bufferState.rawValue), Seconds=\(monitor.bufferSeconds), Progress=\(monitor.bufferProgress)")
+            // Log which player the monitor is tracking
+            let monitoredPlayer = preloadingDirection == .next
+                ? viewModel.transitionManager?.nextPlayer
+                : viewModel.transitionManager?.prevPlayer
+            let monitoredPlayerAddress = monitoredPlayer.map { String(describing: Unmanaged.passUnretained($0).toOpaque()) } ?? "nil"
+            
+            Logger.preloading.debug("📊 PRELOAD MONITOR: State=\(monitor.bufferState.rawValue), Seconds=\(monitor.bufferSeconds), Progress=\(monitor.bufferProgress), Monitoring player=\(monitoredPlayerAddress)")
         }
         
         // Also check transition manager buffer states
@@ -151,6 +161,8 @@ class PreloadingIndicatorManager: ObservableObject {
             state = .preloading
             currentBufferState = .unknown
             Logger.preloading.info("🔄 PRELOAD START: Direction=\(direction == .next ? "next" : "previous"), State changed to preloading")
+        } else {
+            Logger.preloading.warning("⚠️ PRELOAD IGNORED: Already in preloaded state, ignoring new preload signal")
         }
     }
 

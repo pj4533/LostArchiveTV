@@ -17,6 +17,7 @@ extension TransitionPreloadManager {
         let preloadStartTime = CFAbsoluteTimeGetCurrent()
 
         Logger.caching.info("🔍 PHASE 1A: Preloading NEXT video for \(String(describing: type(of: provider))) at time \(preloadStartTime)")
+        Logger.preloading.notice("🎆 NEXT PRELOAD START: Beginning to preload NEXT video - THIS should trigger the indicator")
 
         // Signal to the VideoCacheService that preloading has started
         // This will halt ALL caching operations until preloading is complete
@@ -70,6 +71,17 @@ extension TransitionPreloadManager {
                 if let provider = provider as? BaseVideoViewModel {
                     Logger.preloading.notice("🎯 PRELOAD: Calling updatePreloadMonitors to connect buffer monitor")
                     provider.updatePreloadedBufferingMonitors()
+                }
+            }
+            
+            // Delay briefly to ensure monitors are connected before sending signal
+            Task {
+                try? await Task.sleep(for: .milliseconds(100))
+                
+                // NOW send the preloading started notification since we're actually preloading a new video
+                if let cacheableProvider = provider as? CacheableProvider {
+                    Logger.preloading.notice("📢 SIGNAL: Sending preloading started for NEXT video preload (delayed for monitor connection)")
+                    await cacheableProvider.cacheService.notifyCachingStarted()
                 }
             }
             

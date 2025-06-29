@@ -83,11 +83,10 @@ extension VideoCacheService {
         isPreloadingComplete = false
         Logger.caching.info("⚠️ PRIORITY: isPreloadingComplete set to \(self.isPreloadingComplete)")
         
-        // IMPORTANT: Also notify the UI system that preloading has started
-        Logger.preloading.notice("📢 SIGNAL FIX: Sending preloading started notification from setPreloadingStarted()")
-        Task {
-            await notifyCachingStarted()
-        }
+        // NOTE: We do NOT send a preloading notification here because this is just
+        // blocking cache operations during a transition. The actual preloading
+        // notification should only be sent when we start preloading NEW videos.
+        Logger.preloading.notice("🚫 SIGNAL: NOT sending preloading notification from setPreloadingStarted() - this is just a cache block")
     }
     
     func cancelCaching() {

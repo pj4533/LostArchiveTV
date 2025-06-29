@@ -68,6 +68,17 @@ extension TransitionPreloadManager {
                 }
             }
             
+            // Delay briefly to ensure monitors are connected before sending signal
+            Task {
+                try? await Task.sleep(for: .milliseconds(100))
+                
+                // NOW send the preloading started notification since we're actually preloading a new video
+                if let cacheableProvider = provider as? CacheableProvider {
+                    Logger.preloading.notice("📢 SIGNAL: Sending preloading started for PREVIOUS video preload (delayed for monitor connection)")
+                    await cacheableProvider.cacheService.notifyCachingStarted()
+                }
+            }
+            
             // Start asynchronous buffer monitoring task that will update UI status
             // as soon as the video is actually ready to play
             let videoId = previousVideo.identifier
