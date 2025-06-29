@@ -168,23 +168,6 @@ actor VideoLoadingService {
             // Continue anyway - this is just an optimization
         }
         
-        // Create player item with format-specific caching configuration
-        let playerItem = AVPlayerItem(asset: asset)
-        
-        // Configure aggressive buffer size for all formats (5 minutes)
-        if isH264IA {
-            playerItem.preferredForwardBufferDuration = 300.0  // 5 minutes (was 15 seconds)
-        } else if isH264 {
-            playerItem.preferredForwardBufferDuration = 300.0  // 5 minutes (was 30 seconds)
-        } else {
-            playerItem.preferredForwardBufferDuration = 300.0  // 5 minutes (was 60 seconds)
-        }
-        
-        // Remove quality limits for preloading
-        playerItem.preferredPeakBitRate = 0  // No limit (system default)
-        
-        // Allow network caching while paused for all formats
-        playerItem.canUseNetworkResourcesForLiveStreamingWhilePaused = true
         // -------------------- END: FORMAT-SPECIFIC ASSET OPTIMIZATIONS --------------------
         
         // Calculate a start position
@@ -208,7 +191,6 @@ actor VideoLoadingService {
             mp4File: mp4File,
             videoURL: videoURL,
             asset: asset,
-            playerItem: playerItem,
             startPosition: startPosition,
             addedToFavoritesAt: nil,
             totalFiles: fileCount

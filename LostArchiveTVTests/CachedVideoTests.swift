@@ -21,7 +21,6 @@ struct CachedVideoTests {
     ) -> CachedVideo {
         let url = URL(string: "https://example.com/test/\(identifier).mp4")!
         let asset = AVURLAsset(url: url)
-        let playerItem = AVPlayerItem(asset: asset)
         
         let metadata = ArchiveMetadata(
             files: [],
@@ -46,7 +45,6 @@ struct CachedVideoTests {
             mp4File: mp4File,
             videoURL: url,
             asset: asset,
-            playerItem: playerItem,
             startPosition: 0.0,
             addedToFavoritesAt: timestamp,
             totalFiles: 1

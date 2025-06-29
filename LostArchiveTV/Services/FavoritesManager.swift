@@ -54,8 +54,6 @@ class FavoritesManager: ObservableObject {
                 // Create an asset from the URL
                 let asset = AVURLAsset(url: videoURL, options: options)
                 
-                let playerItem = AVPlayerItem(asset: asset)
-                
                 // Create metadata objects
                 let metadata = ArchiveMetadata(
                     files: [],
@@ -82,7 +80,6 @@ class FavoritesManager: ObservableObject {
                     mp4File: mp4File,
                     videoURL: videoURL,
                     asset: asset,
-                    playerItem: playerItem,
                     startPosition: storedFavorite.startPosition,
                     addedToFavoritesAt: storedFavorite.timestamp,
                     totalFiles: 1 // Will be updated when video is played
@@ -146,7 +143,6 @@ class FavoritesManager: ObservableObject {
                 mp4File: video.mp4File,
                 videoURL: video.videoURL,
                 asset: video.asset,
-                playerItem: video.playerItem,
                 startPosition: video.startPosition,
                 addedToFavoritesAt: Date(),
                 totalFiles: video.totalFiles

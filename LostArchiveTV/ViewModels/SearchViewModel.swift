@@ -59,7 +59,6 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
             mp4File: ArchiveFile(name: "", format: "", size: "", length: nil),
             videoURL: URL(string: "about:blank")!,
             asset: AVURLAsset(url: URL(string: "about:blank")!),
-            playerItem: AVPlayerItem(asset: AVURLAsset(url: URL(string: "about:blank")!)),
             startPosition: 0,
             addedToFavoritesAt: nil,
             totalFiles: 1

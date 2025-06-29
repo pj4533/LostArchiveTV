@@ -188,7 +188,6 @@ actor VideoCacheManager {
             mp4File: mp4File,
             videoURL: videoURL,
             asset: asset,
-            playerItem: playerItem,
             startPosition: randomStart,
             addedToFavoritesAt: nil,
             totalFiles: uniqueBaseNames.count

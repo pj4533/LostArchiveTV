@@ -220,7 +220,6 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider
             mp4File: mp4File,
             videoURL: videoURL,
             asset: asset,
-            playerItem: playerItem,
             startPosition: currentTime,
             addedToFavoritesAt: nil,
             totalFiles: self.totalFiles

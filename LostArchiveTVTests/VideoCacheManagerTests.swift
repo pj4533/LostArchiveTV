@@ -21,7 +21,6 @@ struct VideoCacheManagerTests {
         let file = ArchiveFile(name: "test.mp4", format: "MPEG4", size: "1000000", length: "120")
         let url = URL(string: "https://example.com/\(identifier)/test.mp4")!
         let asset = AVURLAsset(url: url)
-        let playerItem = AVPlayerItem(asset: asset)
         
         return CachedVideo(
             identifier: identifier,
@@ -30,7 +29,6 @@ struct VideoCacheManagerTests {
             mp4File: file,
             videoURL: url,
             asset: asset,
-            playerItem: playerItem,
             startPosition: 10.0,
             addedToFavoritesAt: nil,
             totalFiles: 1

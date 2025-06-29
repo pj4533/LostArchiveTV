@@ -15,7 +15,6 @@ struct FavoritesManagerTests {
     func createTestVideo(identifier: String, collection: String = "test") -> CachedVideo {
         let url = URL(string: "https://example.com/test/\(identifier).mp4")!
         let asset = AVURLAsset(url: url)
-        let playerItem = AVPlayerItem(asset: asset)
         
         let metadata = ArchiveMetadata(
             files: [],
@@ -40,7 +39,6 @@ struct FavoritesManagerTests {
             mp4File: mp4File,
             videoURL: url,
             asset: asset,
-            playerItem: playerItem,
             startPosition: 0.0,
             addedToFavoritesAt: nil,
             totalFiles: 1

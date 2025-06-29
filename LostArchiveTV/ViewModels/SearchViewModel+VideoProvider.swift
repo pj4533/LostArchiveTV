@@ -209,7 +209,6 @@ extension SearchViewModel {
             ),
             videoURL: urlAsset.url,
             asset: urlAsset,
-            playerItem: AVPlayerItem(asset: urlAsset),
             startPosition: videoInfo.startPosition,
             addedToFavoritesAt: nil,
             totalFiles: fileCount
