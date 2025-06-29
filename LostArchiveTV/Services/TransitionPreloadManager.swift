@@ -121,11 +121,14 @@ class TransitionPreloadManager: ObservableObject {
     func updateNextBufferState(_ state: BufferState) {
         guard nextBufferState != state else { return }
         
+        Logger.preloading.info("📈 TRANSITION MGR: Updating nextBufferState from \(self.nextBufferState.rawValue) to \(state.rawValue)")
         nextBufferState = state
         let combinedState = computeCombinedBufferState()
         
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
             Logger.caching.info("🚨 BUFFER STATE: Publishing combined state \(combinedState.description) (next: \(state.description))")
+            Logger.preloading.info("📢 TRANSITION MGR: Published buffer state - Combined: \(combinedState.rawValue), Next: \(state.rawValue), Prev: \(self.prevBufferState.rawValue)")
             TransitionPreloadManager.bufferStatusPublisher.send(combinedState)
         }
     }
