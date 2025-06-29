@@ -13,6 +13,12 @@ extension VideoTransitionManager {
     func handlePostTransitionCaching(provider: VideoProvider, direction: SwipeDirection) async {
         Logger.caching.info("📢 TRANSITION COMPLETE: Starting cache advancement after \(direction == .up ? "UP" : "DOWN") transition")
 
+        // CRITICAL: Reset the preloading indicator since we're starting fresh preloads
+        await MainActor.run {
+            PreloadingIndicatorManager.shared.reset()
+            Logger.caching.info("🔄 TRANSITION: Reset preloading indicator for new video")
+        }
+
         // Create a cached video from the current preloaded video first
         if let cacheableProvider = provider as? CacheableProvider {
             // CRITICAL: Signal that preloading is starting BEFORE we modify the cache
