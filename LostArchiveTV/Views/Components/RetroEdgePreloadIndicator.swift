@@ -50,19 +50,20 @@ struct RetroEdgePreloadIndicator: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Always show the animation when preloading or preloaded (never go back to transparent/black)
-                if state == .preloading {
+                // Always show something - never go black/transparent
+                if state == .preloaded {
+                    // Use the static green border when preloaded (only when buffer is excellent)
+                    preloadedBorder(size: geometry.size)
+                } else {
+                    // For any other state (including .notPreloading), show the loading animation
                     AnimatedBorderView(
                         width: geometry.size.width,
                         height: geometry.size.height,
-                        color: state.color,
-                        secondaryColor: state.secondaryColor,
+                        color: PreloadingState.preloading.color,
+                        secondaryColor: PreloadingState.preloading.secondaryColor,
                         isTransitioning: isTransitioning,
                         bufferState: bufferState
                     )
-                } else if state == .preloaded {
-                    // Use the static green border when preloaded (only when buffer is excellent)
-                    preloadedBorder(size: geometry.size)
                 }
                 
                 // Add the transition overlay when transitioning
