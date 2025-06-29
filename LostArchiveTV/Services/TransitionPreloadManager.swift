@@ -15,7 +15,10 @@ class TransitionPreloadManager: ObservableObject {
     /// Publisher for buffer status changes - publishes the combined buffer state
     static var bufferStatusPublisher = PassthroughSubject<BufferState, Never>()
     
-    // Buffer state tracking
+    // Weak reference to the provider for accessing BufferingMonitors
+    weak var provider: BaseVideoViewModel?
+    
+    // Buffer state tracking (kept for backward compatibility but will query monitors)
     private var nextBufferState: BufferState = .unknown
     private var prevBufferState: BufferState = .unknown
     
@@ -38,14 +41,6 @@ class TransitionPreloadManager: ObservableObject {
                 // This helps prevent mismatch between UI and actual swipe availability
                 DispatchQueue.main.async {
                     Logger.caching.info("🚨 AUTO NOTIFICATION: Publishing BufferStatusChanged due to nextVideoReady change")
-                    // When ready changes, update the buffer state accordingly
-                    if self.nextVideoReady {
-                        // If marked as ready, assume at least sufficient buffer
-                        self.nextBufferState = .sufficient
-                    } else {
-                        // If not ready, reset to unknown
-                        self.nextBufferState = .unknown
-                    }
                     let combinedState = self.computeCombinedBufferState()
                     TransitionPreloadManager.bufferStatusPublisher.send(combinedState)
                 }
@@ -71,14 +66,6 @@ class TransitionPreloadManager: ObservableObject {
                 // This helps prevent mismatch between UI and actual swipe availability
                 DispatchQueue.main.async {
                     Logger.caching.info("🚨 AUTO NOTIFICATION: Publishing BufferStatusChanged due to prevVideoReady change")
-                    // When ready changes, update the buffer state accordingly
-                    if self.prevVideoReady {
-                        // If marked as ready, assume at least sufficient buffer
-                        self.prevBufferState = .sufficient
-                    } else {
-                        // If not ready, reset to unknown
-                        self.prevBufferState = .unknown
-                    }
                     let combinedState = self.computeCombinedBufferState()
                     TransitionPreloadManager.bufferStatusPublisher.send(combinedState)
                 }
@@ -97,6 +84,7 @@ class TransitionPreloadManager: ObservableObject {
     
     /// Computes the combined buffer state based on next and previous buffer states
     private func computeCombinedBufferState() -> BufferState {
+        
         // If both are unknown, return unknown
         if nextBufferState == .unknown && prevBufferState == .unknown {
             return .unknown
@@ -142,6 +130,15 @@ class TransitionPreloadManager: ObservableObject {
         
         DispatchQueue.main.async {
             Logger.caching.info("🚨 BUFFER STATE: Publishing combined state \(combinedState.description) (prev: \(state.description))")
+            TransitionPreloadManager.bufferStatusPublisher.send(combinedState)
+        }
+    }
+    
+    /// Publishes the current combined buffer state by querying monitors directly
+    func publishBufferStateUpdate() {
+        DispatchQueue.main.async {
+            let combinedState = self.computeCombinedBufferState()
+            Logger.caching.info("🚨 BUFFER STATE: Publishing combined state \(combinedState.description)")
             TransitionPreloadManager.bufferStatusPublisher.send(combinedState)
         }
     }

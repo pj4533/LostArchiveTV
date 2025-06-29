@@ -22,8 +22,14 @@ extension VideoTransitionManager {
         animationDuration: Double
     ) {
         // Check buffer readiness using the buffer state
-        guard preloadManager.currentPrevBufferState.isReady, let prevPlayer = prevPlayer else {
-            Logger.caching.info("⚠️ TRANSITION: Cannot complete previous transition - buffer not ready (\(self.preloadManager.currentPrevBufferState.description)) or player nil")
+        let bufferReady = MainActor.assumeIsolated {
+            preloadManager.currentPrevBufferState.isReady
+        }
+        guard bufferReady, let prevPlayer = prevPlayer else {
+            let bufferStateDesc = MainActor.assumeIsolated {
+                self.preloadManager.currentPrevBufferState.description
+            }
+            Logger.caching.info("⚠️ TRANSITION: Cannot complete previous transition - buffer not ready (\(bufferStateDesc)) or player nil")
             return
         }
         
@@ -114,8 +120,7 @@ extension VideoTransitionManager {
 
                 // Post a notification to update UI buffer status immediately
                 Logger.caching.info("🔔 POSTING NOTIFICATION: BufferStatusChanged - prevVideoReady is now \(self.preloadManager.prevVideoReady)")
-                // When clearing prev player, reset buffer state to unknown
-                self.preloadManager.updatePrevBufferState(.unknown)
+                // Buffer state is now managed by BufferingMonitor directly
             }
             
             // Preload in both directions and advance cache window
