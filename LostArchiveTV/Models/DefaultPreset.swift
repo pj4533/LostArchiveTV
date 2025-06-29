@@ -10,15 +10,7 @@ import Foundation
 /// Provides the default preset configuration for when the app is in "Default" mode
 struct DefaultPreset {
     /// Static collection of default identifiers to include in the preset
-    private static let defaultIdentifiers = [
-        UserSelectedIdentifier(
-            id: "SeinfeldComplete",
-            identifier: "SeinfeldComplete",
-            title: "Seinfeld Complete Series",
-            collection: "Television",
-            fileCount: 1
-        )
-    ]
+    private static let defaultIdentifiers: [UserSelectedIdentifier] = []
     
     /// Static constant holding the default preset
     private static let defaultPreset = FeedPreset(
