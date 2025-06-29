@@ -16,6 +16,7 @@ extension VideoPlaybackManager {
     func useExistingPlayer(_ player: AVPlayer) {
         let playerPointer = String(describing: ObjectIdentifier(player))
         Logger.videoPlayback.debug("🔄 VP_MANAGER: Using existing player \(playerPointer) (preserving seek position)")
+        Logger.videoPlayback.info("📍 PLAYER_INIT: useExistingPlayer() called with player \(playerPointer)")
 
         // Log player item status before cleanup
         if let existingPlayer = self.player {
@@ -31,6 +32,7 @@ extension VideoPlaybackManager {
         self.player = player
 
         Logger.videoPlayback.debug("🔄 VP_MANAGER: New player assigned \(String(describing: ObjectIdentifier(player))), current item: \(player.currentItem != nil ? "exists" : "nil")")
+        Logger.videoPlayback.info("📍 PLAYER_INIT: Player assigned to VideoPlaybackManager.player property")
 
         // Extract and store the asset URL if it's an AVURLAsset
         if let asset = player.currentItem?.asset as? AVURLAsset {

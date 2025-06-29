@@ -54,6 +54,7 @@ extension VideoPlayerViewModel {
     func loadFirstVideoDirectly() async {
         let startTime = CFAbsoluteTimeGetCurrent()
         Logger.videoPlayback.info("🚀 FAST START: Loading first video directly")
+        Logger.videoPlayback.info("📍 PLAYER_INIT: loadFirstVideoDirectly() called")
         
         do {
             // Ensure we have identifiers loaded
@@ -92,12 +93,17 @@ extension VideoPlayerViewModel {
             // Create a player with the seek position already applied
             let player = AVPlayer(playerItem: AVPlayerItem(asset: videoInfo.asset))
             let startSeekPosition = CMTime(seconds: videoInfo.startPosition, preferredTimescale: 600)
+            Logger.videoPlayback.info("📍 PLAYER_INIT: Created AVPlayer in loadFirstVideoDirectly()")
             
             Logger.videoPlayback.info("⏱️ FAST START: Video loaded. Now seeking to position")
             await player.seek(to: startSeekPosition, toleranceBefore: .zero, toleranceAfter: .zero)
             
             // Set the player and start playback
+            Logger.videoPlayback.info("📍 PLAYER_INIT: Connecting player to playbackManager in loadFirstVideoDirectly()")
             playbackManager.useExistingPlayer(player)
+            // Connect the buffering monitor to the new player
+            playbackManager.connectBufferingMonitor(currentBufferingMonitor)
+            Logger.videoPlayback.info("📍 PLAYER_INIT: Player connected to playbackManager, buffer monitor should be connected now")
             playbackManager.play()
             
             // Monitor buffer status in background
@@ -136,6 +142,7 @@ extension VideoPlayerViewModel {
     func loadRandomVideo(showImmediately: Bool = true) async {
         let overallStartTime = CFAbsoluteTimeGetCurrent()
         Logger.videoPlayback.info("🎬 LOADING: Starting to load random video (showImmediately: \(showImmediately))")
+        Logger.videoPlayback.info("📍 PLAYER_INIT: loadRandomVideo() called")
         
         // Only update UI loading state if we're showing immediately
         if showImmediately {
@@ -184,6 +191,7 @@ extension VideoPlayerViewModel {
             // Create a player with the seek position already applied
             let player = AVPlayer(playerItem: AVPlayerItem(asset: videoInfo.asset))
             let startTime = CMTime(seconds: videoInfo.startPosition, preferredTimescale: 600)
+            Logger.videoPlayback.info("📍 PLAYER_INIT: Created AVPlayer in loadRandomVideo()")
             
             // Log consistent video timing information when using from cache
             Logger.videoPlayback.info("⏱️ LOADING: Video timing - Duration=\(self.playbackManager.videoDuration.formatted(.number.precision(.fractionLength(1))))s, Offset=\(videoInfo.startPosition.formatted(.number.precision(.fractionLength(1))))s (\(videoInfo.identifier))")
@@ -196,7 +204,11 @@ extension VideoPlayerViewModel {
             
             // Now set the player with the correct position already set
             // This will also extract and store the URL internally
+            Logger.videoPlayback.info("📍 PLAYER_INIT: Connecting player to playbackManager in loadRandomVideo()")
             playbackManager.useExistingPlayer(player)
+            // Connect the buffering monitor to the new player
+            playbackManager.connectBufferingMonitor(currentBufferingMonitor)
+            Logger.videoPlayback.info("📍 PLAYER_INIT: Player connected to playbackManager, buffer monitor should be connected now")
             
             // Always start playback of the video
             playbackManager.play()
