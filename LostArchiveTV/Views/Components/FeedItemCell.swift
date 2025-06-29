@@ -130,15 +130,19 @@ struct SearchFeedItemCellContent: View {
             result["Collection"] = item.searchResult.collections.first!
         }
         
+        // TODO: Uncomment this code once we implement proper rate limiting (GitHub issue #93)
+        // This feature displays file counts in search results but may cause API rate limiting
+        // due to making multiple concurrent requests to Archive.org without throttling.
+        
         // This will re-compute when fileCountCacheVersion changes because of @ObservedObject
-        if let cachedFileCount = searchViewModel.getCachedFileCount(for: item.searchResult.identifier.identifier) {
-            result["Files"] = cachedFileCount == 1 ? "1 file" : "\(cachedFileCount) files"
-        } else {
-            // If not cached, trigger async fetch but don't block the UI
-            Task {
-                let _ = await searchViewModel.fetchFileCount(for: item.searchResult.identifier.identifier)
-            }
-        }
+        // if let cachedFileCount = searchViewModel.getCachedFileCount(for: item.searchResult.identifier.identifier) {
+        //     result["Files"] = cachedFileCount == 1 ? "1 file" : "\(cachedFileCount) files"
+        // } else {
+        //     // If not cached, trigger async fetch but don't block the UI
+        //     Task {
+        //         let _ = await searchViewModel.fetchFileCount(for: item.searchResult.identifier.identifier)
+        //     }
+        // }
         
         return result
     }
