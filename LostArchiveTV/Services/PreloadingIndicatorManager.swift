@@ -45,7 +45,9 @@ class PreloadingIndicatorManager: ObservableObject {
         
         // Start a timer to periodically check buffer state
         bufferCheckTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            self?.checkPreloadedBufferState()
+            Task { @MainActor in
+                self?.checkPreloadedBufferState()
+            }
         }
         
         // Do an immediate check
@@ -68,8 +70,9 @@ class PreloadingIndicatorManager: ObservableObject {
         if let bufferState = monitor?.bufferState {
             currentBufferState = bufferState
             
-            if state == .preloading && bufferState.isReady {
-                logger.info("🎯 Preloaded video buffer is ready: \(bufferState.description)")
+            // Only set preloaded when buffer is excellent
+            if state == .preloading && bufferState == .excellent {
+                logger.info("🎯 Preloaded video buffer is excellent, showing green")
                 setPreloaded()
                 stopBufferStateMonitoring()
             } else if state == .preloading {

@@ -29,46 +29,6 @@ enum PreloadingState: Equatable {
             return Color.green.opacity(0.6)
         }
     }
-    
-    /// Get color based on buffer state for enhanced visual feedback
-    static func colorForBufferState(_ bufferState: BufferState) -> Color {
-        switch bufferState {
-        case .unknown:
-            return Color.gray.opacity(0.5)
-        case .empty:
-            return Color.red.opacity(0.8)
-        case .critical:
-            return Color.orange.opacity(0.8)
-        case .low:
-            return Color.yellow.opacity(0.8)
-        case .sufficient:
-            return Color.cyan.opacity(0.8)
-        case .good:
-            return Color.blue.opacity(0.8)
-        case .excellent:
-            return Color.green.opacity(0.8)
-        }
-    }
-    
-    /// Get secondary color based on buffer state
-    static func secondaryColorForBufferState(_ bufferState: BufferState) -> Color {
-        switch bufferState {
-        case .unknown:
-            return Color.gray.opacity(0.3)
-        case .empty:
-            return Color.red.opacity(0.5)
-        case .critical:
-            return Color.orange.opacity(0.5)
-        case .low:
-            return Color.yellow.opacity(0.5)
-        case .sufficient:
-            return Color.cyan.opacity(0.5)
-        case .good:
-            return Color.blue.opacity(0.5)
-        case .excellent:
-            return Color.green.opacity(0.5)
-        }
-    }
 }
 
 struct RetroEdgePreloadIndicator: View {
@@ -90,28 +50,19 @@ struct RetroEdgePreloadIndicator: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Only show the animation when preloading or preloaded
-                if state != .notPreloading {
-                    Group {
-                        if state == .preloading {
-                            // Use buffer state colors if available, otherwise default colors
-                            let primaryColor = bufferState.map { PreloadingState.colorForBufferState($0) } ?? state.color
-                            let secondaryColor = bufferState.map { PreloadingState.secondaryColorForBufferState($0) } ?? state.secondaryColor
-                            
-                            AnimatedBorderView(
-                                width: geometry.size.width,
-                                height: geometry.size.height,
-                                color: primaryColor,
-                                secondaryColor: secondaryColor,
-                                isTransitioning: isTransitioning,
-                                bufferState: bufferState
-                            )
-                        } else if state == .preloaded {
-                            // Use the static border with corner indicator when preloaded
-                            preloadedBorder(size: geometry.size)
-                        }
-                    }
-                    .allowsHitTesting(false) // Make sure it doesn't interfere with touch events
+                // Always show the animation when preloading or preloaded (never go back to transparent/black)
+                if state == .preloading {
+                    AnimatedBorderView(
+                        width: geometry.size.width,
+                        height: geometry.size.height,
+                        color: state.color,
+                        secondaryColor: state.secondaryColor,
+                        isTransitioning: isTransitioning,
+                        bufferState: bufferState
+                    )
+                } else if state == .preloaded {
+                    // Use the static green border when preloaded (only when buffer is excellent)
+                    preloadedBorder(size: geometry.size)
                 }
                 
                 // Add the transition overlay when transitioning
@@ -121,6 +72,7 @@ struct RetroEdgePreloadIndicator: View {
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
+            .allowsHitTesting(false) // Make sure it doesn't interfere with touch events
             .onChange(of: state) { newValue in
                 Logger.ui.debug("State changed from \(String(describing: previousState)) to \(String(describing: newValue))")
                 
@@ -138,93 +90,13 @@ struct RetroEdgePreloadIndicator: View {
     }
     
     private func preloadedBorder(size: CGSize) -> some View {
-        ZStack {
-            // Static glowing border - use buffer state color if available
-            let borderColor = bufferState.map { PreloadingState.colorForBufferState($0) } ?? state.color
-            EdgeBorder(width: 2.5)
-                .stroke(borderColor, lineWidth: 2.5)
-                .blur(radius: 2.0)
-                .opacity(0.9)
-            
-            // Buffer state indicator in the corner
-            VStack {
-                HStack {
-                    Spacer()
-                    if let bufferState = bufferState {
-                        // Show buffer state with appropriate color
-                        bufferStateIndicator(for: bufferState)
-                            .padding(12)
-                    } else {
-                        // Default green indicator dot
-                        Circle()
-                            .fill(Color.green)
-                            .frame(width: 10, height: 10)
-                            .blur(radius: 1.5)
-                            .opacity(1.0)
-                            .padding(12)
-                    }
-                }
-                Spacer()
-            }
-        }
+        // Simple static green border - no dots or indicators
+        EdgeBorder(width: 2.5)
+            .stroke(Color.green.opacity(0.8), lineWidth: 2.5)
+            .blur(radius: 2.0)
+            .opacity(0.9)
     }
     
-    private func bufferStateIndicator(for state: BufferState) -> some View {
-        Group {
-            switch state {
-            case .excellent:
-                // Three dots for excellent
-                HStack(spacing: 4) {
-                    ForEach(0..<3) { _ in
-                        Circle()
-                            .fill(Color.green)
-                            .frame(width: 8, height: 8)
-                    }
-                }
-                .blur(radius: 1.0)
-                
-            case .good:
-                // Two dots for good
-                HStack(spacing: 4) {
-                    ForEach(0..<2) { _ in
-                        Circle()
-                            .fill(Color.blue)
-                            .frame(width: 8, height: 8)
-                    }
-                }
-                .blur(radius: 1.0)
-                
-            case .sufficient:
-                // Single dot for sufficient
-                Circle()
-                    .fill(Color.cyan)
-                    .frame(width: 10, height: 10)
-                    .blur(radius: 1.5)
-                
-            case .low:
-                // Warning triangle for low
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundColor(.yellow)
-                    .font(.system(size: 12))
-                    .blur(radius: 0.5)
-                
-            case .critical, .empty:
-                // Alert for critical/empty
-                Image(systemName: "exclamationmark.circle.fill")
-                    .foregroundColor(state == .critical ? .orange : .red)
-                    .font(.system(size: 12))
-                    .blur(radius: 0.5)
-                
-            case .unknown:
-                // Question mark for unknown
-                Image(systemName: "questionmark.circle.fill")
-                    .foregroundColor(.gray)
-                    .font(.system(size: 12))
-                    .blur(radius: 0.5)
-            }
-        }
-        .opacity(1.0)
-    }
     
     private func startTransition() {
         // Begin the transition
@@ -363,9 +235,9 @@ struct AnimatedBorderView: View {
             // Start both pulse and color animations
             startAnimations()
         }
-        .onChange(of: isTransitioning) { transitioning in
+        .onChange(of: isTransitioning) { oldValue, newValue in
             // If we just finished transitioning, restart the animations
-            if !transitioning {
+            if !newValue {
                 startAnimations()
             }
         }
