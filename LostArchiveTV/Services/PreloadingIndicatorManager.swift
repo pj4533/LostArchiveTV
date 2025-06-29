@@ -32,7 +32,7 @@ class PreloadingIndicatorManager: ObservableObject {
                 case .started:
                     Logger.preloading.info("📍 PRELOAD: VideoCacheService signaled preloading started")
                     self?.setPreloading()
-                    // Start monitoring immediately when preloading starts
+                    // Start monitoring immediately - now using single source of truth
                     self?.startBufferStateMonitoring()
                 case .completed:
                     // Keep monitoring even after preload completes

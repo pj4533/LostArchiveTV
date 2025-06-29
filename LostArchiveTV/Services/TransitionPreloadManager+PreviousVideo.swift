@@ -75,7 +75,12 @@ extension TransitionPreloadManager {
             
             // Start buffer monitoring in background
             Task {
-                await monitorPreviousVideoBuffer(player: player, videoId: videoId, preloadStart: preloadStart)
+                // Use the BufferingMonitor's state instead of calculating our own
+                if let provider = provider as? BaseVideoViewModel {
+                    await monitorPreviousVideoBufferViaMonitor(provider: provider, videoId: videoId, preloadStart: preloadStart)
+                } else {
+                    await monitorPreviousVideoBuffer(player: player, videoId: videoId, preloadStart: preloadStart)
+                }
             }
             
             Logger.caching.info("✅ PRELOAD PREV: Successfully prepared previous video: \(previousVideo.identifier)")
@@ -97,6 +102,47 @@ extension TransitionPreloadManager {
             }
         } else {
             Logger.caching.warning("No previous video available in sequence")
+        }
+    }
+    
+    /// Monitor buffer status using the BufferingMonitor as single source of truth
+    private func monitorPreviousVideoBufferViaMonitor(provider: BaseVideoViewModel, videoId: String, preloadStart: Double) async {
+        Logger.caching.info("🔄 PRELOAD PREV: Starting buffer monitoring via BufferingMonitor for \(videoId)")
+        
+        // Wait for the monitor to be ready
+        while !Task.isCancelled {
+            // Get the buffer state from the monitor (single source of truth)
+            let bufferState = await MainActor.run {
+                provider.previousBufferingMonitor?.bufferState ?? .unknown
+            }
+            let bufferSeconds = await MainActor.run {
+                provider.previousBufferingMonitor?.bufferSeconds ?? 0
+            }
+            
+            Logger.preloading.debug("🎯 MONITOR STATE: Prev video buffer from monitor: \(bufferSeconds)s, state=\(bufferState.description)")
+            
+            // Update buffer state
+            await MainActor.run {
+                self.updatePrevBufferState(bufferState)
+            }
+            
+            // Check if buffer is ready
+            if bufferState.isReady {
+                await MainActor.run {
+                    Logger.caching.info("✅ PRELOAD PREV: Buffer ready for \(videoId) (buffered: \(bufferSeconds)s, state: \(bufferState.description))")
+                    self.prevVideoReady = true
+                }
+                
+                // Calculate and log preloading completion time
+                let preloadEndTime = CFAbsoluteTimeGetCurrent()
+                let preloadDuration = preloadEndTime - preloadStart
+                Logger.caching.info("⏱️ TIMING: Previous video preloading completed in \(preloadDuration.formatted(.number.precision(.fractionLength(3)))) seconds")
+                
+                break
+            }
+            
+            // Wait briefly before checking again
+            try? await Task.sleep(for: .seconds(0.5))
         }
     }
     

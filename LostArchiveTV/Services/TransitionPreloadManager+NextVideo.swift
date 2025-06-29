@@ -64,6 +64,7 @@ extension TransitionPreloadManager {
                 nextPlayer = player
 
                 Logger.files.info("📊 PRELOAD NEXT: Set nextTotalFiles to \(nextVideo.totalFiles) for \(nextVideo.identifier)")
+                Logger.preloading.notice("🎯 NEXT PLAYER: Created player \(String(describing: Unmanaged.passUnretained(player).toOpaque())) for next video")
                 
                 // CRITICAL: Connect buffer monitors to preloaded players
                 if let provider = provider as? BaseVideoViewModel {
@@ -77,7 +78,13 @@ extension TransitionPreloadManager {
             let videoId = nextVideo.identifier
             let preloadStart = preloadStartTime
             Task {
-                await monitorNextVideoBuffer(player: player, videoId: videoId, preloadStart: preloadStart, isRandom: false)
+                // Use the BufferingMonitor's state instead of calculating our own
+                if let provider = provider as? BaseVideoViewModel {
+                    await monitorNextVideoBufferViaMonitor(provider: provider, videoId: videoId, preloadStart: preloadStart, isRandom: false)
+                } else {
+                    // Fallback to old method if not BaseVideoViewModel
+                    await monitorNextVideoBuffer(player: player, videoId: videoId, preloadStart: preloadStart, isRandom: false)
+                }
             }
             
             Logger.caching.info("✅ PRELOAD NEXT: Successfully prepared next video: \(nextVideo.identifier)")
@@ -153,7 +160,12 @@ extension TransitionPreloadManager {
                 
                 // Start buffer monitoring in background
                 Task {
-                    await monitorNextVideoBuffer(player: player, videoId: videoId, preloadStart: preloadStart, isRandom: true)
+                    // Use the BufferingMonitor's state instead of calculating our own
+                    if let provider = provider as? BaseVideoViewModel {
+                        await monitorNextVideoBufferViaMonitor(provider: provider, videoId: videoId, preloadStart: preloadStart, isRandom: true)
+                    } else {
+                        await monitorNextVideoBuffer(player: player, videoId: videoId, preloadStart: preloadStart, isRandom: true)
+                    }
                 }
 
                 Logger.caching.info("Successfully preloaded new random video: \(videoInfo.identifier)")
@@ -217,7 +229,12 @@ extension TransitionPreloadManager {
                     let videoId = nextVideo.identifier
                     let preloadStart = preloadStartTime
                     Task {
-                        await monitorNextVideoBuffer(player: player, videoId: videoId, preloadStart: preloadStart, isRandom: false)
+                        // Use the BufferingMonitor's state instead of calculating our own
+                        if let provider = provider as? BaseVideoViewModel {
+                            await monitorNextVideoBufferViaMonitor(provider: provider, videoId: videoId, preloadStart: preloadStart, isRandom: false)
+                        } else {
+                            await monitorNextVideoBuffer(player: player, videoId: videoId, preloadStart: preloadStart, isRandom: false)
+                        }
                     }
                     
                     Logger.caching.info("✅ Successfully preloaded next favorite video: \(nextVideo.identifier)")
@@ -234,10 +251,53 @@ extension TransitionPreloadManager {
         }
     }
     
+    /// Monitor buffer status using the BufferingMonitor as single source of truth
+    private func monitorNextVideoBufferViaMonitor(provider: BaseVideoViewModel, videoId: String, preloadStart: Double, isRandom: Bool = false) async {
+        let prefix = isRandom ? "RAND" : "NEXT"
+        Logger.caching.info("🔄 PRELOAD \(prefix): Starting buffer monitoring via BufferingMonitor for \(videoId)")
+        
+        // Wait for the monitor to be ready
+        while !Task.isCancelled {
+            // Get the buffer state from the monitor (single source of truth)
+            let bufferState = await MainActor.run {
+                provider.nextBufferingMonitor?.bufferState ?? .unknown
+            }
+            let bufferSeconds = await MainActor.run {
+                provider.nextBufferingMonitor?.bufferSeconds ?? 0
+            }
+            
+            Logger.preloading.debug("🎯 MONITOR STATE: Next video buffer from monitor: \(bufferSeconds)s, state=\(bufferState.description)")
+            
+            // Update buffer state
+            await MainActor.run {
+                self.updateNextBufferState(bufferState)
+            }
+            
+            // Check if buffer is ready
+            if bufferState.isReady {
+                await MainActor.run {
+                    Logger.caching.info("✅ PRELOAD \(prefix): Buffer ready for \(videoId) (buffered: \(bufferSeconds)s, state: \(bufferState.description))")
+                    self.nextVideoReady = true
+                }
+                
+                // Calculate and log preloading completion time
+                let preloadEndTime = CFAbsoluteTimeGetCurrent()
+                let preloadDuration = preloadEndTime - preloadStart
+                Logger.caching.info("⏱️ TIMING: \(prefix) video preloading completed in \(preloadDuration.formatted(.number.precision(.fractionLength(3)))) seconds")
+                
+                break
+            }
+            
+            // Wait briefly before checking again
+            try? await Task.sleep(for: .seconds(0.5))
+        }
+    }
+    
     /// Monitor buffer status for next video asynchronously
     private func monitorNextVideoBuffer(player: AVPlayer, videoId: String, preloadStart: Double, isRandom: Bool = false) async {
         let prefix = isRandom ? "RAND" : "NEXT"
         Logger.caching.info("🔄 PRELOAD \(prefix): Starting buffer monitoring for \(videoId)")
+        Logger.preloading.notice("🔍 MONITOR PLAYER: TransitionPreloadManager monitoring player \(String(describing: Unmanaged.passUnretained(player).toOpaque()))")
         let playerItem = player.currentItem
         
         // Start monitoring buffer status

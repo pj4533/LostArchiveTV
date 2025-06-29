@@ -72,7 +72,7 @@ final class BufferingMonitor: ObservableObject {
         self.player = player
         
         logger.info("Starting buffer monitoring for player")
-        Logger.preloading.info("🔌 BUFFER MONITOR: Started monitoring player \(player)")
+        Logger.preloading.info("🔌 BUFFER MONITOR: Started monitoring player \(String(describing: Unmanaged.passUnretained(player).toOpaque()))")
         
         setupObservations()
         updateBufferMetrics()
