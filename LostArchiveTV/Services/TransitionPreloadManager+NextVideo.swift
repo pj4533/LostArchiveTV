@@ -281,8 +281,8 @@ extension TransitionPreloadManager {
             
             Logger.preloading.debug("🎯 MONITOR STATE: Next video buffer from monitor: \(bufferSeconds)s, state=\(bufferState.description)")
             
-            // Update buffer state
-            self.updateNextBufferState(bufferState)
+            // Publish buffer state update (monitors are the source of truth)
+            self.publishBufferStateUpdate()
             
             // Check if buffer is ready - require 2 consecutive ready states to avoid false positives
             if bufferState.isReady {

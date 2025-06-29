@@ -18,13 +18,23 @@ class TransitionPreloadManager: ObservableObject {
     // Weak reference to the provider for accessing BufferingMonitors
     weak var provider: BaseVideoViewModel?
     
-    // Buffer state tracking (kept for backward compatibility but will query monitors)
-    private var nextBufferState: BufferState = .unknown
-    private var prevBufferState: BufferState = .unknown
-    
-    // Public accessors for buffer states
-    var currentNextBufferState: BufferState { nextBufferState }
-    var currentPrevBufferState: BufferState { prevBufferState }
+    // Public accessors for buffer states - query monitors directly
+    var currentNextBufferState: BufferState { 
+        get {
+            guard let provider = provider else { return .unknown }
+            return MainActor.assumeIsolated {
+                provider.nextBufferingMonitor?.bufferState ?? .unknown
+            }
+        }
+    }
+    var currentPrevBufferState: BufferState { 
+        get {
+            guard let provider = provider else { return .unknown }
+            return MainActor.assumeIsolated {
+                provider.previousBufferingMonitor?.bufferState ?? .unknown
+            }
+        }
+    }
     
     // Next (down) video properties
     @Published var nextVideoReady = false {
@@ -82,57 +92,37 @@ class TransitionPreloadManager: ObservableObject {
     
     // MARK: - Buffer State Management
     
-    /// Computes the combined buffer state based on next and previous buffer states
+    /// Computes the combined buffer state by querying BufferingMonitors directly
     private func computeCombinedBufferState() -> BufferState {
+        guard let provider = provider else { return .unknown }
+        
+        let nextState = MainActor.assumeIsolated {
+            provider.nextBufferingMonitor?.bufferState ?? .unknown
+        }
+        let prevState = MainActor.assumeIsolated {
+            provider.previousBufferingMonitor?.bufferState ?? .unknown
+        }
         
         // If both are unknown, return unknown
-        if nextBufferState == .unknown && prevBufferState == .unknown {
+        if nextState == .unknown && prevState == .unknown {
             return .unknown
         }
         
         // If either is unknown, use the other
-        if nextBufferState == .unknown {
-            return prevBufferState
+        if nextState == .unknown {
+            return prevState
         }
-        if prevBufferState == .unknown {
-            return nextBufferState
+        if prevState == .unknown {
+            return nextState
         }
         
         // Return the worse of the two states
-        let nextIndex = BufferState.allCases.firstIndex(of: nextBufferState) ?? 0
-        let prevIndex = BufferState.allCases.firstIndex(of: prevBufferState) ?? 0
+        let nextIndex = BufferState.allCases.firstIndex(of: nextState) ?? 0
+        let prevIndex = BufferState.allCases.firstIndex(of: prevState) ?? 0
         
-        return nextIndex < prevIndex ? nextBufferState : prevBufferState
+        return nextIndex < prevIndex ? nextState : prevState
     }
     
-    /// Updates the buffer state for next video and publishes if changed
-    func updateNextBufferState(_ state: BufferState) {
-        guard nextBufferState != state else { return }
-        
-        Logger.preloading.info("📈 TRANSITION MGR: Updating nextBufferState from \(self.nextBufferState.rawValue) to \(state.rawValue)")
-        nextBufferState = state
-        let combinedState = computeCombinedBufferState()
-        
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            Logger.caching.info("🚨 BUFFER STATE: Publishing combined state \(combinedState.description) (next: \(state.description))")
-            Logger.preloading.info("📢 TRANSITION MGR: Published buffer state - Combined: \(combinedState.rawValue), Next: \(state.rawValue), Prev: \(self.prevBufferState.rawValue)")
-            TransitionPreloadManager.bufferStatusPublisher.send(combinedState)
-        }
-    }
-    
-    /// Updates the buffer state for previous video and publishes if changed
-    func updatePrevBufferState(_ state: BufferState) {
-        guard prevBufferState != state else { return }
-        
-        prevBufferState = state
-        let combinedState = computeCombinedBufferState()
-        
-        DispatchQueue.main.async {
-            Logger.caching.info("🚨 BUFFER STATE: Publishing combined state \(combinedState.description) (prev: \(state.description))")
-            TransitionPreloadManager.bufferStatusPublisher.send(combinedState)
-        }
-    }
     
     /// Publishes the current combined buffer state by querying monitors directly
     func publishBufferStateUpdate() {
