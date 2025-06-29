@@ -46,6 +46,11 @@ extension TransitionPreloadManager {
     /// Ensures that both general video caching and transition-specific caching are performed
     /// - Parameter provider: The video provider that supplies videos
     func ensureAllVideosCached(provider: VideoProvider) async {
+        // Store weak reference to provider for buffer state queries
+        if let baseProvider = provider as? BaseVideoViewModel {
+            self.provider = baseProvider
+        }
+        
         // Include timestamp for better tracking of operations
         let startTime = CFAbsoluteTimeGetCurrent()
         Logger.caching.info("🔄 CACHING: Starting unified caching for \(String(describing: type(of: provider))) at \(startTime)")
