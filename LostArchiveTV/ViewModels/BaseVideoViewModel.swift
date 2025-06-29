@@ -116,12 +116,16 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
     var player: AVPlayer? {
         get { playbackManager.player }
         set {
+            Logger.videoPlayback.info("📍 PLAYER_INIT: BaseVideoViewModel.player setter called with player: \(newValue != nil ? "non-nil" : "nil")")
             if let newPlayer = newValue {
+                Logger.videoPlayback.info("📍 PLAYER_INIT: Setting new player in playbackManager")
                 playbackManager.useExistingPlayer(newPlayer)
                 // Connect the buffering monitor to the new player
+                Logger.videoPlayback.info("📍 PLAYER_INIT: Connecting current buffer monitor to new player")
                 playbackManager.connectBufferingMonitor(currentBufferingMonitor)
             } else {
                 // Disconnect monitor before cleanup
+                Logger.videoPlayback.info("📍 PLAYER_INIT: Player set to nil, disconnecting buffer monitor and cleaning up")
                 playbackManager.disconnectBufferingMonitor(currentBufferingMonitor)
                 playbackManager.cleanupPlayer()
             }

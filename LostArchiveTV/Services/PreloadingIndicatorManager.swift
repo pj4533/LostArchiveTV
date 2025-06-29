@@ -99,6 +99,9 @@ class PreloadingIndicatorManager: ObservableObject {
     }
     
     private func checkPreloadedBufferState() {
+        // Single source of truth: Only check BufferingMonitor for buffer state
+        // This fixes issue #86 where multiple sources caused inconsistent UI
+        
         // Check if the preloaded video has reached a ready buffer state
         guard let viewModel = SharedViewModelProvider.shared.videoPlayerViewModel else {
             Logger.preloading.warning("⚠️ PRELOAD: No videoPlayerViewModel available for buffer checking")
@@ -108,7 +111,7 @@ class PreloadingIndicatorManager: ObservableObject {
         // Get current player address for comparison
         let currentPlayerAddress = viewModel.player.map { String(describing: Unmanaged.passUnretained($0).toOpaque()) } ?? "nil"
         
-        // Check both the buffering monitor and transition manager buffer states
+        // Only check the buffering monitor - single source of truth
         let monitor = preloadingDirection == .next 
             ? viewModel.nextBufferingMonitor 
             : viewModel.previousBufferingMonitor
@@ -123,34 +126,25 @@ class PreloadingIndicatorManager: ObservableObject {
             let monitoredPlayerAddress = monitoredPlayer.map { String(describing: Unmanaged.passUnretained($0).toOpaque()) } ?? "nil"
             
             Logger.preloading.debug("📊 PRELOAD MONITOR: State=\(monitor.bufferState.rawValue), Seconds=\(monitor.bufferSeconds), Progress=\(monitor.bufferProgress), Monitoring player=\(monitoredPlayerAddress)")
-        }
-        
-        // Also check transition manager buffer states
-        if let transitionManager = viewModel.transitionManager {
-            let nextBuffer = transitionManager.nextBufferState
-            let prevBuffer = transitionManager.prevBufferState
             
-            // Use the better of the two buffer states for our direction
-            let transitionBufferState = preloadingDirection == .next ? nextBuffer : prevBuffer
+            // Update current buffer state
+            currentBufferState = monitor.bufferState
             
-            Logger.preloading.debug("🔍 PRELOAD TRANSITION MGR: Next=\(nextBuffer.rawValue), Prev=\(prevBuffer.rawValue), Direction buffer=\(transitionBufferState.rawValue)")
-            
-            // Check if either source indicates excellent buffer
-            if state == .preloading && (transitionBufferState == .excellent || monitor?.bufferState == .excellent) {
-                Logger.preloading.notice("✅ PRELOAD READY: Buffer reached excellent (transition: \(transitionBufferState.description), monitor: \(monitor?.bufferState.description ?? "nil")), showing green")
-                currentBufferState = .excellent
+            // Check if BufferingMonitor indicates excellent buffer
+            if state == .preloading && monitor.bufferState == .excellent {
+                Logger.preloading.notice("✅ PRELOAD READY: Buffer reached excellent (monitor: \(monitor.bufferState.description)), showing green")
                 setPreloaded()
                 stopBufferStateMonitoring()
                 return
             }
-        }
-        
-        if let bufferState = monitor?.bufferState {
-            currentBufferState = bufferState
             
             if state == .preloading {
-                Logger.preloading.debug("⏳ PRELOAD WAITING: Buffer not excellent yet: \(bufferState.description)")
+                Logger.preloading.debug("⏳ PRELOAD WAITING: Buffer not excellent yet: \(monitor.bufferState.description)")
             }
+        } else {
+            // No monitor available yet
+            currentBufferState = .unknown
+            Logger.preloading.debug("⏳ PRELOAD WAITING: No monitor available yet for \(self.preloadingDirection == .next ? "next" : "prev") direction")
         }
     }
 

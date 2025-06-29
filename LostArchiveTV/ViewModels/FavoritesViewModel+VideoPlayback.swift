@@ -114,6 +114,8 @@ extension FavoritesViewModel {
             Logger.caching.info("FavoritesViewModel: Setting up player and seeking to start position")
             await player.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
             playbackManager.useExistingPlayer(player)
+            // Connect the buffering monitor to the new player
+            playbackManager.connectBufferingMonitor(currentBufferingMonitor)
             playbackManager.play()
             Logger.caching.info("FavoritesViewModel: Player setup complete, playback started")
         }
