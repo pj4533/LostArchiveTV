@@ -64,6 +64,12 @@ extension TransitionPreloadManager {
                 nextPlayer = player
 
                 Logger.files.info("📊 PRELOAD NEXT: Set nextTotalFiles to \(nextVideo.totalFiles) for \(nextVideo.identifier)")
+                
+                // CRITICAL: Connect buffer monitors to preloaded players
+                if let provider = provider as? BaseVideoViewModel {
+                    Logger.preloading.notice("🎯 PRELOAD: Calling updatePreloadMonitors to connect buffer monitor")
+                    provider.updatePreloadedBufferingMonitors()
+                }
             }
             
             // Start asynchronous buffer monitoring task that will update UI status

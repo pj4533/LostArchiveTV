@@ -72,6 +72,7 @@ final class BufferingMonitor: ObservableObject {
         self.player = player
         
         logger.info("Starting buffer monitoring for player")
+        Logger.preloading.info("🔌 BUFFER MONITOR: Started monitoring player \(player)")
         
         setupObservations()
         updateBufferMetrics()
@@ -186,6 +187,11 @@ final class BufferingMonitor: ObservableObject {
         updateFillRate(currentBuffer: availableBuffer)
         
         logger.debug("Buffer updated: \(availableBuffer, format: .fixed(precision: 1))s (\(Int(self.bufferProgress * 100))%), state: \(self.bufferState.description)")
+        
+        // Log to preloading category when buffer reaches excellent
+        if self.bufferState == .excellent {
+            Logger.preloading.notice("💚 BUFFER MONITOR: Buffer reached EXCELLENT (\(availableBuffer)s, progress=\(self.bufferProgress))")
+        }
     }
     
     private func calculateAvailableBuffer(for item: AVPlayerItem, currentTime: CMTime) -> Double {

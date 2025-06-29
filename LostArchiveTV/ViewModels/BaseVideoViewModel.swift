@@ -315,17 +315,21 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
         // Connect monitors to preloaded players
         if let nextPlayer = transitionManager.nextPlayer {
             Logger.videoPlayback.debug("🔍 Connecting next video buffering monitor")
+            Logger.preloading.info("🔗 MONITOR CONNECTION: Connecting nextBufferingMonitor to nextPlayer")
             nextBufferingMonitor?.stopMonitoring()
             nextBufferingMonitor?.startMonitoring(nextPlayer)
         } else {
+            Logger.preloading.warning("⚠️ MONITOR CONNECTION: No nextPlayer available to connect monitor")
             nextBufferingMonitor?.stopMonitoring()
         }
         
         if let prevPlayer = transitionManager.prevPlayer {
             Logger.videoPlayback.debug("🔍 Connecting previous video buffering monitor")
+            Logger.preloading.info("🔗 MONITOR CONNECTION: Connecting previousBufferingMonitor to prevPlayer")
             previousBufferingMonitor?.stopMonitoring()
             previousBufferingMonitor?.startMonitoring(prevPlayer)
         } else {
+            Logger.preloading.warning("⚠️ MONITOR CONNECTION: No prevPlayer available to connect monitor")
             previousBufferingMonitor?.stopMonitoring()
         }
     }

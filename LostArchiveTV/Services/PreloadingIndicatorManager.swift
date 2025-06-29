@@ -11,7 +11,6 @@ class PreloadingIndicatorManager: ObservableObject {
     @Published var currentBufferState: BufferState = .unknown
 
     internal var cancellables: Set<AnyCancellable> = Set<AnyCancellable>()
-    private let logger = Logger(subsystem: "com.pj4533.LostArchiveTV", category: "PreloadingIndicatorManager")
     
     // Track which direction we're preloading
     private var preloadingDirection: PreloadDirection = .next
@@ -31,9 +30,11 @@ class PreloadingIndicatorManager: ObservableObject {
             .sink { [weak self] status in
                 switch status {
                 case .started:
+                    Logger.preloading.info("📍 PRELOAD: VideoCacheService signaled preloading started")
                     self?.setPreloading()
                 case .completed:
                     // When a preload completes, start monitoring buffer state
+                    Logger.preloading.info("📍 PRELOAD: VideoCacheService signaled preloading completed, starting buffer monitoring")
                     self?.startBufferStateMonitoring()
                 }
             }
@@ -96,12 +97,21 @@ class PreloadingIndicatorManager: ObservableObject {
     
     private func checkPreloadedBufferState() {
         // Check if the preloaded video has reached a ready buffer state
-        guard let viewModel = SharedViewModelProvider.shared.videoPlayerViewModel else { return }
+        guard let viewModel = SharedViewModelProvider.shared.videoPlayerViewModel else {
+            Logger.preloading.warning("⚠️ PRELOAD: No videoPlayerViewModel available for buffer checking")
+            return
+        }
         
         // Check both the buffering monitor and transition manager buffer states
         let monitor = preloadingDirection == .next 
             ? viewModel.nextBufferingMonitor 
             : viewModel.previousBufferingMonitor
+        
+        Logger.preloading.debug("🔍 PRELOAD CHECK: Direction=\(self.preloadingDirection == .next ? "next" : "prev"), Monitor exists=\(monitor != nil)")
+        
+        if let monitor = monitor {
+            Logger.preloading.debug("📊 PRELOAD MONITOR: State=\(monitor.bufferState.rawValue), Seconds=\(monitor.bufferSeconds), Progress=\(monitor.bufferProgress)")
+        }
         
         // Also check transition manager buffer states
         if let transitionManager = viewModel.transitionManager {
@@ -111,9 +121,11 @@ class PreloadingIndicatorManager: ObservableObject {
             // Use the better of the two buffer states for our direction
             let transitionBufferState = preloadingDirection == .next ? nextBuffer : prevBuffer
             
+            Logger.preloading.debug("🔍 PRELOAD TRANSITION MGR: Next=\(nextBuffer.rawValue), Prev=\(prevBuffer.rawValue), Direction buffer=\(transitionBufferState.rawValue)")
+            
             // Check if either source indicates excellent buffer
             if state == .preloading && (transitionBufferState == .excellent || monitor?.bufferState == .excellent) {
-                logger.info("🎯 Buffer reached excellent (transition: \(transitionBufferState.description), monitor: \(monitor?.bufferState.description ?? "nil")), showing green")
+                Logger.preloading.notice("✅ PRELOAD READY: Buffer reached excellent (transition: \(transitionBufferState.description), monitor: \(monitor?.bufferState.description ?? "nil")), showing green")
                 currentBufferState = .excellent
                 setPreloaded()
                 stopBufferStateMonitoring()
@@ -125,7 +137,7 @@ class PreloadingIndicatorManager: ObservableObject {
             currentBufferState = bufferState
             
             if state == .preloading {
-                logger.debug("⏳ Preloading buffer state: \(bufferState.description)")
+                Logger.preloading.debug("⏳ PRELOAD WAITING: Buffer not excellent yet: \(bufferState.description)")
             }
         }
     }
@@ -136,13 +148,13 @@ class PreloadingIndicatorManager: ObservableObject {
             preloadingDirection = direction
             state = .preloading
             currentBufferState = .unknown
-            logger.info("🔄 Started preloading in direction: \(direction == .next ? "next" : "previous")")
+            Logger.preloading.info("🔄 PRELOAD START: Direction=\(direction == .next ? "next" : "previous"), State changed to preloading")
         }
     }
 
     func setPreloaded() {
         state = .preloaded
-        logger.info("✨ Transitioned to preloaded state")
+        Logger.preloading.notice("🟢 PRELOAD COMPLETE: State changed to preloaded (green)")
     }
 
     func reset() {
@@ -150,7 +162,7 @@ class PreloadingIndicatorManager: ObservableObject {
         state = .preloading
         currentBufferState = .unknown
         // Don't stop monitoring - keep checking buffer state
-        logger.info("🔄 Reset preloading indicator to loading state")
+        Logger.preloading.info("🔄 PRELOAD RESET: State changed to preloading (never goes black)")
     }
 }
 
