@@ -15,7 +15,6 @@ struct CachedVideo: Identifiable, Equatable {
     let mp4File: ArchiveFile
     let videoURL: URL
     let asset: AVURLAsset
-    let playerItem: AVPlayerItem
     let startPosition: Double
     let addedToFavoritesAt: Date?
     let totalFiles: Int

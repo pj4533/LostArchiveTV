@@ -71,7 +71,6 @@ extension FavoritesViewModel {
                     mp4File: video.mp4File,
                     videoURL: video.videoURL,
                     asset: video.asset,
-                    playerItem: video.playerItem,
                     startPosition: video.startPosition,
                     addedToFavoritesAt: video.addedToFavoritesAt,
                     totalFiles: uniqueBaseNames.count
