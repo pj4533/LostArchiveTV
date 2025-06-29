@@ -28,6 +28,7 @@ class PreloadingIndicatorManager: ObservableObject {
         VideoCacheService.preloadingStatusPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] status in
+                Logger.preloading.notice("📨 NOTIFICATION RECEIVED: PreloadingIndicatorManager received \(status == .started ? "started" : "completed") signal")
                 switch status {
                 case .started:
                     Logger.preloading.info("📍 PRELOAD: VideoCacheService signaled preloading started")

@@ -12,6 +12,7 @@ import OSLog
 extension VideoTransitionManager {
     func handlePostTransitionCaching(provider: VideoProvider, direction: SwipeDirection) async {
         Logger.caching.info("📢 TRANSITION COMPLETE: Starting cache advancement after \(direction == .up ? "UP" : "DOWN") transition")
+        Logger.preloading.notice("🅰️ TRANSITION HANDLER: handlePostTransitionCaching called for \(direction == .up ? "UP" : "DOWN") transition")
 
         // CRITICAL: Reset the preloading indicator since we're starting fresh preloads
         await MainActor.run {
@@ -23,6 +24,7 @@ extension VideoTransitionManager {
         if let cacheableProvider = provider as? CacheableProvider {
             // CRITICAL: Signal that preloading is starting BEFORE we modify the cache
             // This ensures NO caching operations interfere with preloading
+            Logger.preloading.notice("🅱️ TRANSITION HANDLER: About to call setPreloadingStarted()")
             await cacheableProvider.cacheService.setPreloadingStarted()
             Logger.caching.info("🚦 TRANSITION: Signaled preloading started to halt caching BEFORE cache operations")
 
