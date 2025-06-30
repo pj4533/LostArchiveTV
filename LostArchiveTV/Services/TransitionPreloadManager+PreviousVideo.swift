@@ -101,6 +101,8 @@ extension TransitionPreloadManager {
             return
         } 
         
+        // If we reach here, there's no previous video in history
+        
         // Special handling for FavoritesViewModel
         if let favoritesViewModel = provider as? FavoritesViewModel {
             // For favorites view, check if we still have favorites in the list
@@ -115,7 +117,19 @@ extension TransitionPreloadManager {
                 Logger.caching.info("Only one favorite video found, not marking previous as ready")
             }
         } else {
-            Logger.caching.warning("No previous video available in sequence")
+            // For regular providers (like VideoPlayerViewModel), no previous video means we're at the start
+            Logger.caching.info("ℹ️ PRELOAD PREV: No previous video in history, skipping preload")
+        }
+        
+        // Mark previous as not ready since there's nothing to load
+        await MainActor.run {
+            prevVideoReady = false
+        }
+        
+        // Signal that preloading is complete even though we didn't load anything
+        // This is important to unblock the caching system
+        if let cacheableProvider = provider as? CacheableProvider {
+            await cacheableProvider.cacheService.setPreloadingComplete()
         }
     }
     
