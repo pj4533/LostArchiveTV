@@ -22,30 +22,9 @@ extension VideoCacheService {
         isPreloadingComplete = true
         Logger.caching.info("✅ PRIORITY: isPreloadingComplete set to \(self.isPreloadingComplete), cache tasks can now resume")
 
-        // Add a retry task to ensure caching gets a chance to restart even if no one calls ensureVideosAreCached
-        Task {
-            try? await Task.sleep(for: .seconds(1.0))
-
-            // If we still don't have an active caching task running after 1 second,
-            // we'll not only log, but also check if we need to restart the cache
-            if cacheTask == nil || cacheTask?.isCancelled == true {
-                Logger.caching.warning("⚠️ RECOVERY CHECK: 1 second after setPreloadingComplete, still no active cache task")
-                Logger.caching.warning("⚠️ RECOVERY CHECK: isPreloadingInProgress=\(self.isPreloadingInProgress), isPreloadingComplete=\(self.isPreloadingComplete)")
-
-                // We don't have access to cacheManager here, so we can't check cache levels directly.
-                // Instead, we'll only trigger recovery if we've detected a truly stalled system
-
-                Logger.caching.warning("🔄 RECOVERY: Detected stalled cache system, initiating recovery notification")
-
-                // Post a notification to trigger a cache restart
-                // Note: The BaseVideoViewModel will handle checking if the cache actually needs filling
-                DispatchQueue.main.async {
-                    NotificationCenter.default.post(name: NSNotification.Name("CacheSystemNeedsRestart"), object: nil)
-                }
-
-                Logger.caching.warning("🔔 RECOVERY: Posted CacheSystemNeedsRestart notification")
-            }
-        }
+        // Removed aggressive recovery mechanism that was causing duplicate video loads.
+        // The system already has proper mechanisms to start caching when needed through ensureVideosAreCached.
+        // The arbitrary 1-second timeout was creating false positives and race conditions.
     }
 
     // Method to signal that preloading has started and caching should wait
