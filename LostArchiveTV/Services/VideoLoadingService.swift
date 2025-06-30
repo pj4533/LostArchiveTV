@@ -204,12 +204,12 @@ actor VideoLoadingService {
         Logger.videoPlayback.info("▶️ PLAYBACK: loadRandomVideo called - checking cache first")
 
         // Check if we have cached videos available
-        // CRITICAL CHANGE: Use peekFirstCachedVideo instead of removeFirstCachedVideo
-        // This ensures we don't remove videos from the cache during preloading
-        if let cachedVideo = await cacheManager.peekFirstCachedVideo() {
-            Logger.videoPlayback.info("🎯 PLAYBACK: Using CACHED video (peek): \(cachedVideo.identifier) from collection: \(cachedVideo.collection)")
+        // FIXED: Use removeFirstCachedVideo to properly remove videos from cache when using them
+        // This prevents Phase 2 from counting already-used videos and loading duplicates
+        if let cachedVideo = await cacheManager.removeFirstCachedVideo() {
+            Logger.videoPlayback.info("🎯 PLAYBACK: Using CACHED video (removed from cache): \(cachedVideo.identifier) from collection: \(cachedVideo.collection)")
 
-            // Return the cached video info without removing it from the cache
+            // Return the cached video info after removing it from the cache
             return (
                 cachedVideo.identifier,
                 cachedVideo.collection,
