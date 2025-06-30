@@ -45,6 +45,11 @@ struct SearchView: View {
                     }
                 }
             }
+            .alert("Content Unavailable", isPresented: $viewModel.showingUnavailableAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("\"\(viewModel.unavailableAlertTitle)\" is no longer available on Archive.org")
+            }
         }
         .onDisappear {
             // Clean up when view disappears from navigation
@@ -227,10 +232,8 @@ struct SearchResultCell: View {
         .frame(minWidth: 0, maxWidth: .infinity, minHeight: 160)
         .clipped()
         .onTapGesture {
-            // Only allow tap if content is available
-            if !isUnavailable {
-                viewModel.playVideoAt(index: index)
-            }
+            // Always allow tap - the view model will handle unavailable content
+            viewModel.playVideoAt(index: index)
         }
         .onAppear {
             // Trigger file count fetch to check availability

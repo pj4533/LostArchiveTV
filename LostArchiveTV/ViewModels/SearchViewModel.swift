@@ -21,6 +21,10 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
     @Published var isSearching = false
     @Published var showingPlayer = false
     
+    // Alert state for unavailable content
+    @Published var showingUnavailableAlert = false
+    @Published var unavailableAlertTitle = ""
+    
     // Reference to feed view model for pagination support
     weak var linkedFeedViewModel: SearchFeedViewModel?
     
@@ -308,6 +312,16 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
     func playVideoAt(index: Int) {
         guard index >= 0, index < searchResults.count else { return }
         
+        let result = searchResults[index]
+        
+        // Check if content is unavailable before attempting to load
+        if isContentUnavailable(for: result.identifier.identifier) {
+            Logger.caching.info("SearchViewModel.playVideoAt: Content unavailable for \(result.identifier.identifier)")
+            unavailableAlertTitle = result.title
+            showingUnavailableAlert = true
+            return
+        }
+        
         Logger.caching.info("SearchViewModel.playVideoAt: Playing video at index \(index)")
         isLoading = true
         currentIndex = index
@@ -330,16 +344,28 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
                 isLoading = false
                 showingPlayer = true
             } else {
-                // Video failed to load, try loading the next video
-                isLoading = false
-                
-                // Move to next video and try loading it
-                if let nextVideo = await getNextVideo() {
-                    // Update current result based on new index
-                    currentResult = searchResults[currentIndex]
+                // Check if the error is content unavailable
+                if let error = errorMessage, error.contains("no longer available") {
+                    // Mark as unavailable and show alert
+                    _unavailableContent.insert(result.identifier.identifier)
+                    unavailableContentVersion += 1
                     
-                    // Try to play the next video
-                    await loadVideo(for: nextVideo.archiveIdentifier)
+                    isLoading = false
+                    unavailableAlertTitle = result.title
+                    showingUnavailableAlert = true
+                    clearError()
+                } else {
+                    // Video failed to load for other reasons, try loading the next video
+                    isLoading = false
+                    
+                    // Move to next video and try loading it
+                    if let nextVideo = await getNextVideo() {
+                        // Update current result based on new index
+                        currentResult = searchResults[currentIndex]
+                        
+                        // Try to play the next video
+                        await loadVideo(for: nextVideo.archiveIdentifier)
+                    }
                 }
             }
         }
