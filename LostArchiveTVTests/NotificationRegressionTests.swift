@@ -22,29 +22,38 @@ struct NotificationRegressionTests {
     
     @Test
     func preloadingCycle_stateTransitions() async {
-        await setupCleanState()
-        
-        // Arrange
+        // Arrange - Reset and immediately capture initial state before any notifications fire
+        VideoCacheService.resetForTesting()
+        TransitionPreloadManager.resetForTesting()
         let manager = PreloadingIndicatorManager.shared
+        manager.resetForTesting()
+        
         var stateChanges: [PreloadingState] = []
         var cancellables = Set<AnyCancellable>()
         
+        // Capture the initial state first (should be .notPreloading after resetForTesting)
+        stateChanges.append(manager.state)
+        
         // Track state changes
         manager.$state
+            .dropFirst() // Drop the initial value since we captured it manually
             .sink { state in
                 stateChanges.append(state)
             }
             .store(in: &cancellables)
         
+        // Wait a bit for any pending notifications to settle
+        try? await Task.sleep(for: .milliseconds(100))
+        
         // Act - simulate a full preloading cycle through direct state manipulation
         // Note: reset() keeps state in .preloading (never goes black)
         manager.reset() // Reset to preloading state
-        manager.setPreloading() // Already in preloading, might be no-op
+        manager.setPreloading() // Should trigger state change if not already preloading
         manager.setPreloaded() // Simulate cache completed
         manager.reset() // Reset back to preloading
         
         // Assert - verify state transitions
-        // Initial state after setupCleanState should be .notPreloading
+        // We should see at least these state transitions in our recording
         #expect(stateChanges.contains(.notPreloading))
         #expect(stateChanges.contains(.preloading))
         #expect(stateChanges.contains(.preloaded))

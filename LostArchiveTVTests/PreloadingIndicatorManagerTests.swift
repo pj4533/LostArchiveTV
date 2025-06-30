@@ -124,7 +124,7 @@ struct PreloadingIndicatorManagerTests {
         await setupCleanState()
         
         // Arrange
-        let manager = PreloadingIndicatorManager.shared
+        let _ = PreloadingIndicatorManager.shared
         
         // Act
         NotificationCenter.default.post(
@@ -145,7 +145,7 @@ struct PreloadingIndicatorManagerTests {
         await setupCleanState()
         
         // Arrange & Act
-        let manager = PreloadingIndicatorManager.shared
+        let _ = PreloadingIndicatorManager.shared
         
         // Send multiple notifications in sequence
         VideoCacheService.preloadingStatusPublisher.send(.started)
@@ -201,7 +201,7 @@ struct PreloadingIndicatorManagerTests {
         // Change states - ensure we actually trigger state changes
         manager.setPreloading()  // Should change from notPreloading to preloading
         manager.setPreloaded()   // Should change from preloading to preloaded
-        manager.reset()          // Should change from preloaded to notPreloading
+        manager.reset()          // Should change from preloaded to preloading
         
         // Wait briefly for all changes to propagate
         try? await Task.sleep(for: .milliseconds(100))

@@ -18,6 +18,9 @@ class TransitionPreloadManager: ObservableObject {
     // Weak reference to the provider for accessing BufferingMonitors
     weak var provider: BaseVideoViewModel?
     
+    // Task reference for Phase 2 caching to allow cancellation if needed
+    var phase2CachingTask: Task<Void, Never>?
+    
     // Public accessors for buffer states - query monitors directly
     var currentNextBufferState: BufferState { 
         get {

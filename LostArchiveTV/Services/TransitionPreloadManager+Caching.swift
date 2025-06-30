@@ -128,9 +128,10 @@ extension TransitionPreloadManager {
         // Create a dedicated task that will wait until both next AND prev videos are ready
         Logger.caching.info("⏸️ PHASE 2 DELAYED: Waiting for video buffers to be fully ready before starting cache")
 
-        // Create a task to monitor preloading completion and then start caching
-        // IMPORTANT: We do not await this task, so the ensureAllVideosCached function can return
-        Task {
+        // Store the Phase 2 task so we can await it if needed
+        // This task will monitor Phase 1 completion before starting any Phase 2 caching
+        let phase2Task = Task {
+            // CRITICAL: First wait for Phase 1 preloading to actually complete
             // Monitor ready flags in a loop with backoff
             var attempt = 0
             let maxAttempts = 60 // Up to 30 seconds with backoff
@@ -149,13 +150,6 @@ extension TransitionPreloadManager {
                     // CRITICAL: Signal to VideoCacheService that preloading is complete
                     // This will allow caching to proceed
                     await cacheableProvider.cacheService.setPreloadingComplete()
-
-                    // Now that preloading is complete, we can safely advance the cache window
-                    Logger.caching.info("🔄 CACHE WINDOW: Starting cache advancement after preloading is complete")
-                    await cacheableProvider.cacheManager.advanceCacheWindow(
-                        archiveService: cacheableProvider.archiveService,
-                        identifiers: cacheableProvider.getIdentifiersForGeneralCaching()
-                    )
 
                     break
                 }
@@ -181,34 +175,46 @@ extension TransitionPreloadManager {
 
                 // Even if we timed out, we need to signal completion to allow caching to proceed
                 await cacheableProvider.cacheService.setPreloadingComplete()
-
-                // Now that preloading is complete (or timed out), we can safely advance the cache window
-                Logger.caching.info("🔄 CACHE WINDOW: Starting cache advancement after preloading timeout")
-                await cacheableProvider.cacheManager.advanceCacheWindow(
-                    archiveService: cacheableProvider.archiveService,
-                    identifiers: cacheableProvider.getIdentifiersForGeneralCaching()
-                )
             }
 
-            // Now we can finally begin the actual caching process
-            Logger.caching.info("🔄 PHASE 2: Starting general cache filling with \(identifiers.count) identifiers")
+            // IMPORTANT: Add a delay after Phase 1 completion to ensure videos are fully processed
+            // This prevents Phase 2 from immediately starting to load new videos
+            Logger.caching.info("⏳ PHASE 2 DELAY: Waiting 1 second to ensure Phase 1 videos are fully processed")
+            try? await Task.sleep(for: .seconds(1.0))
 
-            // Check current cache state
+            // Now check if we should proceed with Phase 2 caching
             let cacheManager = cacheableProvider.cacheManager
             let currentCacheCount = await cacheManager.cacheCount()
             let maxCacheSize = await cacheManager.getMaxCacheSize()
 
-            Logger.caching.info("📊 CACHE STATUS: Current size before general caching: \(currentCacheCount)/\(maxCacheSize)")
+            Logger.caching.info("📊 CACHE STATUS: Current size after Phase 1: \(currentCacheCount)/\(maxCacheSize)")
 
-            // If cache is already full, skip phase 2
-            if currentCacheCount >= maxCacheSize {
-                Logger.caching.info("📊 CACHING: Cache is already full, skipping general cache filling")
+            // If cache is already full or nearly full (accounting for preloaded videos), skip phase 2
+            if currentCacheCount >= maxCacheSize - 2 {  // Account for next/prev videos
+                Logger.caching.info("📊 CACHING: Cache is sufficiently full after Phase 1, skipping general cache filling")
+                
+                // Still advance the cache window to maintain proper positioning
+                Logger.caching.info("🔄 CACHE WINDOW: Advancing cache window without additional caching")
+                await cacheableProvider.cacheManager.advanceCacheWindow(
+                    archiveService: cacheableProvider.archiveService,
+                    identifiers: cacheableProvider.getIdentifiersForGeneralCaching()
+                )
+                
                 return
             }
 
-            // Otherwise, proceed with filling the cache
+            // Now we can finally begin the actual caching process
+            Logger.caching.info("🔄 PHASE 2: Starting general cache filling with \(identifiers.count) identifiers")
             Logger.caching.info("🔄 CACHING: Need to add \(maxCacheSize - currentCacheCount) videos to reach full cache")
 
+            // First advance the cache window
+            Logger.caching.info("🔄 CACHE WINDOW: Advancing cache window before general caching")
+            await cacheableProvider.cacheManager.advanceCacheWindow(
+                archiveService: cacheableProvider.archiveService,
+                identifiers: cacheableProvider.getIdentifiersForGeneralCaching()
+            )
+
+            // Then start the general caching
             if provider is VideoPlayerViewModel {
                 // For the main player, use VideoCacheService
                 Logger.caching.info("🔄 CACHING: Starting general cache filling via VideoCacheService")
@@ -226,6 +232,9 @@ extension TransitionPreloadManager {
                 )
             }
         }
+        
+        // Store the task reference for potential cancellation
+        self.phase2CachingTask = phase2Task
 
         Logger.caching.info("✅ CACHING: ensureAllVideosCached complete - cache filling will start in background after preloading is done")
     }
