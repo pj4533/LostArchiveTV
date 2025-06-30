@@ -16,7 +16,7 @@ struct DefaultPreset {
     private static let defaultPreset = FeedPreset(
         id: "default-preset",
         name: "Default",
-        enabledCollections: ["avgeeks", "classic_tv"],
+        enabledCollections: ["avgeeks"],
         savedIdentifiers: defaultIdentifiers,
         isSelected: true
     )
