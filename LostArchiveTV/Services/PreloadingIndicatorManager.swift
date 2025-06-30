@@ -12,11 +12,9 @@ class PreloadingIndicatorManager: ObservableObject {
 
     internal var cancellables: Set<AnyCancellable> = Set<AnyCancellable>()
     
-    // Track which direction we're preloading
-    private var preloadingDirection: PreloadDirection = .next
     
-    // Timer for periodic buffer state checks
-    private var bufferCheckTimer: Timer?
+    // Buffer state subscription
+    private var bufferStateSubscription: AnyCancellable?
     
     private init() {
         // Setup observers
@@ -32,10 +30,9 @@ class PreloadingIndicatorManager: ObservableObject {
                 switch status {
                 case .started:
                     Logger.preloading.info("📍 PRELOAD: VideoCacheService signaled preloading started")
-                    // Default to next direction - the actual preloading code should have already set this
-                    self?.setPreloading(direction: .next)
-                    // Start monitoring immediately - now using single source of truth
-                    self?.startBufferStateMonitoring()
+                    self?.setPreloading()
+                    // Setup buffer state subscription
+                    self?.setupBufferStateSubscription()
                 case .completed:
                     // Keep monitoring even after preload completes
                     Logger.preloading.info("📍 PRELOAD: VideoCacheService signaled preloading completed")
@@ -78,25 +75,65 @@ class PreloadingIndicatorManager: ObservableObject {
         */
     }
     
-    private func startBufferStateMonitoring() {
-        // Stop any existing timer
-        bufferCheckTimer?.invalidate()
+    private func setupBufferStateSubscription() {
+        // Cancel any existing subscription
+        bufferStateSubscription?.cancel()
         
-        // Start a timer to periodically check buffer state
-        bufferCheckTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.checkPreloadedBufferState()
-            }
+        // Get the next buffer monitor publisher
+        let monitorPublisher: AnyPublisher<BufferingMonitor?, Never>?
+        if let viewModel = SharedViewModelProvider.shared.videoPlayerViewModel {
+            monitorPublisher = viewModel.$nextBufferingMonitor.eraseToAnyPublisher()
+        } else {
+            monitorPublisher = nil
         }
         
-        // Do an immediate check
-        checkPreloadedBufferState()
+        // Use switchToLatest to properly handle monitor instance changes
+        // This ensures that when the monitor instance changes:
+        // 1. The previous buffer state subscription is automatically cancelled
+        // 2. A new subscription is created for the new monitor
+        // 3. We don't have memory leaks from old subscriptions
+        bufferStateSubscription = monitorPublisher?
+            .map { monitor -> AnyPublisher<(BufferingMonitor, BufferState), Never> in
+                guard let monitor = monitor else {
+                    Logger.preloading.debug("🔄 MONITOR: Monitor became nil, returning empty publisher")
+                    return Empty().eraseToAnyPublisher()
+                }
+                
+                Logger.preloading.info("🔌 MONITOR: Switching to new BufferingMonitor instance")
+                
+                // Return a publisher that emits the monitor along with its buffer state
+                return monitor.$bufferState
+                    .map { bufferState in (monitor, bufferState) }
+                    .eraseToAnyPublisher()
+            }
+            .switchToLatest() // This is the key operator that handles monitor changes
+            .removeDuplicates { $0.1 == $1.1 } // Only emit when buffer state actually changes
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] (monitor, bufferState) in
+                guard let self = self else { return }
+                
+                // Update current buffer state
+                self.currentBufferState = bufferState
+                
+                Logger.preloading.debug("📊 BUFFER STATE UPDATE: State=\(bufferState.rawValue), Seconds=\(monitor.bufferSeconds), Progress=\(monitor.bufferProgress)")
+                
+                // Check if buffer is ready and we're still in preloading state
+                if self.state == .preloading && bufferState.isReady {
+                    Logger.preloading.notice("✅ BUFFER READY via subscription: Buffer is ready (\(bufferState.description)), showing green")
+                    self.setPreloaded()
+                    // Cancel the subscription as we're done
+                    self.bufferStateSubscription?.cancel()
+                    self.bufferStateSubscription = nil
+                }
+            }
+        
+        if bufferStateSubscription != nil {
+            Logger.preloading.info("🔌 BUFFER SUBSCRIPTION: Set up buffer state monitoring for next video")
+        } else {
+            Logger.preloading.warning("⚠️ BUFFER SUBSCRIPTION: Failed to set up - no video player view model available")
+        }
     }
     
-    private func stopBufferStateMonitoring() {
-        bufferCheckTimer?.invalidate()
-        bufferCheckTimer = nil
-    }
     
     private func checkPreloadedBufferState() {
         // Single source of truth: Only check BufferingMonitor for buffer state
@@ -111,18 +148,14 @@ class PreloadingIndicatorManager: ObservableObject {
         // Get current player address for comparison
         let currentPlayerAddress = viewModel.player.map { String(describing: Unmanaged.passUnretained($0).toOpaque()) } ?? "nil"
         
-        // Only check the buffering monitor - single source of truth
-        let monitor = preloadingDirection == .next 
-            ? viewModel.nextBufferingMonitor 
-            : viewModel.previousBufferingMonitor
+        // Check the next buffering monitor - single source of truth
+        let monitor = viewModel.nextBufferingMonitor
         
-        Logger.preloading.debug("🔍 PRELOAD CHECK: Direction=\(self.preloadingDirection == .next ? "next" : "prev"), Monitor exists=\(monitor != nil), Current player=\(currentPlayerAddress)")
+        Logger.preloading.debug("🔍 PRELOAD CHECK: Monitor exists=\(monitor != nil), Current player=\(currentPlayerAddress)")
         
         if let monitor = monitor {
             // Log which player the monitor is tracking
-            let monitoredPlayer = preloadingDirection == .next
-                ? viewModel.transitionManager?.nextPlayer
-                : viewModel.transitionManager?.prevPlayer
+            let monitoredPlayer = viewModel.transitionManager?.nextPlayer
             let monitoredPlayerAddress = monitoredPlayer.map { String(describing: Unmanaged.passUnretained($0).toOpaque()) } ?? "nil"
             
             Logger.preloading.debug("📊 PRELOAD MONITOR: State=\(monitor.bufferState.rawValue), Seconds=\(monitor.bufferSeconds), Progress=\(monitor.bufferProgress), Monitoring player=\(monitoredPlayerAddress)")
@@ -134,7 +167,6 @@ class PreloadingIndicatorManager: ObservableObject {
             if state == .preloading && monitor.bufferState.isReady {
                 Logger.preloading.notice("✅ PRELOAD READY: Buffer is ready (monitor: \(monitor.bufferState.description)), showing green")
                 setPreloaded()
-                stopBufferStateMonitoring()
                 return
             }
             
@@ -144,17 +176,19 @@ class PreloadingIndicatorManager: ObservableObject {
         } else {
             // No monitor available yet
             currentBufferState = .unknown
-            Logger.preloading.debug("⏳ PRELOAD WAITING: No monitor available yet for \(self.preloadingDirection == .next ? "next" : "prev") direction")
+            Logger.preloading.debug("⏳ PRELOAD WAITING: No monitor available yet for next video")
         }
     }
 
-    func setPreloading(direction: PreloadDirection = .next) {
+    func setPreloading() {
         // Only switch to preloading if we're not already in preloaded state
         if state != .preloaded {
-            preloadingDirection = direction
             state = .preloading
             currentBufferState = .unknown
-            Logger.preloading.info("🔄 PRELOAD START: Direction=\(direction == .next ? "next" : "previous"), State changed to preloading")
+            Logger.preloading.info("🔄 PRELOAD START: State changed to preloading")
+            
+            // Setup buffer state subscription
+            setupBufferStateSubscription()
         } else {
             Logger.preloading.warning("⚠️ PRELOAD IGNORED: Already in preloaded state, ignoring new preload signal")
         }
@@ -163,9 +197,16 @@ class PreloadingIndicatorManager: ObservableObject {
     func setPreloaded() {
         state = .preloaded
         Logger.preloading.notice("🟢 PRELOAD COMPLETE: State changed to preloaded (green)")
+        // Cancel the subscription when transitioning away from preloading state
+        bufferStateSubscription?.cancel()
+        bufferStateSubscription = nil
     }
 
     func reset() {
+        // Cancel buffer state subscription when resetting
+        bufferStateSubscription?.cancel()
+        bufferStateSubscription = nil
+        
         // Never go back to notPreloading - always stay in preloading state
         state = .preloading
         currentBufferState = .unknown
@@ -174,22 +215,15 @@ class PreloadingIndicatorManager: ObservableObject {
     }
 }
 
-// MARK: - Supporting Types
-extension PreloadingIndicatorManager {
-    enum PreloadDirection {
-        case next
-        case previous
-    }
-}
-
 // MARK: - Test Helpers
 extension PreloadingIndicatorManager {
     /// Reset subscriptions for testing
     func resetForTesting() {
         cancellables.removeAll()
+        bufferStateSubscription?.cancel()
+        bufferStateSubscription = nil
         state = .notPreloading
         currentBufferState = .unknown
-        stopBufferStateMonitoring()
         setupPreloadObservers()
     }
 }
