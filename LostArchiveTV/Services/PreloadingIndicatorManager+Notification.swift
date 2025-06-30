@@ -17,16 +17,15 @@ extension PreloadingIndicatorManager {
     @MainActor
     func updateStateFromTransitionManager(bufferState: BufferState) {
         // Update indicator state based on buffer state
-        // Only show green (preloaded) when buffer is excellent
-        switch bufferState {
-        case .unknown, .empty, .critical, .low, .sufficient, .good:
-            // Not excellent yet, show preloading state
+        // Show green (preloaded) when buffer is ready (good or excellent)
+        if bufferState.isReady {
+            // Buffer is ready, show green
+            state = .preloaded
+        } else {
+            // Not ready yet, show preloading state
             if state != .notPreloading {
                 state = .preloading
             }
-        case .excellent:
-            // Buffer is excellent, show green
-            state = .preloaded
         }
     }
 }

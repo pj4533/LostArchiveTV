@@ -37,18 +37,20 @@ struct NotificationRegressionTests {
             .store(in: &cancellables)
         
         // Act - simulate a full preloading cycle through direct state manipulation
-        manager.reset() // Start fresh
-        manager.setPreloading() // Simulate cache starting
+        // Note: reset() keeps state in .preloading (never goes black)
+        manager.reset() // Reset to preloading state
+        manager.setPreloading() // Already in preloading, might be no-op
         manager.setPreloaded() // Simulate cache completed
-        manager.reset() // Reset for next cycle
+        manager.reset() // Reset back to preloading
         
         // Assert - verify state transitions
+        // Initial state after setupCleanState should be .notPreloading
         #expect(stateChanges.contains(.notPreloading))
         #expect(stateChanges.contains(.preloading))
         #expect(stateChanges.contains(.preloaded))
         
-        // Verify final state
-        #expect(manager.state == .notPreloading)
+        // Verify final state - reset() keeps it in preloading
+        #expect(manager.state == .preloading)
     }
     
     @Test

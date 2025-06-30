@@ -24,7 +24,8 @@ struct PreloadingIndicatorManagerTests {
         
         // Arrange
         let manager = PreloadingIndicatorManager.shared
-        manager.reset() // Ensure we start from notPreloading
+        // Explicitly set to notPreloading after setup to ensure clean state
+        manager.state = .notPreloading
         #expect(manager.state == .notPreloading)
         
         // Act - Test the actual behavior method that notifications would trigger
@@ -102,7 +103,7 @@ struct PreloadingIndicatorManagerTests {
     }
     
     @Test
-    func reset_changesStateToNotPreloading() async {
+    func reset_changesStateToPreloading() async {
         await setupCleanState()
         
         // Arrange
@@ -112,8 +113,8 @@ struct PreloadingIndicatorManagerTests {
         // Act
         manager.reset()
         
-        // Assert
-        #expect(manager.state == .notPreloading)
+        // Assert - reset() keeps the state in .preloading (never goes black)
+        #expect(manager.state == .preloading)
     }
     
     // MARK: - BufferStatusChanged Notification Tests
@@ -166,8 +167,7 @@ struct PreloadingIndicatorManagerTests {
         
         let manager = PreloadingIndicatorManager.shared
         
-        // Initial state
-        manager.reset()
+        // Initial state - after setupCleanState
         #expect(manager.state == .notPreloading)
         
         // Start preloading
@@ -178,9 +178,9 @@ struct PreloadingIndicatorManagerTests {
         manager.setPreloaded()
         #expect(manager.state == .preloaded)
         
-        // Reset
+        // Reset - should stay in preloading (never goes black)
         manager.reset()
-        #expect(manager.state == .notPreloading)
+        #expect(manager.state == .preloading)
     }
     
     @Test
