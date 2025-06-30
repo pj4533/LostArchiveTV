@@ -42,6 +42,8 @@ struct ErrorView: View {
                 return "exclamationmark.triangle"
             case .invalidResponse, .parsingError, .invalidURL, .noData:
                 return "exclamationmark.circle"
+            case .contentUnavailable:
+                return "video.slash"
             }
         }
     }
@@ -60,6 +62,8 @@ struct ErrorView: View {
                 return "Retry"
             case .invalidResponse, .parsingError, .invalidURL, .noData:
                 return "Try Again"
+            case .contentUnavailable:
+                return "Try Another Video"
             }
         }
     }

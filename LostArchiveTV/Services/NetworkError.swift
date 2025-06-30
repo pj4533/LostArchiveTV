@@ -17,6 +17,7 @@ enum NetworkError: Error {
     case connectionError(message: String)
     case timeout
     case noInternetConnection
+    case contentUnavailable(identifier: String)
 }
 
 extension NetworkError: LocalizedError {
@@ -38,6 +39,8 @@ extension NetworkError: LocalizedError {
             return "The request timed out. Please check your connection and try again."
         case .noInternetConnection:
             return "No internet connection. Please check your network settings and try again."
+        case .contentUnavailable(let identifier):
+            return "This video (\(identifier)) is no longer available on Archive.org"
         }
     }
 }

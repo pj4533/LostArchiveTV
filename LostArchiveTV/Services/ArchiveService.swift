@@ -143,11 +143,26 @@ actor ArchiveService {
         }
         
         let decodingStartTime = CFAbsoluteTimeGetCurrent()
-        let metadata = try JSONDecoder().decode(ArchiveMetadata.self, from: data)
-        let decodingTime = CFAbsoluteTimeGetCurrent() - decodingStartTime
-        
-        Logger.metadata.debug("Decoded metadata with \(metadata.files.count) files in \(decodingTime.formatted(.number.precision(.fractionLength(4)))) seconds")
-        return metadata
+        do {
+            let metadata = try JSONDecoder().decode(ArchiveMetadata.self, from: data)
+            let decodingTime = CFAbsoluteTimeGetCurrent() - decodingStartTime
+            
+            Logger.metadata.debug("Decoded metadata with \(metadata.files.count) files in \(decodingTime.formatted(.number.precision(.fractionLength(4)))) seconds")
+            return metadata
+        } catch let decodingError as DecodingError {
+            // Check if this is likely due to unavailable content
+            // Archive.org sometimes returns HTTP 200 with minimal/invalid JSON when content is unavailable
+            Logger.metadata.error("Failed to decode metadata for \(identifier): \(decodingError)")
+            
+            // Check if the response is too small (likely an error page or minimal response)
+            if data.count < 100 {
+                Logger.metadata.info("Response too small (\(data.count) bytes), likely unavailable content")
+                throw NetworkError.contentUnavailable(identifier: identifier)
+            }
+            
+            // For other decoding errors, throw as content unavailable since we can't parse it
+            throw NetworkError.contentUnavailable(identifier: identifier)
+        }
     }
     
     func getRandomIdentifier(from identifiers: [ArchiveIdentifier]) -> ArchiveIdentifier? {

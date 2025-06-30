@@ -156,8 +156,18 @@ extension VideoPlayerViewModel {
             Logger.videoPlayback.info("🏁 FAST START: First video ready in \(totalTime.formatted(.number.precision(.fractionLength(4)))) seconds")
         } catch {
             Logger.videoPlayback.error("❌ FAST START: Failed to load first video: \(error.localizedDescription)")
-            handleError(error)
-            isInitializing = false
+            
+            // Check if content is unavailable and automatically retry with a different video
+            if isContentUnavailableError(error) {
+                Logger.videoPlayback.info("🔄 FAST START: Content unavailable, automatically trying another video")
+                // Don't show error to user, just try another video
+                clearError()
+                // Retry with another video
+                await loadFirstVideoDirectly()
+            } else {
+                handleError(error)
+                isInitializing = false
+            }
         }
     }
     
@@ -272,13 +282,22 @@ extension VideoPlayerViewModel {
         } catch {
             Logger.videoPlayback.error("Failed to load video: \(error.localizedDescription)")
             
-            if showImmediately {
-                isLoading = false
-                handleError(error)
+            // Check if content is unavailable and automatically retry with a different video
+            if isContentUnavailableError(error) {
+                Logger.videoPlayback.info("🔄 Content unavailable, automatically trying another video")
+                // Don't show error to user, just try another video
+                clearError()
+                // Retry with another video
+                await loadRandomVideo(showImmediately: showImmediately)
+            } else {
+                if showImmediately {
+                    isLoading = false
+                    handleError(error)
+                }
+                
+                // Always exit initialization mode on error to prevent being stuck in loading
+                isInitializing = false
             }
-            
-            // Always exit initialization mode on error to prevent being stuck in loading
-            isInitializing = false
         }
     }
 }

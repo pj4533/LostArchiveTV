@@ -261,6 +261,9 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
                 } else {
                     errorMessage = networkError.localizedDescription
                 }
+            case .contentUnavailable:
+                // For content unavailable, provide a user-friendly message
+                errorMessage = "This video is no longer available on Archive.org"
             default:
                 // For other network errors, use the localized description
                 errorMessage = networkError.localizedDescription
@@ -286,6 +289,21 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
                lowercaseMessage.contains("network") ||
                lowercaseMessage.contains("timed out") ||
                lowercaseMessage.contains("timeout")
+    }
+    
+    /// Checks if the given error is a content unavailable error
+    /// - Parameter error: The error to check
+    /// - Returns: True if the error indicates content is unavailable
+    func isContentUnavailableError(_ error: Error) -> Bool {
+        if let networkError = error as? NetworkError {
+            switch networkError {
+            case .contentUnavailable:
+                return true
+            default:
+                return false
+            }
+        }
+        return false
     }
     
     // MARK: - Video Caching
