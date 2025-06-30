@@ -10,13 +10,6 @@ import OSLog
 
 // MARK: - State Management
 extension VideoCacheService {
-    // Method to signal that the first video is ready and playing
-    func setFirstVideoReady() {
-        Logger.caching.info("VideoCacheService: First video is now playing, enabling background caching")
-        isFirstVideoReady = true
-        Logger.caching.info("VideoCacheService: isFirstVideoReady set to \(self.isFirstVideoReady)")
-    }
-
     // Method to signal that preloading is complete and caching can proceed
     func setPreloadingComplete() {
         Logger.caching.info("✅ PRIORITY: Preloading complete, removing hard block on caching operations")
@@ -42,21 +35,15 @@ extension VideoCacheService {
                 // We don't have access to cacheManager here, so we can't check cache levels directly.
                 // Instead, we'll only trigger recovery if we've detected a truly stalled system
 
-                // Only restart if the first video is ready and preloading has completed
-                if self.isFirstVideoReady {
-                    Logger.caching.warning("🔄 RECOVERY: Detected stalled cache system, initiating recovery notification")
+                Logger.caching.warning("🔄 RECOVERY: Detected stalled cache system, initiating recovery notification")
 
-                    // Post a notification to trigger a cache restart
-                    // Note: The BaseVideoViewModel will handle checking if the cache actually needs filling
-                    DispatchQueue.main.async {
-                        NotificationCenter.default.post(name: NSNotification.Name("CacheSystemNeedsRestart"), object: nil)
-                    }
-
-                    Logger.caching.warning("🔔 RECOVERY: Posted CacheSystemNeedsRestart notification")
-                } else {
-                    // First video isn't ready yet, so skip restart
-                    Logger.caching.info("✅ SKIP RECOVERY: First video not ready yet, no need to restart caching")
+                // Post a notification to trigger a cache restart
+                // Note: The BaseVideoViewModel will handle checking if the cache actually needs filling
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: NSNotification.Name("CacheSystemNeedsRestart"), object: nil)
                 }
+
+                Logger.caching.warning("🔔 RECOVERY: Posted CacheSystemNeedsRestart notification")
             }
         }
     }
