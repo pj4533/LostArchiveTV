@@ -54,7 +54,7 @@ final class BufferingMonitor: ObservableObject {
     // For stabilization of initial readings
     private var isStabilized: Bool = false
     private var stabilizationReadings: [Double] = []
-    private let stabilizationThreshold = 3 // Number of consistent readings needed
+    private let stabilizationThreshold = 2 // Number of consistent readings needed
     
     // MARK: - Initialization
     
