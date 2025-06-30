@@ -138,9 +138,8 @@ extension VideoPlayerViewModel {
                 totalFiles: totalFiles
             )
             
-            // Add to cache immediately
-            await cacheManager.addCachedVideo(cachedVideo)
-            Logger.caching.info("💾 FAST START: Added first video to cache")
+            // Don't add the first video to cache - cache should only contain future videos
+            // The cache will be populated by the background caching process that starts after this
             
             // Add to history
             addVideoToHistory(cachedVideo)
