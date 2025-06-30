@@ -44,8 +44,7 @@ struct NotificationRegressionTests {
         manager.reset() // Reset back to preloading
         
         // Assert - verify state transitions
-        // Initial state after setupCleanState should be .notPreloading
-        #expect(stateChanges.contains(.notPreloading))
+        // Initial state is .preloading (never goes to .notPreloading)
         #expect(stateChanges.contains(.preloading))
         #expect(stateChanges.contains(.preloaded))
         

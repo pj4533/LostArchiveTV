@@ -132,12 +132,19 @@ extension TransitionPreloadManager {
             )
             
             do {
-                // Load a complete random video
-                let videoInfo = try await service.loadRandomVideo()
+                // Get random identifier
+                let identifiers = try await service.loadIdentifiersWithUserPreferences()
+                guard let randomIdentifier = await service.archiveService.getRandomIdentifier(from: identifiers) else {
+                    Logger.caching.error("No identifiers available for random video")
+                    throw NSError(domain: "VideoPlayerError", code: 1, userInfo: [NSLocalizedDescriptionKey: "No identifiers available"])
+                }
+                
+                // Load a complete cached video with all metadata
+                let cachedVideo = try await service.loadCompleteCachedVideo(for: randomIdentifier)
                 
                 // Create a new player for the asset
                 let freshPlayerItem = await MainActor.run {
-                    AVPlayerItem(asset: videoInfo.asset)
+                    AVPlayerItem(asset: cachedVideo.asset)
                 }
                 let player = AVPlayer(playerItem: freshPlayerItem)
                 
@@ -146,30 +153,32 @@ extension TransitionPreloadManager {
                 player.pause()
                 
                 // Seek to the start position
-                let startTime = CMTime(seconds: videoInfo.startPosition, preferredTimescale: 600)
+                let startTime = CMTime(seconds: cachedVideo.startPosition, preferredTimescale: 600)
                 await player.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
 
                 // Update UI on main thread immediately with metadata
                 await MainActor.run {
                     // Update next video metadata
-                    nextTitle = videoInfo.title
-                    nextCollection = videoInfo.collection
-                    nextDescription = videoInfo.description
-                    nextIdentifier = videoInfo.identifier
-                    nextFilename = videoInfo.filename
-
-                    // Count total files - temporarily set to 1, we'll update this properly elsewhere
-                    nextTotalFiles = 1
+                    nextTitle = cachedVideo.title
+                    nextCollection = cachedVideo.collection
+                    nextDescription = cachedVideo.description
+                    nextIdentifier = cachedVideo.identifier
+                    nextFilename = cachedVideo.mp4File.name
+                    nextTotalFiles = cachedVideo.totalFiles
                     
                     // Store reference to next player
                     nextPlayer = player
 
-                    Logger.files.info("📊 PRELOAD RAND: Set nextTotalFiles to 1 for \(videoInfo.identifier) (will be updated during transition)")
+                    Logger.files.info("📊 PRELOAD RAND: Set nextTotalFiles to \(cachedVideo.totalFiles) for \(cachedVideo.identifier)")
                 }
+                
+                // CRITICAL FIX: Add the preloaded video to the cache immediately
+                await videoPlayerViewModel.cacheManager.addCachedVideo(cachedVideo)
+                Logger.caching.info("✅ PRELOAD FIX: Added preloaded video \(cachedVideo.identifier) to cache")
                 
                 // Start asynchronous buffer monitoring task that will update UI status
                 // as soon as the video is actually ready to play
-                let videoId = videoInfo.identifier
+                let videoId = cachedVideo.identifier
                 let preloadStart = preloadStartTime
                 
                 // Start buffer monitoring in background
@@ -180,7 +189,7 @@ extension TransitionPreloadManager {
                     }
                 }
 
-                Logger.caching.info("Successfully preloaded new random video: \(videoInfo.identifier)")
+                Logger.caching.info("Successfully preloaded new random video: \(cachedVideo.identifier)")
 
                 // Check cache state after preloading to understand relationship to cache
                 if let cacheableProvider = provider as? CacheableProvider {
@@ -191,7 +200,7 @@ extension TransitionPreloadManager {
                     // Debug: log all cached video identifiers
                     let cachedIds = await cacheableProvider.cacheManager.getCachedVideos().map { $0.identifier }
                     Logger.caching.info("⚠️ PRELOAD NEXT: Cached IDs: \(cachedIds.joined(separator: ", "))")
-                    Logger.caching.info("⚠️ PRELOAD NEXT: Next video ID: \(videoInfo.identifier)")
+                    Logger.caching.info("⚠️ PRELOAD NEXT: Next video ID: \(cachedVideo.identifier)")
                 }
             } catch {
                 // Retry on error after a short delay

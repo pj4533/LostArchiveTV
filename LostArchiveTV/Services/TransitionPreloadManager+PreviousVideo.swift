@@ -73,6 +73,12 @@ extension TransitionPreloadManager {
                 }
             }
             
+            // Add the preloaded video to the cache to prevent duplicate loading
+            if let cacheableProvider = provider as? CacheableProvider {
+                await cacheableProvider.cacheManager.addCachedVideo(previousVideo)
+                Logger.caching.info("📦 PRELOAD PREV: Added preloaded video to cache: \(previousVideo.identifier)")
+            }
+            
             // Delay briefly to ensure monitors are connected before sending signal
             Task {
                 try? await Task.sleep(for: .milliseconds(100))
