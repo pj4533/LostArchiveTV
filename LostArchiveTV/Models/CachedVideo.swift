@@ -33,6 +33,10 @@ struct CachedVideo: Identifiable, Equatable {
         URL(string: "https://archive.org/services/img/\(identifier)")
     }
     
+    var archiveIdentifier: ArchiveIdentifier {
+        ArchiveIdentifier(identifier: identifier, collection: collection)
+    }
+    
     static func == (lhs: CachedVideo, rhs: CachedVideo) -> Bool {
         lhs.identifier == rhs.identifier
     }

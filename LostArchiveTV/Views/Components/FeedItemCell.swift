@@ -71,21 +71,47 @@ struct SearchFeedItemCellContent: View {
     let item: SearchFeedItem
     @ObservedObject var searchViewModel: SearchViewModel
     
+    private var isUnavailable: Bool {
+        searchViewModel.isContentUnavailable(for: item.searchResult.identifier.identifier)
+    }
+    
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             // Thumbnail
-            AsyncImage(url: item.thumbnailURL) { image in
-                image.resizable().aspectRatio(contentMode: .fill)
-            } placeholder: {
-                ZStack {
-                    Color.gray.opacity(0.3)
-                    Image(systemName: "film")
-                        .font(.largeTitle)
-                        .foregroundColor(.white)
+            ZStack {
+                AsyncImage(url: item.thumbnailURL) { image in
+                    image.resizable().aspectRatio(contentMode: .fill)
+                        .opacity(isUnavailable ? 0.4 : 1.0)
+                } placeholder: {
+                    ZStack {
+                        Color.gray.opacity(0.3)
+                        Image(systemName: "film")
+                            .font(.largeTitle)
+                            .foregroundColor(.white)
+                    }
+                }
+                .frame(width: 80, height: 80)
+                .cornerRadius(8)
+                
+                // Unavailable overlay
+                if isUnavailable {
+                    ZStack {
+                        Color.black.opacity(0.6)
+                            .cornerRadius(8)
+                        
+                        VStack(spacing: 2) {
+                            Image(systemName: "video.slash")
+                                .font(.system(size: 20))
+                                .foregroundColor(.white)
+                            Text("Unavailable")
+                                .font(.system(size: 9))
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .frame(width: 80, height: 80)
                 }
             }
-            .frame(width: 80, height: 80)
-            .cornerRadius(8)
             
             // Metadata
             VStack(alignment: .leading, spacing: 4) {
@@ -117,11 +143,19 @@ struct SearchFeedItemCellContent: View {
             Spacer()
         }
         .padding(.vertical, 4)
+        .opacity(isUnavailable ? 0.7 : 1.0)
     }
     
     // Dynamic metadata that re-computes when searchViewModel changes
     private var dynamicMetadata: [String: String] {
         var result: [String: String] = [:]
+        
+        // Check if content is unavailable first
+        if isUnavailable {
+            result["Status"] = "Content Unavailable"
+            return result
+        }
+        
         result["Score"] = String(format: "%.2f", item.searchResult.score)
         if let year = item.searchResult.year {
             result["Year"] = String(year)
@@ -134,7 +168,7 @@ struct SearchFeedItemCellContent: View {
         // This feature displays file counts in search results but may cause API rate limiting
         // due to making multiple concurrent requests to Archive.org without throttling.
         
-        // This will re-compute when fileCountCacheVersion changes because of @ObservedObject
+        // This will re-compute when fileCountCacheVersion or unavailableContentVersion changes because of @ObservedObject
         // if let cachedFileCount = searchViewModel.getCachedFileCount(for: item.searchResult.identifier.identifier) {
         //     result["Files"] = cachedFileCount == 1 ? "1 file" : "\(cachedFileCount) files"
         // } else {

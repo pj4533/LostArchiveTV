@@ -164,7 +164,11 @@ struct SearchView: View {
 struct SearchResultCell: View {
     let result: SearchResult
     let index: Int
-    let viewModel: SearchViewModel
+    @ObservedObject var viewModel: SearchViewModel
+    
+    private var isUnavailable: Bool {
+        viewModel.isContentUnavailable(for: result.identifier.identifier)
+    }
     
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -173,6 +177,7 @@ struct SearchResultCell: View {
                 if let image = phase.image {
                     image.resizable()
                         .aspectRatio(contentMode: .fill)
+                        .opacity(isUnavailable ? 0.4 : 1.0)
                 } else if phase.error != nil {
                     Rectangle()
                         .fill(Color.gray.opacity(0.3))
@@ -191,6 +196,23 @@ struct SearchResultCell: View {
             }
             .aspectRatio(1, contentMode: .fill)
             
+            // Unavailable overlay
+            if isUnavailable {
+                ZStack {
+                    Color.black.opacity(0.6)
+                    
+                    VStack(spacing: 4) {
+                        Image(systemName: "video.slash")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                        Text("Unavailable")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                    }
+                }
+            }
+            
             // Title overlay at bottom
             VStack(alignment: .leading) {
                 Spacer()
@@ -205,7 +227,16 @@ struct SearchResultCell: View {
         .frame(minWidth: 0, maxWidth: .infinity, minHeight: 160)
         .clipped()
         .onTapGesture {
-            viewModel.playVideoAt(index: index)
+            // Only allow tap if content is available
+            if !isUnavailable {
+                viewModel.playVideoAt(index: index)
+            }
+        }
+        .onAppear {
+            // Trigger file count fetch to check availability
+            Task {
+                await viewModel.fetchFileCount(for: result.identifier.identifier)
+            }
         }
     }
 }

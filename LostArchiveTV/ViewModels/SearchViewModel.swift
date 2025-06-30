@@ -40,8 +40,13 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
     
     // File count cache to avoid repeated API calls
     // Using dual approach: nonisolated storage for synchronous reads + Published for UI updates
-    private nonisolated(unsafe) var _fileCountCache: [String: Int] = [:]
+    // Now stores Result to track both successful counts and content unavailable errors
+    private nonisolated(unsafe) var _fileCountCache: [String: Result<Int, NetworkError>] = [:]
     @Published var fileCountCacheVersion: Int = 0
+    
+    // Track unavailable content separately for quick lookup
+    private nonisolated(unsafe) var _unavailableContent: Set<String> = []
+    @Published var unavailableContentVersion: Int = 0
     
     // MARK: - VideoControlProvider Protocol Overrides
     
@@ -136,7 +141,20 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
     /// - Parameter identifier: The archive identifier
     /// - Returns: The cached file count if available, nil otherwise
     nonisolated func getCachedFileCount(for identifier: String) -> Int? {
-        return _fileCountCache[identifier]
+        guard let result = _fileCountCache[identifier] else { return nil }
+        switch result {
+        case .success(let count):
+            return count
+        case .failure:
+            return nil
+        }
+    }
+    
+    /// Check if content is unavailable for an identifier
+    /// - Parameter identifier: The archive identifier
+    /// - Returns: True if the content is known to be unavailable
+    nonisolated func isContentUnavailable(for identifier: String) -> Bool {
+        return _unavailableContent.contains(identifier)
     }
     
     /// Fetch file count for an identifier and cache the result
@@ -146,9 +164,15 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
         Logger.caching.debug("🔍 DEBUG: fetchFileCount called for: \(identifier)")
         
         // Check cache first
-        if let cachedCount = _fileCountCache[identifier] {
-            Logger.caching.info("🔍 DEBUG: File count cache hit for \(identifier): \(cachedCount)")
-            return cachedCount
+        if let cachedResult = _fileCountCache[identifier] {
+            switch cachedResult {
+            case .success(let count):
+                Logger.caching.info("🔍 DEBUG: File count cache hit for \(identifier): \(count)")
+                return count
+            case .failure(let error):
+                Logger.caching.info("🔍 DEBUG: Cached error for \(identifier): \(error.localizedDescription)")
+                return nil
+            }
         }
         
         do {
@@ -161,14 +185,26 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
             let fileCount = VideoLoadingService.calculateFileCount(from: metadata)
             Logger.caching.debug("🔍 DEBUG: calculateFileCount returned: \(fileCount)")
             
-            // Cache the result and trigger UI updates
-            _fileCountCache[identifier] = fileCount
+            // Cache the successful result and trigger UI updates
+            _fileCountCache[identifier] = .success(fileCount)
             fileCountCacheVersion += 1  // Trigger UI update through @Published
             Logger.caching.info("🔍 DEBUG: Cached file count for \(identifier): \(fileCount)")
             
             return fileCount
         } catch {
             Logger.caching.error("🔍 DEBUG: Failed to fetch file count for \(identifier): \(error.localizedDescription)")
+            
+            // Check if this is a content unavailable error
+            if let networkError = error as? NetworkError,
+               case .contentUnavailable = networkError {
+                // Cache the error and mark as unavailable
+                _fileCountCache[identifier] = .failure(networkError)
+                _unavailableContent.insert(identifier)
+                fileCountCacheVersion += 1
+                unavailableContentVersion += 1
+                Logger.caching.info("🔍 DEBUG: Marked content as unavailable for \(identifier)")
+            }
+            
             return nil
         }
     }
@@ -205,10 +241,12 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
             return
         }
         
-        // Clear file count cache when starting a new search
+        // Clear file count cache and unavailable content when starting a new search
         _fileCountCache.removeAll()
+        _unavailableContent.removeAll()
         fileCountCacheVersion += 1  // Trigger UI update
-        Logger.caching.info("Cleared file count cache for new search")
+        unavailableContentVersion += 1
+        Logger.caching.info("Cleared file count cache and unavailable content for new search")
         
         // Cancel any previously running search task
         searchTask?.cancel()
@@ -283,12 +321,27 @@ class SearchViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
         Task {
             await loadVideo(for: searchResults[index].identifier)
             
-            // Start preloading of adjacent videos - this helps ensure smooth swipe transitions
-            try? await Task.sleep(for: .seconds(0.5))
-            await ensureVideosAreCached()
-            
-            isLoading = false
-            showingPlayer = true
+            // Only show player if video loaded successfully (no error)
+            if errorMessage == nil {
+                // Start preloading of adjacent videos - this helps ensure smooth swipe transitions
+                try? await Task.sleep(for: .seconds(0.5))
+                await ensureVideosAreCached()
+                
+                isLoading = false
+                showingPlayer = true
+            } else {
+                // Video failed to load, try loading the next video
+                isLoading = false
+                
+                // Move to next video and try loading it
+                if let nextVideo = await getNextVideo() {
+                    // Update current result based on new index
+                    currentResult = searchResults[currentIndex]
+                    
+                    // Try to play the next video
+                    await loadVideo(for: nextVideo.archiveIdentifier)
+                }
+            }
         }
     }
     
