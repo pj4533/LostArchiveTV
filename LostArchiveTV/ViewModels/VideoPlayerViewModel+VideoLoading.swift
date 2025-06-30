@@ -88,7 +88,19 @@ extension VideoPlayerViewModel {
             currentDescription = videoInfo.description
             currentFilename = videoInfo.filename
 
-            // Instead of fetching metadata here, we'll use the value from CachedVideo in the updateCurrentCachedVideo method
+            // Fetch metadata to create a proper CachedVideo
+            Logger.caching.info("📊 FAST START: Fetching metadata for CachedVideo creation")
+            let metadata = try await archiveService.fetchMetadata(for: videoInfo.identifier)
+            
+            // Find the MP4 file from metadata
+            let mp4Files = await archiveService.findPlayableFiles(in: metadata)
+            guard let mp4File = mp4Files.first else {
+                throw NSError(domain: "VideoLoadingError", code: 1, userInfo: [NSLocalizedDescriptionKey: "No MP4 file found in metadata"])
+            }
+            
+            // Calculate total files
+            let totalFiles = VideoLoadingService.calculateFileCount(from: metadata)
+            self.totalFiles = totalFiles
             
             // Create a player with the seek position already applied
             let player = AVPlayer(playerItem: AVPlayerItem(asset: videoInfo.asset))
@@ -113,22 +125,32 @@ extension VideoPlayerViewModel {
                 }
             }
             
-            // Create cached video from current state and add to history
-            if let currentVideo = await createCachedVideoFromCurrentState() {
-                addVideoToHistory(currentVideo)
-                updateCurrentCachedVideo(currentVideo)
-                Logger.caching.info("📝 FAST START: Added initial video to history")
-            }
+            // Create a proper CachedVideo object with all metadata
+            let cachedVideo = CachedVideo(
+                identifier: videoInfo.identifier,
+                collection: videoInfo.collection,
+                metadata: metadata,
+                mp4File: mp4File,
+                videoURL: playbackManager.currentVideoURL ?? URL(string: "https://archive.org")!,
+                asset: videoInfo.asset as! AVURLAsset,
+                startPosition: videoInfo.startPosition,
+                addedToFavoritesAt: nil,
+                totalFiles: totalFiles
+            )
+            
+            // Don't add the first video to cache - cache should only contain future videos
+            // The cache will be populated by the background caching process that starts after this
+            
+            // Add to history
+            addVideoToHistory(cachedVideo)
+            updateCurrentCachedVideo(cachedVideo)
+            Logger.caching.info("📝 FAST START: Added initial video to history")
             
             // CRITICAL: Immediately exit initialization mode
             isInitializing = false
-            
-            // Signal that first video is ready for caching
-            Logger.caching.info("🔄 FAST START: Signaling that first video is ready for caching")
-            await cacheService.setFirstVideoReady()
 
-            // Manually trigger the preloading indicator to show as we start loading next videos
-            PreloadingIndicatorManager.shared.setPreloading()
+            // Use standard notification flow instead of manual trigger
+            await cacheService.notifyCachingStarted()
 
             let totalTime = CFAbsoluteTimeGetCurrent() - startTime
             Logger.videoPlayback.info("🏁 FAST START: First video ready in \(totalTime.formatted(.number.precision(.fractionLength(4)))) seconds")
@@ -234,15 +256,12 @@ extension VideoPlayerViewModel {
                 Logger.videoPlayback.info("🏁 LOADING: Reset loading state to false")
             }
             
-            // Signal that the first video is ready to play, enabling additional caching
-            await cacheService.setFirstVideoReady()
-            
             // Now that the first video is playing, start caching next videos in background
             Task {
                 Logger.caching.info("🔄 LOADING: Starting background cache filling after first video is playing")
 
-                // Manually trigger the preloading indicator to show as we start loading the next videos
-                PreloadingIndicatorManager.shared.setPreloading()
+                // Use standard notification flow to indicate caching has started
+                await cacheService.notifyCachingStarted()
 
                 await ensureVideosAreCached()
             }

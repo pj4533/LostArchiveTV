@@ -44,8 +44,9 @@ struct NotificationRegressionTests {
         manager.reset() // Reset back to preloading
         
         // Assert - verify state transitions
-        // Initial state after setupCleanState should be .notPreloading
-        #expect(stateChanges.contains(.notPreloading))
+        // As of issue #98, reset() no longer transitions to .notPreloading
+        // The indicator always stays visible (in .preloading state)
+        // #expect(stateChanges.contains(.notPreloading)) - Removed: reset() now keeps state in .preloading
         #expect(stateChanges.contains(.preloading))
         #expect(stateChanges.contains(.preloaded))
         

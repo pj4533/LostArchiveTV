@@ -43,8 +43,7 @@ final class BufferingMonitor: ObservableObject {
     
     // MARK: - Private Properties
     
-    private static let logger = Logger(subsystem: "com.lostarchive.tv", category: "BufferingMonitor")
-    private let logger = BufferingMonitor.logger
+    private let logger = Logger.bufferingMonitor
     private var player: AVPlayer?
     private var observations: Set<AnyCancellable> = []
     

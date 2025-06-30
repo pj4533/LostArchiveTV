@@ -182,16 +182,40 @@ extension TransitionPreloadManager {
 
                 Logger.caching.info("Successfully preloaded new random video: \(videoInfo.identifier)")
 
-                // Check cache state after preloading to understand relationship to cache
+                // CRITICAL FIX: Add the preloaded video to the cache
+                // Since we loaded a fresh video that's not in the cache, we need to add it
                 if let cacheableProvider = provider as? CacheableProvider {
+                    // First, we need to load the complete video data to create a CachedVideo
+                    // We'll use the videoLoadingService to get the complete cached video
+                    do {
+                        // Create an ArchiveIdentifier for the loaded video
+                        let archiveIdentifier = ArchiveIdentifier(identifier: videoInfo.identifier, collection: videoInfo.collection)
+                        
+                        // Load the complete cached video data
+                        let cachedVideo = try await service.loadCompleteCachedVideo(for: archiveIdentifier)
+                        
+                        // Add the video to the cache
+                        await cacheableProvider.cacheManager.addCachedVideo(cachedVideo)
+                        Logger.caching.info("✅ PRELOAD NEXT: Added preloaded video to cache: \(cachedVideo.identifier)")
+                        
+                        // Update the totalFiles count that we temporarily set to 1
+                        await MainActor.run {
+                            nextTotalFiles = cachedVideo.totalFiles
+                            Logger.files.info("📊 PRELOAD NEXT: Updated nextTotalFiles to \(cachedVideo.totalFiles) from cached video")
+                        }
+                    } catch {
+                        Logger.caching.error("❌ PRELOAD NEXT: Failed to add preloaded video to cache: \(error.localizedDescription)")
+                    }
+                    
+                    // Log cache state after adding the video
                     let cacheCount = await cacheableProvider.cacheManager.cacheCount()
                     let maxCache = await cacheableProvider.cacheManager.getMaxCacheSize()
-                    Logger.caching.info("⚠️ PRELOAD NEXT: Cache state AFTER preloading random: \(cacheCount)/\(maxCache) - NEXT VIDEO IS OUTSIDE CACHE!")
+                    Logger.caching.info("📊 PRELOAD NEXT: Cache state AFTER adding preloaded video: \(cacheCount)/\(maxCache)")
 
                     // Debug: log all cached video identifiers
                     let cachedIds = await cacheableProvider.cacheManager.getCachedVideos().map { $0.identifier }
-                    Logger.caching.info("⚠️ PRELOAD NEXT: Cached IDs: \(cachedIds.joined(separator: ", "))")
-                    Logger.caching.info("⚠️ PRELOAD NEXT: Next video ID: \(videoInfo.identifier)")
+                    Logger.caching.info("📋 PRELOAD NEXT: Cached IDs: \(cachedIds.joined(separator: ", "))")
+                    Logger.caching.info("✅ PRELOAD NEXT: Next video ID: \(videoInfo.identifier) - NOW IN CACHE")
                 }
             } catch {
                 // Retry on error after a short delay

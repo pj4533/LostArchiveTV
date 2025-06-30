@@ -12,9 +12,6 @@ import OSLog
 actor VideoCacheService {
     internal var cacheTask: Task<Void, Never>?
 
-    // Track whether the first video is ready for playback
-    internal var isFirstVideoReady = false
-
     // Track whether preloading has completed for the current transition
     // Initialize to true to allow initial caching to proceed without waiting for preloading
     internal var isPreloadingComplete = true
@@ -121,8 +118,7 @@ actor VideoCacheService {
         }
         
         // Step 3: Start background task to fill the remainder of the cache
-        // Only start this task if we need more videos AND the first video is ready
-        // and preloading is complete (if applicable)
+        // Only start this task if we need more videos AND preloading is complete
         let currentCount = await cacheManager.cacheCount()
         if currentCount < maxCache {
             // First cleanup any existing cache task to prevent resource leaks
@@ -132,13 +128,6 @@ actor VideoCacheService {
                 cacheTask = nil
             }
 
-            // Check first video ready state
-            Logger.caching.info("🔍 STATUS: Checking if first video is ready. isFirstVideoReady = \(self.isFirstVideoReady)")
-            if !self.isFirstVideoReady {
-                Logger.caching.info("⏸️ PAUSED: First video not yet playing, delaying background cache filling")
-                return
-            }
-
             // Check preloading completion state
             Logger.caching.info("🔍 STATUS: Checking if preloading is complete. isPreloadingComplete = \(self.isPreloadingComplete)")
             if !self.isPreloadingComplete {
@@ -146,7 +135,7 @@ actor VideoCacheService {
                 return
             }
 
-            Logger.caching.info("✅ STATUS: First video is ready and preloading is complete, proceeding with cache filling")
+            Logger.caching.info("✅ STATUS: Preloading is complete, proceeding with cache filling")
             
             Logger.caching.info("🔄 CACHE TASK: Starting background task to fill cache to \(maxCache) videos")
 

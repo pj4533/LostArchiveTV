@@ -100,13 +100,9 @@ struct SwipeablePlayerView<Provider: VideoProvider & ObservableObject>: View {
                 // Assign transition manager to provider
                 configureProvider(provider)
                 
-                // Ensure we have a video loaded and videos are ready for swiping in both directions
-                if provider.player != nil {
-                    Logger.caching.info("SwipeablePlayerView onAppear: Player exists, starting preload for \(String(describing: type(of: provider)))")
-                    preloadVideos()
-                } else {
-                    Logger.caching.error("⚠️ SwipeablePlayerView onAppear: Player is nil, cannot preload")
-                }
+                // No need to call preloadVideos() here - the video loading system 
+                // already handles preloading through ensureVideosAreCached() after 
+                // the first video loads. This prevents duplicate video loading.
                 
                 // Setup trim observer
                 viewState.setupTrimObserver {
