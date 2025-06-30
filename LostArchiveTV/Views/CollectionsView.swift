@@ -101,5 +101,10 @@ struct CollectionsView: View {
         }
         .navigationTitle("Collections")
         .navigationBarTitleDisplayMode(.large)
+        .onAppear {
+            // Sync collections with the currently selected preset
+            // This ensures UI reflects correct state when navigating here
+            viewModel.syncCollectionsWithSelectedPreset()
+        }
     }
 }

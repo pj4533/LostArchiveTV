@@ -124,11 +124,7 @@ class HomeFeedSettingsViewModel: ObservableObject {
                 await loadCollections()
                 
                 // After loading collections, sync them with the selected preset
-                if let selectedPreset = selectedPreset {
-                    for i in 0..<collections.count {
-                        collections[i].isEnabled = selectedPreset.enabledCollections.contains(collections[i].id)
-                    }
-                }
+                syncCollectionsWithSelectedPreset()
             }
         }
     }
@@ -204,18 +200,29 @@ class HomeFeedSettingsViewModel: ObservableObject {
         presets = HomeFeedPreferences.getAllPresets()
     }
     
+    @MainActor
+    func syncCollectionsWithSelectedPreset() {
+        guard let selectedPreset = selectedPreset else { return }
+        
+        for i in 0..<collections.count {
+            collections[i].isEnabled = selectedPreset.enabledCollections.contains(collections[i].id)
+        }
+    }
+    
     func selectPreset(withId id: String) {
+        // Handle all state updates atomically
         HomeFeedPreferences.selectPreset(withId: id)
         loadPresets()
         
-        // Update the collections view to reflect the selected preset
-        if let selectedPreset = selectedPreset {
-            for i in 0..<collections.count {
-                collections[i].isEnabled = selectedPreset.enabledCollections.contains(collections[i].id)
-            }
-            
-            // No need to explicitly load identifiers as they're accessed directly from the preset now
-        }
+        // Set useDefaultCollections to false when selecting a preset
+        useDefaultCollections = false
+        UserDefaults.standard.set(false, forKey: "UseDefaultCollections")
+        
+        // Sync collections with the selected preset
+        syncCollectionsWithSelectedPreset()
+        
+        // Notify of changes
+        saveSettings()
     }
     
     func createNewPreset(name: String) {
@@ -248,9 +255,7 @@ class HomeFeedSettingsViewModel: ObservableObject {
         
         // Update the collections view if this is the selected preset
         if preset.isSelected {
-            for i in 0..<collections.count {
-                collections[i].isEnabled = preset.enabledCollections.contains(collections[i].id)
-            }
+            syncCollectionsWithSelectedPreset()
         }
         
         // Notify of changes
@@ -262,11 +267,7 @@ class HomeFeedSettingsViewModel: ObservableObject {
         loadPresets()
         
         // If we now have a different selected preset, update the collections view
-        if let selectedPreset = selectedPreset {
-            for i in 0..<collections.count {
-                collections[i].isEnabled = selectedPreset.enabledCollections.contains(collections[i].id)
-            }
-        }
+        syncCollectionsWithSelectedPreset()
         
         // Notify of changes
         saveSettings()
