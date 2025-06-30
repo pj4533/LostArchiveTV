@@ -216,9 +216,6 @@ class HomeFeedSettingsViewModel: ObservableObject {
             
             // No need to explicitly load identifiers as they're accessed directly from the preset now
         }
-        
-        // Notify of changes
-        saveSettings()
     }
     
     func createNewPreset(name: String) {
