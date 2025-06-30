@@ -187,11 +187,23 @@ extension TransitionPreloadManager {
             let currentCacheCount = await cacheManager.cacheCount()
             let maxCacheSize = await cacheManager.getMaxCacheSize()
 
-            Logger.caching.info("📊 CACHE STATUS: Current size after Phase 1: \(currentCacheCount)/\(maxCacheSize)")
+            // Count preloaded videos that aren't in the cache yet
+            var preloadedCount = 0
+            if self.nextVideoReady && self.nextPlayer != nil {
+                preloadedCount += 1
+                Logger.caching.info("📊 CACHE STATUS: Counting preloaded next video")
+            }
+            if self.prevVideoReady && self.prevPlayer != nil {
+                preloadedCount += 1
+                Logger.caching.info("📊 CACHE STATUS: Counting preloaded previous video")
+            }
+
+            let effectiveCacheCount = currentCacheCount + preloadedCount
+            Logger.caching.info("📊 CACHE STATUS: Current cache: \(currentCacheCount), preloaded: \(preloadedCount), effective total: \(effectiveCacheCount)/\(maxCacheSize)")
 
             // If cache is already full or nearly full (accounting for preloaded videos), skip phase 2
-            if currentCacheCount >= maxCacheSize - 2 {  // Account for next/prev videos
-                Logger.caching.info("📊 CACHING: Cache is sufficiently full after Phase 1, skipping general cache filling")
+            if effectiveCacheCount >= maxCacheSize {
+                Logger.caching.info("📊 CACHING: Cache is sufficiently full after Phase 1 (including preloaded videos), skipping general cache filling")
                 
                 // Still advance the cache window to maintain proper positioning
                 Logger.caching.info("🔄 CACHE WINDOW: Advancing cache window without additional caching")
@@ -205,7 +217,7 @@ extension TransitionPreloadManager {
 
             // Now we can finally begin the actual caching process
             Logger.caching.info("🔄 PHASE 2: Starting general cache filling with \(identifiers.count) identifiers")
-            Logger.caching.info("🔄 CACHING: Need to add \(maxCacheSize - currentCacheCount) videos to reach full cache")
+            Logger.caching.info("🔄 CACHING: Need to add \(maxCacheSize - effectiveCacheCount) videos to reach full cache (accounting for preloaded videos)")
 
             // First advance the cache window
             Logger.caching.info("🔄 CACHE WINDOW: Advancing cache window before general caching")
