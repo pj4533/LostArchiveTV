@@ -130,9 +130,9 @@ class PreloadingIndicatorManager: ObservableObject {
             // Update current buffer state
             currentBufferState = monitor.bufferState
             
-            // Check if BufferingMonitor indicates excellent buffer
-            if state == .preloading && monitor.bufferState == .excellent {
-                Logger.preloading.notice("✅ PRELOAD READY: Buffer reached excellent (monitor: \(monitor.bufferState.description)), showing green")
+            // Check if BufferingMonitor indicates ready buffer
+            if state == .preloading && monitor.bufferState.isReady {
+                Logger.preloading.notice("✅ PRELOAD READY: Buffer is ready (monitor: \(monitor.bufferState.description)), showing green")
                 setPreloaded()
                 stopBufferStateMonitoring()
                 return
