@@ -67,7 +67,6 @@ struct HomeFeedSettingsSection: View {
                             useDefault = false
                             UserDefaults.standard.set(false, forKey: "UseDefaultCollections")
                             viewModel.useDefaultCollections = false
-                            viewModel.saveSettings()
                         }
                     }
                 } 
