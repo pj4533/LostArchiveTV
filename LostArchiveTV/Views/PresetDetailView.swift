@@ -3,15 +3,19 @@ import SwiftUI
 struct PresetDetailView: View {
     @ObservedObject var viewModel: HomeFeedSettingsViewModel
     @Environment(\.presentationMode) var presentationMode
-    let preset: FeedPreset
+    let presetId: String
     @State private var showDeleteConfirmation = false
     @StateObject private var identifiersViewModel: IdentifiersSettingsViewModel
     @State private var showEditNameAlert = false
     @State private var editingName: String = ""
     
+    private var preset: FeedPreset? {
+        viewModel.presets.first { $0.id == presetId }
+    }
+    
     init(viewModel: HomeFeedSettingsViewModel, preset: FeedPreset) {
         self.viewModel = viewModel
-        self.preset = preset
+        self.presetId = preset.id
         self._editingName = State(initialValue: preset.name)
         
         // Initialize with the preset reference to show and edit its identifiers
@@ -27,7 +31,7 @@ struct PresetDetailView: View {
                     HStack {
                         Text("Collection Settings")
                         Spacer()
-                        Text("\(preset.enabledCollections.count) selected")
+                        Text("\(preset?.enabledCollections.count ?? 0) selected")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -58,13 +62,13 @@ struct PresetDetailView: View {
             }
         }
         .listStyle(InsetGroupedListStyle())
-        .navigationTitle(preset.name)
+        .navigationTitle(preset?.name ?? "Preset")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: {
                     showEditNameAlert = true
-                    editingName = preset.name
+                    editingName = preset?.name ?? ""
                 }) {
                     Text("Rename")
                 }
@@ -73,6 +77,9 @@ struct PresetDetailView: View {
         .onAppear {
             // Ensure identifiers list is up to date
             identifiersViewModel.loadIdentifiers()
+            
+            // Refresh view model to get latest preset data
+            viewModel.loadPresets()
             
             // Listen for preset changes
             NotificationCenter.default.addObserver(
@@ -91,7 +98,7 @@ struct PresetDetailView: View {
         .alert("Delete Preset", isPresented: $showDeleteConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) {
-                viewModel.deletePreset(withId: preset.id)
+                viewModel.deletePreset(withId: presetId)
                 presentationMode.wrappedValue.dismiss()
             }
         } message: {
@@ -109,8 +116,9 @@ struct PresetDetailView: View {
     }
     
     private func savePresetName() {
-        if !editingName.isEmpty && editingName != preset.name {
-            var updatedPreset = preset
+        if let currentPreset = preset,
+           !editingName.isEmpty && editingName != currentPreset.name {
+            var updatedPreset = currentPreset
             updatedPreset.name = editingName
             viewModel.updatePreset(updatedPreset)
         }
