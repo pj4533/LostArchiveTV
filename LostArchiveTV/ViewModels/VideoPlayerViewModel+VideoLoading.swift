@@ -127,8 +127,7 @@ extension VideoPlayerViewModel {
             Logger.caching.info("🔄 FAST START: Signaling that first video is ready for caching")
             await cacheService.setFirstVideoReady()
 
-            // Manually trigger the preloading indicator to show as we start loading next videos
-            PreloadingIndicatorManager.shared.setPreloading()
+            // Start caching next videos in background
 
             let totalTime = CFAbsoluteTimeGetCurrent() - startTime
             Logger.videoPlayback.info("🏁 FAST START: First video ready in \(totalTime.formatted(.number.precision(.fractionLength(4)))) seconds")
@@ -241,8 +240,7 @@ extension VideoPlayerViewModel {
             Task {
                 Logger.caching.info("🔄 LOADING: Starting background cache filling after first video is playing")
 
-                // Manually trigger the preloading indicator to show as we start loading the next videos
-                PreloadingIndicatorManager.shared.setPreloading()
+                // Start loading the next videos
 
                 await ensureVideosAreCached()
             }
