@@ -39,6 +39,11 @@ struct SearchFeedView: View {
                     }
                 }
             }
+            .alert("Content Unavailable", isPresented: $viewModel.searchViewModel.showingUnavailableAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("\"\(viewModel.searchViewModel.unavailableAlertTitle)\" is no longer available on Archive.org")
+            }
         }
         .onDisappear {
             // Clean up when view disappears from navigation
