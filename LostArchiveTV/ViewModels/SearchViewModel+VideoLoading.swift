@@ -96,7 +96,7 @@ extension SearchViewModel {
         Logger.network.info("Fetched metadata in \(String(format: "%.4f", metadataTime)) seconds")
         
         // Find MP4 file
-        let mp4Files = await archiveService.findPlayableFiles(in: metadata)
+        let mp4Files = try await archiveService.findPlayableFiles(in: metadata)
         
         guard !mp4Files.isEmpty else {
             let error = "No MP4 file found in the archive"

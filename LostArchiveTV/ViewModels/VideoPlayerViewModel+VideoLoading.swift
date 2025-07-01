@@ -93,7 +93,7 @@ extension VideoPlayerViewModel {
             let metadata = try await archiveService.fetchMetadata(for: videoInfo.identifier)
             
             // Find the MP4 file from metadata
-            let mp4Files = await archiveService.findPlayableFiles(in: metadata)
+            let mp4Files = try await archiveService.findPlayableFiles(in: metadata)
             guard let mp4File = mp4Files.first else {
                 throw NSError(domain: "VideoLoadingError", code: 1, userInfo: [NSLocalizedDescriptionKey: "No MP4 file found in metadata"])
             }

@@ -19,6 +19,9 @@ actor VideoCacheService {
     // Flag to completely block ALL caching operations when preloading is in progress
     internal var isPreloadingInProgress = false
     
+    // Track permanently failed video identifiers to prevent retry attempts
+    private var permanentlyFailedIdentifiers = Set<String>()
+    
     func ensureVideosAreCached(cacheManager: VideoCacheManager, archiveService: ArchiveService, identifiers: [ArchiveIdentifier]) async {
         // Log start of process with timestamp to track operations better
         let startTime = CFAbsoluteTimeGetCurrent()
@@ -87,6 +90,12 @@ actor VideoCacheService {
                     guard let identifier = await archiveService.getRandomIdentifier(from: identifiers) else {
                         Logger.caching.error("VideoCacheService: No identifiers available on attempt \(attempts)")
                         try? await Task.sleep(for: .seconds(0.5))
+                        continue
+                    }
+                    
+                    // Skip if this identifier has been marked as permanently failed
+                    if await isIdentifierPermanentlyFailed(identifier.identifier) {
+                        Logger.caching.info("⏭️ CACHE: Skipping permanently failed identifier in initial load: \(identifier.identifier)")
                         continue
                     }
                     
@@ -218,5 +227,47 @@ actor VideoCacheService {
                 }
             }
         }
+    }
+    
+    /// Marks a video identifier as permanently failed to prevent retry attempts
+    /// - Parameters:
+    ///   - identifier: The video identifier that failed to load
+    ///   - collection: The collection name (optional, for logging purposes)
+    func markAsPermanentlyFailed(identifier: String?, collection: String? = nil) async {
+        guard let identifier = identifier else {
+            Logger.caching.warning("⚠️ CACHE: Attempted to mark nil identifier as permanently failed")
+            return
+        }
+        
+        permanentlyFailedIdentifiers.insert(identifier)
+        let collectionInfo = collection != nil ? " from collection: \(collection!)" : ""
+        Logger.caching.info("❌ CACHE: Marked video as permanently failed: \(identifier)\(collectionInfo). Total failed: \(self.permanentlyFailedIdentifiers.count)")
+        
+        // Log all failed identifiers for debugging (only if count is reasonable)
+        if self.permanentlyFailedIdentifiers.count <= 10 {
+            Logger.caching.debug("📋 FAILED IDENTIFIERS: \(self.permanentlyFailedIdentifiers.joined(separator: ", "))")
+        } else {
+            Logger.caching.debug("📋 FAILED IDENTIFIERS: \(self.permanentlyFailedIdentifiers.count) total")
+        }
+    }
+    
+    /// Checks if a video identifier has been marked as permanently failed
+    /// - Parameter identifier: The video identifier to check
+    /// - Returns: true if the identifier has been marked as permanently failed
+    func isIdentifierPermanentlyFailed(_ identifier: String) async -> Bool {
+        return permanentlyFailedIdentifiers.contains(identifier)
+    }
+    
+    /// Clears all permanently failed identifiers (useful for retry scenarios or session resets)
+    func clearPermanentlyFailedIdentifiers() async {
+        let count = permanentlyFailedIdentifiers.count
+        permanentlyFailedIdentifiers.removeAll()
+        Logger.caching.info("🧹 CACHE: Cleared \(count) permanently failed identifiers")
+    }
+    
+    /// Gets the set of permanently failed identifiers
+    /// - Returns: A set of identifier strings that have been marked as permanently failed
+    func getPermanentlyFailedIdentifiers() async -> Set<String> {
+        return permanentlyFailedIdentifiers
     }
 }

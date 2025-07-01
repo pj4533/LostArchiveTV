@@ -67,6 +67,47 @@ struct VideoGestureHandler: ViewModifier {
                 }
             }
         }
+        
+        // Listen for content error skip notification
+        NotificationCenter.default.addObserver(
+            forName: .shouldSkipToNextVideo,
+            object: transitionManager,
+            queue: .main
+        ) { [self] _ in
+            Logger(subsystem: "com.lostarchive.tv", category: "ContentErrors")
+                .info("📱 GESTURE_HANDLER: Received shouldSkipToNextVideo notification")
+            
+            // Check if we can skip to next video
+            guard !transitionManager.isTransitioning,
+                  transitionManager.nextVideoReady else {
+                Logger(subsystem: "com.lostarchive.tv", category: "ContentErrors")
+                    .warning("⚠️ GESTURE_HANDLER: Cannot skip - transitioning=\(transitionManager.isTransitioning), nextReady=\(transitionManager.nextVideoReady)")
+                return
+            }
+            
+            // Reset any in-progress double-speed playback
+            if isLongPressing {
+                isLongPressing = false
+                showIndicator = false
+                
+                if let controlProvider = provider as? VideoControlProvider {
+                    controlProvider.resetPlaybackRate()
+                }
+            }
+            
+            // Trigger seamless transition to next video
+            Logger(subsystem: "com.lostarchive.tv", category: "ContentErrors")
+                .info("⏭️ GESTURE_HANDLER: Triggering seamless transition to next video")
+            
+            transitionManager.completeTransition(
+                geometry: geometry,
+                provider: provider,
+                dragOffset: $dragOffset,
+                isDragging: $isDragging,
+                animationDuration: 0.01,  // Very fast transition for seamless skip
+                direction: .up
+            )
+        }
     }
     
     func body(content: Content) -> some View {

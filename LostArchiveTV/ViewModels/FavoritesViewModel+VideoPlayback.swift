@@ -48,7 +48,7 @@ extension FavoritesViewModel {
             do {
                 // Fetch metadata for accurate file count if not already loaded
                 let metadata = try await self.archiveService.fetchMetadata(for: video.identifier)
-                let playableFiles = await self.archiveService.findPlayableFiles(in: metadata)
+                let playableFiles = try await self.archiveService.findPlayableFiles(in: metadata)
 
                 // Count unique files
                 let allVideoFiles = metadata.files.filter {

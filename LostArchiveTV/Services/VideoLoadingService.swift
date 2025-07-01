@@ -12,10 +12,109 @@ import OSLog
 actor VideoLoadingService {
     let archiveService: ArchiveService
     private let cacheManager: VideoCacheManager
+    private let contentErrorLogger = Logger(subsystem: "com.lostarchive.tv", category: "ContentErrors")
     
     init(archiveService: ArchiveService, cacheManager: VideoCacheManager) {
         self.archiveService = archiveService
         self.cacheManager = cacheManager
+    }
+    
+    /// Detects if an error represents a permanent content failure (not a temporary network/buffering issue)
+    /// - Parameter error: The error to analyze
+    /// - Returns: true if this is a permanent content error that should trigger a skip
+    func detectContentError(error: Error?) -> Bool {
+        guard let error = error else { return false }
+        
+        // Check for Archive.org specific content errors
+        if let archiveError = error as? ArchiveError {
+            switch archiveError {
+            case .contentDeleted, .contentRestricted, .invalidFormat:
+                contentErrorLogger.error("Detected permanent archive content error: \(archiveError.localizedDescription)")
+                return true
+            case .noIdentifiersFound, .metadataDecodingFailed:
+                // These are not content errors, but rather system/data errors
+                return false
+            }
+        }
+        
+        // Check for URL errors indicating permanent content issues
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .fileDoesNotExist:
+                contentErrorLogger.error("Detected file does not exist error: \(urlError.localizedDescription)")
+                return true
+            case .fileIsDirectory:
+                contentErrorLogger.error("Detected file is directory error: \(urlError.localizedDescription)")
+                return true
+            case .noPermissionsToReadFile:
+                contentErrorLogger.error("Detected no permissions error: \(urlError.localizedDescription)")
+                return true
+            default:
+                // Other URL errors (network, timeout, etc.) are not permanent content failures
+                return false
+            }
+        }
+        
+        // Check for NSError domain patterns that might indicate content issues
+        if let nsError = error as NSError? {
+            // Check for HTTP status codes that indicate permanent content issues
+            if nsError.domain == NSURLErrorDomain {
+                // Try to get HTTP status code from userInfo
+                if let httpStatusCode = nsError.userInfo[NSURLErrorFailingURLStringErrorKey] as? Int {
+                    switch httpStatusCode {
+                    case 403:  // Forbidden
+                        contentErrorLogger.error("Detected HTTP 403 Forbidden error")
+                        return true
+                    case 404:  // Not Found
+                        contentErrorLogger.error("Detected HTTP 404 Not Found error")
+                        return true
+                    case 410:  // Gone
+                        contentErrorLogger.error("Detected HTTP 410 Gone error")
+                        return true
+                    case 451:  // Unavailable for Legal Reasons
+                        contentErrorLogger.error("Detected HTTP 451 Legal Restriction error")
+                        return true
+                    default:
+                        break
+                    }
+                }
+                
+                // Also check if the error code itself indicates a permanent issue
+                if nsError.code == NSURLErrorFileDoesNotExist ||
+                   nsError.code == NSURLErrorFileIsDirectory ||
+                   nsError.code == NSURLErrorNoPermissionsToReadFile {
+                    contentErrorLogger.error("Detected NSURLError indicating permanent content issue: code \(nsError.code)")
+                    return true
+                }
+            }
+            
+            // Check for AVFoundation errors that indicate unplayable content
+            if nsError.domain == AVFoundationErrorDomain {
+                switch nsError.code {
+                case AVError.fileFormatNotRecognized.rawValue:
+                    contentErrorLogger.error("Detected unrecognized file format error")
+                    return true
+                case AVError.contentIsUnavailable.rawValue:
+                    contentErrorLogger.error("Detected content unavailable error")
+                    return true
+                case AVError.contentIsNotAuthorized.rawValue:
+                    contentErrorLogger.error("Detected content not authorized error")
+                    return true
+                case AVError.contentIsProtected.rawValue:
+                    contentErrorLogger.error("Detected protected content error")
+                    return true
+                case AVError.noLongerPlayable.rawValue:
+                    contentErrorLogger.error("Detected content no longer playable error")
+                    return true
+                default:
+                    return false
+                }
+            }
+        }
+        
+        // Log non-content errors for debugging
+        contentErrorLogger.debug("Non-content error detected: \(error.localizedDescription)")
+        return false
     }
     
     /// Calculates the unique file count from archive metadata
@@ -96,7 +195,7 @@ actor VideoLoadingService {
         let metadata = try await archiveService.fetchMetadata(for: identifier.identifier)
         
         // Find MP4 file
-        let mp4Files = await archiveService.findPlayableFiles(in: metadata)
+        let mp4Files = try await archiveService.findPlayableFiles(in: metadata)
         
         guard !mp4Files.isEmpty else {
             Logger.metadata.error("No MP4 file found for \(identifier.identifier)")
@@ -249,7 +348,7 @@ actor VideoLoadingService {
         Logger.network.info("Fetched metadata in \(metadataTime.formatted(.number.precision(.fractionLength(4)))) seconds")
         
         // Find MP4 file
-        let mp4Files = await archiveService.findPlayableFiles(in: metadata)
+        let mp4Files = try await archiveService.findPlayableFiles(in: metadata)
         
         guard !mp4Files.isEmpty else {
             let error = "No MP4 file found in the archive"

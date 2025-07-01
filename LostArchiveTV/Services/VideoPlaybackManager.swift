@@ -8,6 +8,7 @@
 import Foundation
 import AVFoundation
 import OSLog
+import Combine
 
 /// Consolidated video playback manager that directly handles AVPlayer functionality
 /// This class provides a centralized interface for all video playback operations.
@@ -23,6 +24,7 @@ class VideoPlaybackManager: ObservableObject {
     internal var _currentVideoURL: URL?
     internal let audioSessionManager = AudioSessionManager()
     internal var normalPlaybackRate: Float = 1.0
+    internal var statusObservations = Set<AnyCancellable>()
 
     // MARK: - Computed Properties
     var currentVideoURL: URL? {
@@ -96,7 +98,26 @@ class VideoPlaybackManager: ObservableObject {
                 name: .AVPlayerItemDidPlayToEndTime,
                 object: currentItem
             )
+            NotificationCenter.default.removeObserver(
+                self,
+                name: .AVPlayerItemNewErrorLogEntry,
+                object: currentItem
+            )
+            NotificationCenter.default.removeObserver(
+                self,
+                name: .AVPlayerItemPlaybackStalled,
+                object: currentItem
+            )
+            NotificationCenter.default.removeObserver(
+                self,
+                name: .AVPlayerItemFailedToPlayToEndTime,
+                object: currentItem
+            )
         }
+        
+        // Cancel status observations
+        statusObservations.forEach { $0.cancel() }
+        statusObservations.removeAll()
 
         // Log URL before clearing
         if let url = _currentVideoURL {

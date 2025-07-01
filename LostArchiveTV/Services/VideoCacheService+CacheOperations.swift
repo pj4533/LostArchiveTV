@@ -12,6 +12,12 @@ import OSLog
 // MARK: - Cache Operations
 extension VideoCacheService {
     func cacheRandomVideo(cacheManager: VideoCacheManager, archiveService: ArchiveService, identifiers: [ArchiveIdentifier]) async throws {
+        // Early check: if all identifiers are failed, throw an error
+        let failedCount = await getPermanentlyFailedIdentifiers().count
+        if failedCount >= identifiers.count {
+            Logger.caching.error("⚠️ CACHE: All \(identifiers.count) identifiers have been marked as permanently failed")
+            throw NSError(domain: "CacheError", code: 7, userInfo: [NSLocalizedDescriptionKey: "All identifiers have failed"])
+        }
         // CRITICAL: Check hard block flag first - immediately bail out if preloading is in progress
         if isPreloadingInProgress {
             Logger.caching.info("🛑 HARD BLOCK: cacheRandomVideo called while preloading is in progress - aborting immediately")
@@ -27,9 +33,33 @@ extension VideoCacheService {
         // Notify that caching has started
         await notifyCachingStarted()
 
-        guard let randomArchiveIdentifier = await archiveService.getRandomIdentifier(from: identifiers) else {
-            Logger.caching.error("No identifiers available for caching")
-            throw NSError(domain: "CacheError", code: 1, userInfo: [NSLocalizedDescriptionKey: "No identifiers available"])
+        // Try to get a non-failed identifier (with retry logic)
+        var randomArchiveIdentifier: ArchiveIdentifier?
+        var attempts = 0
+        let maxAttempts = min(10, identifiers.count) // Don't try more than 10 times or the number of identifiers
+        
+        while attempts < maxAttempts {
+            attempts += 1
+            
+            guard let candidate = await archiveService.getRandomIdentifier(from: identifiers) else {
+                Logger.caching.error("No identifiers available for caching")
+                throw NSError(domain: "CacheError", code: 1, userInfo: [NSLocalizedDescriptionKey: "No identifiers available"])
+            }
+            
+            // Check if this identifier has been marked as permanently failed
+            if await isIdentifierPermanentlyFailed(candidate.identifier) {
+                Logger.caching.info("⏭️ CACHE: Skipping permanently failed identifier: \(candidate.identifier) (attempt \(attempts)/\(maxAttempts))")
+                continue
+            }
+            
+            // Found a non-failed identifier
+            randomArchiveIdentifier = candidate
+            break
+        }
+        
+        guard let randomArchiveIdentifier = randomArchiveIdentifier else {
+            Logger.caching.error("⚠️ CACHE: Could not find a non-failed identifier after \(maxAttempts) attempts")
+            throw NSError(domain: "CacheError", code: 6, userInfo: [NSLocalizedDescriptionKey: "All attempted identifiers have permanently failed"])
         }
 
         let identifier = randomArchiveIdentifier.identifier
@@ -70,7 +100,7 @@ extension VideoCacheService {
 
         // Find MP4 file - CHUNK 2
         Logger.caching.info("🔄 CACHE CHUNK 2: Finding playable files for \(identifier)")
-        let mp4Files = await archiveService.findPlayableFiles(in: metadata)
+        let mp4Files = try await archiveService.findPlayableFiles(in: metadata)
 
         guard !mp4Files.isEmpty else {
             Logger.caching.error("No MP4 file found for \(identifier)")

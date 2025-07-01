@@ -51,7 +51,8 @@ extension VideoPlaybackManager {
         // Add notification for playback ending if there's a current item
         if let playerItem = player.currentItem {
             setupPlaybackEndNotification(for: playerItem)
-            Logger.videoPlayback.debug("🔄 VP_MANAGER: Setup playback end notification for item status: \(playerItem.status.rawValue)")
+            setupPlayerItemStatusObservation(for: playerItem)
+            Logger.videoPlayback.debug("🔄 VP_MANAGER: Setup playback end notification and status observation for item status: \(playerItem.status.rawValue)")
         }
 
         // Get current playback position for logging
@@ -102,8 +103,9 @@ extension VideoPlaybackManager {
         // Set up time observer
         setupTimeObserver()
         
-        // Add notification for playback ending
+        // Add notification for playback ending and status observation
         setupPlaybackEndNotification(for: playerItem)
+        setupPlayerItemStatusObservation(for: playerItem)
         
         // Seek to start position if not zero
         if startPosition > 0 {

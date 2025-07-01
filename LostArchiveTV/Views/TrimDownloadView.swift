@@ -243,7 +243,7 @@ struct TrimDownloadView<Provider: VideoProvider & ObservableObject>: View {
                     let metadata = try await archiveService.fetchMetadata(for: identifier)
 
                     // Find MP4 file
-                    let playableFiles = await archiveService.findPlayableFiles(in: metadata)
+                    let playableFiles = try await archiveService.findPlayableFiles(in: metadata)
 
                     guard let mp4File = playableFiles.first,
                           let videoURL = await archiveService.getFileDownloadURL(for: mp4File, identifier: identifier) else {

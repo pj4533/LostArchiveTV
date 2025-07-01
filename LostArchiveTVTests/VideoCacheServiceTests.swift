@@ -91,4 +91,129 @@ struct VideoCacheServiceTests {
         #expect(true)
     }
     
+    // MARK: - Permanently Failed Identifier Tests
+    
+    @Test
+    func markAsPermanentlyFailed_withValidIdentifier_addsToFailedSet() async {
+        // Arrange
+        let cacheService = VideoCacheService()
+        let identifier = "test-video-123"
+        let collection = "test-collection"
+        
+        // Act
+        await cacheService.markAsPermanentlyFailed(identifier: identifier, collection: collection)
+        
+        // Assert
+        let isMarkedAsFailed = await cacheService.isIdentifierPermanentlyFailed(identifier)
+        #expect(isMarkedAsFailed == true)
+    }
+    
+    @Test
+    func markAsPermanentlyFailed_withNilIdentifier_doesNotCrash() async {
+        // Arrange
+        let cacheService = VideoCacheService()
+        
+        // Act
+        await cacheService.markAsPermanentlyFailed(identifier: nil, collection: "test-collection")
+        
+        // Assert - just verify no crash
+        #expect(true)
+    }
+    
+    @Test
+    func markAsPermanentlyFailed_multipleIdentifiers_tracksAllIdentifiers() async {
+        // Arrange
+        let cacheService = VideoCacheService()
+        let identifiers = ["video-1", "video-2", "video-3"]
+        
+        // Act
+        for identifier in identifiers {
+            await cacheService.markAsPermanentlyFailed(identifier: identifier)
+        }
+        
+        // Assert
+        for identifier in identifiers {
+            let isFailed = await cacheService.isIdentifierPermanentlyFailed(identifier)
+            #expect(isFailed == true)
+        }
+        
+        let failedSet = await cacheService.getPermanentlyFailedIdentifiers()
+        #expect(failedSet.count == 3)
+    }
+    
+    @Test
+    func isIdentifierPermanentlyFailed_withUnmarkedIdentifier_returnsFalse() async {
+        // Arrange
+        let cacheService = VideoCacheService()
+        let identifier = "unmarked-video-123"
+        
+        // Act
+        let isFailed = await cacheService.isIdentifierPermanentlyFailed(identifier)
+        
+        // Assert
+        #expect(isFailed == false)
+    }
+    
+    @Test
+    func clearPermanentlyFailedIdentifiers_removesAllFailedIdentifiers() async {
+        // Arrange
+        let cacheService = VideoCacheService()
+        let identifiers = ["video-1", "video-2", "video-3"]
+        
+        // Mark identifiers as failed
+        for identifier in identifiers {
+            await cacheService.markAsPermanentlyFailed(identifier: identifier)
+        }
+        
+        // Verify they are marked as failed
+        let failedSetBefore = await cacheService.getPermanentlyFailedIdentifiers()
+        #expect(failedSetBefore.count == 3)
+        
+        // Act
+        await cacheService.clearPermanentlyFailedIdentifiers()
+        
+        // Assert
+        let failedSetAfter = await cacheService.getPermanentlyFailedIdentifiers()
+        #expect(failedSetAfter.count == 0)
+        
+        // Verify individual identifiers are no longer failed
+        for identifier in identifiers {
+            let isFailed = await cacheService.isIdentifierPermanentlyFailed(identifier)
+            #expect(isFailed == false)
+        }
+    }
+    
+    @Test
+    func getPermanentlyFailedIdentifiers_returnsCorrectSet() async {
+        // Arrange
+        let cacheService = VideoCacheService()
+        let expectedIdentifiers = Set(["video-1", "video-2", "video-3"])
+        
+        // Act
+        for identifier in expectedIdentifiers {
+            await cacheService.markAsPermanentlyFailed(identifier: identifier)
+        }
+        
+        // Assert
+        let failedIdentifiers = await cacheService.getPermanentlyFailedIdentifiers()
+        #expect(failedIdentifiers == expectedIdentifiers)
+    }
+    
+    @Test
+    func markAsPermanentlyFailed_duplicateIdentifier_doesNotDuplicate() async {
+        // Arrange
+        let cacheService = VideoCacheService()
+        let identifier = "duplicate-video-123"
+        
+        // Act - mark the same identifier multiple times
+        await cacheService.markAsPermanentlyFailed(identifier: identifier)
+        await cacheService.markAsPermanentlyFailed(identifier: identifier)
+        await cacheService.markAsPermanentlyFailed(identifier: identifier)
+        
+        // Assert
+        let failedSet = await cacheService.getPermanentlyFailedIdentifiers()
+        #expect(failedSet.count == 1)
+        #expect(failedSet.contains(identifier) == true)
+    }
+    
 }

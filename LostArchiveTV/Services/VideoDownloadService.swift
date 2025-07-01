@@ -46,7 +46,7 @@ class VideoDownloadService {
                         let archiveService = ArchiveService()
                         let metadata = try await archiveService.fetchMetadata(for: identifier)
                         
-                        let playableFiles = await archiveService.findPlayableFiles(in: metadata)
+                        let playableFiles = try await archiveService.findPlayableFiles(in: metadata)
                         guard let mp4File = playableFiles.first else {
                             DispatchQueue.main.async {
                                 completionHandler(.failure(NSError(domain: "VideoDownload", code: 1, userInfo: [

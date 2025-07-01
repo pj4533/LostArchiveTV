@@ -8,6 +8,30 @@
 import Foundation
 import OSLog
 
+// MARK: - ArchiveError
+enum ArchiveError: Error, LocalizedError {
+    case contentDeleted
+    case contentRestricted
+    case invalidFormat
+    case noIdentifiersFound
+    case metadataDecodingFailed(identifier: String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .contentDeleted:
+            return "The requested content has been deleted from the archive"
+        case .contentRestricted:
+            return "The requested content is restricted and cannot be accessed"
+        case .invalidFormat:
+            return "The content format is invalid or unsupported"
+        case .noIdentifiersFound:
+            return "No identifiers found in the database"
+        case .metadataDecodingFailed(let identifier):
+            return "Failed to decode metadata for identifier: \(identifier)"
+        }
+    }
+}
+
 actor ArchiveService {
     private let dbService: DatabaseService
     private var collections: [ArchiveCollection] = []
@@ -23,7 +47,8 @@ actor ArchiveService {
         // Try to initialize database and collections
         do {
             try dbService.openDatabase()
-            try loadCollections()
+            // Load collections once during initialization - they'll be cached in DatabaseService
+            collections = try dbService.loadCollections()
         } catch {
             Logger.metadata.error("Failed to initialize SQLite database: \(error.localizedDescription)")
         }
@@ -31,11 +56,6 @@ actor ArchiveService {
 
     deinit {
         // We no longer close the database here since it's a shared instance
-    }
-
-    private func loadCollections() throws {
-        // Load collections once during initialization - they'll be cached in DatabaseService
-        collections = try dbService.loadCollections()
     }
 
     // Method to clear all caches when preferences change
@@ -57,7 +77,7 @@ actor ArchiveService {
 
         // Ensure collections are loaded
         if collections.isEmpty {
-            try loadCollections()
+            collections = try dbService.loadCollections()
         }
 
         var identifiers: [ArchiveIdentifier] = []
@@ -73,7 +93,7 @@ actor ArchiveService {
 
         if identifiers.isEmpty {
             Logger.metadata.error("No identifiers found in the database")
-            throw NSError(domain: "ArchiveService", code: 5, userInfo: [NSLocalizedDescriptionKey: "No identifiers found in the database"])
+            throw ArchiveError.noIdentifiersFound
         }
 
         let nonExcludedCollectionsCount = collections.filter { !$0.excluded }.count
@@ -140,10 +160,36 @@ actor ArchiveService {
         
         if let httpResponse = response as? HTTPURLResponse {
             Logger.network.debug("Metadata response: HTTP \(httpResponse.statusCode), size: \(data.count) bytes, time: \(requestTime.formatted(.number.precision(.fractionLength(4)))) seconds")
+            
+            // Handle specific HTTP status codes for permanent content failures
+            switch httpResponse.statusCode {
+            case 404:
+                Logger.network.error("Content not found (404) for identifier: \(identifier)")
+                throw ArchiveError.contentDeleted
+            case 403:
+                Logger.network.error("Access forbidden (403) for identifier: \(identifier)")
+                throw ArchiveError.contentRestricted
+            case 451:
+                Logger.network.error("Content unavailable for legal reasons (451) for identifier: \(identifier)")
+                throw ArchiveError.contentRestricted
+            case 200..<300:
+                // Success, continue processing
+                break
+            default:
+                // For other non-success status codes, throw a network error
+                Logger.network.error("Unexpected HTTP status \(httpResponse.statusCode) for identifier: \(identifier)")
+                throw NetworkError.serverError(statusCode: httpResponse.statusCode, message: "Failed to fetch metadata")
+            }
         }
         
         let decodingStartTime = CFAbsoluteTimeGetCurrent()
-        let metadata = try JSONDecoder().decode(ArchiveMetadata.self, from: data)
+        let metadata: ArchiveMetadata
+        do {
+            metadata = try JSONDecoder().decode(ArchiveMetadata.self, from: data)
+        } catch {
+            Logger.network.error("Failed to decode metadata for identifier \(identifier): \(error)")
+            throw ArchiveError.metadataDecodingFailed(identifier: identifier)
+        }
         let decodingTime = CFAbsoluteTimeGetCurrent() - decodingStartTime
         
         Logger.metadata.debug("Decoded metadata with \(metadata.files.count) files in \(decodingTime.formatted(.number.precision(.fractionLength(4)))) seconds")
@@ -159,7 +205,7 @@ actor ArchiveService {
         )
     }
     
-    func findPlayableFiles(in metadata: ArchiveMetadata) -> [ArchiveFile] {
+    func findPlayableFiles(in metadata: ArchiveMetadata) throws -> [ArchiveFile] {
         let identifier = metadata.metadata?.identifier ?? "unknown"
         
         // Log the total number of files available in metadata
@@ -256,6 +302,13 @@ actor ArchiveService {
         }
         
         Logger.files.info("📊 [\(identifier)] FINAL SELECTION: \(selectedFiles.count) playable files selected from \(fileGroups.count) unique videos")
+        
+        // If no playable files found, check if there were any files at all
+        if selectedFiles.isEmpty && !metadata.files.isEmpty {
+            Logger.files.error("[\(identifier)] No playable video files found despite having \(metadata.files.count) total files")
+            throw ArchiveError.invalidFormat
+        }
+        
         return selectedFiles
     }
     

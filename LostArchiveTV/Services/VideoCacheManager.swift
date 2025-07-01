@@ -119,7 +119,7 @@ actor VideoCacheManager {
         let metadata = try await archiveService.fetchMetadata(for: identifier.identifier)
         
         // Find MP4 file
-        let mp4Files = await archiveService.findPlayableFiles(in: metadata)
+        let mp4Files = try await archiveService.findPlayableFiles(in: metadata)
         
         guard !mp4Files.isEmpty else {
             Logger.caching.error("No MP4 file found for \(identifier.identifier)")

@@ -53,6 +53,93 @@ extension VideoPlaybackManager {
         isPlaying = true
     }
     
+    /// Sets up status observation for the given player item to detect content failures
+    internal func setupPlayerItemStatusObservation(for playerItem: AVPlayerItem) {
+        // Observe the status property
+        playerItem.publisher(for: \.status)
+            .sink { [weak self] status in
+                guard let self = self else { return }
+                
+                switch status {
+                case .failed:
+                    if let error = playerItem.error {
+                        Logger.videoPlayback.error("🚫 VP_MANAGER: Player item failed with error: \(error.localizedDescription)")
+                        
+                        // Check if this is an unrecoverable content error
+                        if self.isUnrecoverableContentError(error) {
+                            self.handleContentFailureSilently(error: error)
+                        }
+                    }
+                case .readyToPlay:
+                    Logger.videoPlayback.debug("✅ VP_MANAGER: Player item ready to play")
+                case .unknown:
+                    Logger.videoPlayback.debug("❓ VP_MANAGER: Player item status unknown")
+                @unknown default:
+                    Logger.videoPlayback.debug("❓ VP_MANAGER: Player item has unknown status: \(status.rawValue)")
+                }
+            }
+            .store(in: &statusObservations)
+        
+        // Also observe for error log entries
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(playerItemNewErrorLogEntry),
+            name: .AVPlayerItemNewErrorLogEntry,
+            object: playerItem
+        )
+        
+        // Observe for playback stalls that might indicate content issues
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(playerItemPlaybackStalled),
+            name: .AVPlayerItemPlaybackStalled,
+            object: playerItem
+        )
+        
+        // Observe for failed to play to end time
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(playerItemFailedToPlayToEndTime),
+            name: .AVPlayerItemFailedToPlayToEndTime,
+            object: playerItem
+        )
+    }
+    
+    /// Handler for new error log entries
+    @objc private func playerItemNewErrorLogEntry(notification: Notification) {
+        guard let playerItem = notification.object as? AVPlayerItem,
+              let errorLog = playerItem.errorLog() else { return }
+        
+        for event in errorLog.events {
+            Logger.videoPlayback.error("🚫 VP_MANAGER: Error log entry - Domain: \(event.errorDomain ?? "unknown"), Code: \(event.errorStatusCode), Comment: \(event.errorComment ?? "none")")
+        }
+    }
+    
+    /// Handler for playback stalls
+    @objc private func playerItemPlaybackStalled(notification: Notification) {
+        Logger.videoPlayback.warning("⚠️ VP_MANAGER: Playback stalled")
+        
+        // Check if the player item has failed
+        if let playerItem = notification.object as? AVPlayerItem,
+           playerItem.status == .failed,
+           let error = playerItem.error {
+            if isUnrecoverableContentError(error) {
+                handleContentFailureSilently(error: error)
+            }
+        }
+    }
+    
+    /// Handler for failed to play to end time
+    @objc private func playerItemFailedToPlayToEndTime(notification: Notification) {
+        Logger.videoPlayback.error("🚫 VP_MANAGER: Failed to play to end time")
+        
+        if let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error {
+            if isUnrecoverableContentError(error) {
+                handleContentFailureSilently(error: error)
+            }
+        }
+    }
+    
     /// Monitors buffer status for the given player item
     func monitorBufferStatus(for playerItem: AVPlayerItem) async {
         Task { @MainActor in

@@ -9,6 +9,7 @@ import SwiftUI
 import AVKit
 import OSLog
 import Mixpanel
+import Combine
 
 class VideoTransitionManager: ObservableObject {
     // State tracking
@@ -20,10 +21,78 @@ class VideoTransitionManager: ObservableObject {
     // Flag to track if preloading is paused
     internal var isPreloadingPaused = false
     
+    // Store for Combine subscriptions
+    private var cancellables = Set<AnyCancellable>()
+    
+    // Logger for content errors
+    private let logger = Logger(subsystem: "com.lostarchive.tv", category: "ContentErrors")
+    
     // Direction for swiping
     enum SwipeDirection {
         case up    // Swiping up shows next video
         case down  // Swiping down shows previous video
+    }
+    
+    // MARK: - Initialization
+    
+    init() {
+        setupErrorHandling()
+    }
+    
+    deinit {
+        cancellables.removeAll()
+    }
+    
+    // MARK: - Error Handling
+    
+    private func setupErrorHandling() {
+        // Subscribe to unrecoverable content error notifications
+        NotificationCenter.default.publisher(for: .playerEncounteredUnrecoverableError)
+            .sink { [weak self] notification in
+                guard let self = self else { return }
+                
+                // Extract error information from notification
+                let error = notification.userInfo?["error"] as? Error
+                let url = notification.userInfo?["url"] as? URL
+                
+                self.logger.info("🚫 TRANSITION_MANAGER: Received unrecoverable content error notification")
+                if let error = error {
+                    self.logger.debug("🚫 TRANSITION_MANAGER: Error: \(error.localizedDescription)")
+                }
+                if let url = url {
+                    self.logger.debug("🚫 TRANSITION_MANAGER: URL: \(url.absoluteString)")
+                }
+                
+                // Handle the error by seamlessly skipping to next video
+                self.handleContentError()
+            }
+            .store(in: &cancellables)
+    }
+    
+    private func handleContentError() {
+        // Don't proceed if we're already transitioning
+        guard !isTransitioning else {
+            logger.debug("⏭️ TRANSITION_MANAGER: Already transitioning, ignoring content error")
+            return
+        }
+        
+        // Check if next video is ready
+        guard nextVideoReady, nextPlayer != nil else {
+            logger.warning("⚠️ TRANSITION_MANAGER: Cannot skip to next video - not ready")
+            return
+        }
+        
+        logger.info("⏭️ TRANSITION_MANAGER: Seamlessly skipping to next video due to content error")
+        
+        // Mark that we need to perform a seamless transition
+        // This will be picked up by the view to trigger the transition
+        Task { @MainActor in
+            // Post a custom notification that the view can listen to
+            NotificationCenter.default.post(
+                name: .shouldSkipToNextVideo,
+                object: self
+            )
+        }
     }
     
     // Forward preload manager properties
@@ -103,4 +172,9 @@ class VideoTransitionManager: ObservableObject {
             direction: direction
         )
     }
+}
+
+// MARK: - Notification Names
+extension Notification.Name {
+    static let shouldSkipToNextVideo = Notification.Name("shouldSkipToNextVideo")
 }

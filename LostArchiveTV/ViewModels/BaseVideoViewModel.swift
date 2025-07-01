@@ -241,6 +241,57 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
     
     // MARK: - Error Handling
     
+    /// Handles permanent content failures by seamlessly skipping to the next video
+    /// This method logs the failure, marks the video as permanently failed in cache,
+    /// and immediately loads the next video without any UI feedback
+    func handleContentFailure() async {
+        // Log the permanent failure
+        let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "LostArchiveTV", category: "ContentErrors")
+        logger.error("Permanent content failure for video: \(self.currentIdentifier ?? "unknown") in collection: \(self.currentCollection ?? "unknown")")
+        
+        // Mark video as permanently failed in cache if we have the cache service
+        if let cacheableProvider = self as? CacheableProvider,
+           let identifier = currentIdentifier {
+            await cacheableProvider.cacheService.markAsPermanentlyFailed(identifier: identifier)
+        }
+        
+        // Clear any existing error message to ensure no UI feedback
+        await MainActor.run {
+            self.errorMessage = nil
+        }
+        
+        // Immediately transition to next video
+        if let videoProvider = self as? VideoProvider {
+            // Get the next video and update the UI state
+            if let nextVideo = await videoProvider.getNextVideo() {
+                // Create player item and player from the cached video
+                let playerItem = AVPlayerItem(asset: nextVideo.asset)
+                let newPlayer = AVPlayer(playerItem: playerItem)
+                
+                // Update the current video properties from the cached video
+                await MainActor.run {
+                    self.currentIdentifier = nextVideo.identifier
+                    self.currentCollection = nextVideo.collection
+                    self.currentTitle = nextVideo.title
+                    self.currentDescription = nextVideo.description
+                    self.currentFilename = nextVideo.mp4File.name
+                    self.totalFiles = nextVideo.totalFiles
+                    
+                    // Set the new player
+                    self.player = newPlayer
+                }
+                
+                // Seek to start position and play
+                let startTime = CMTime(seconds: nextVideo.startPosition, preferredTimescale: 600)
+                await newPlayer.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
+                newPlayer.play()
+                
+                // Ensure videos are cached for smooth transitions
+                await self.ensureVideosAreCached()
+            }
+        }
+    }
+    
     /// Handles errors with improved user messaging, especially for connection issues
     /// - Parameter error: The error to handle and display to the user
     func handleError(_ error: Error) {

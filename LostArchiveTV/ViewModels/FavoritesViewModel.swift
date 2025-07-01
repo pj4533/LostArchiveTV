@@ -98,7 +98,7 @@ class FavoritesViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
                     Logger.files.info("📊 FILE COUNT: [\(video.identifier)] Unique video files: \(self.totalFiles)")
 
                     // Still get the actual playable files for detailed logging
-                    let playableFiles = await self.archiveService.findPlayableFiles(in: metadata)
+                    let playableFiles = try await self.archiveService.findPlayableFiles(in: metadata)
                     Logger.files.info("📊 FILE COUNT: [\(video.identifier)] Playable files after format prioritization: \(playableFiles.count)")
 
                     // Extra verification that we're setting the right value in the view model
