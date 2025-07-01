@@ -52,6 +52,9 @@ extension VideoPlaybackManager {
         if let playerItem = player.currentItem {
             setupPlaybackEndNotification(for: playerItem)
             Logger.videoPlayback.debug("🔄 VP_MANAGER: Setup playback end notification for item status: \(playerItem.status.rawValue)")
+            
+            // Setup error observation
+            setupErrorObservation(for: playerItem)
         }
 
         // Get current playback position for logging
@@ -104,6 +107,9 @@ extension VideoPlaybackManager {
         
         // Add notification for playback ending
         setupPlaybackEndNotification(for: playerItem)
+        
+        // Setup error observation
+        setupErrorObservation(for: playerItem)
         
         // Seek to start position if not zero
         if startPosition > 0 {
