@@ -171,6 +171,41 @@ class PresetManager: ObservableObject {
         return true
     }
     
+    /// Removes an identifier from a specific preset
+    /// - Parameters:
+    ///   - id: The id of the identifier to remove
+    ///   - presetId: The ID of the preset to remove the identifier from
+    /// - Returns: True if removed successfully, false otherwise
+    @discardableResult
+    func removeIdentifier(withId id: String, fromPresetWithId presetId: String) -> Bool {
+        let allPresets = HomeFeedPreferences.getAllPresets()
+        guard let presetIndex = allPresets.firstIndex(where: { $0.id == presetId }) else {
+            logger.error("Cannot remove identifier - preset with ID \(presetId) not found")
+            return false
+        }
+        
+        var updatedPreset = allPresets[presetIndex]
+        
+        // Check if the identifier exists before trying to remove
+        guard updatedPreset.savedIdentifiers.contains(where: { $0.id == id }) else {
+            return false
+        }
+        
+        updatedPreset.savedIdentifiers.removeAll(where: { $0.id == id })
+        HomeFeedPreferences.updatePreset(updatedPreset)
+        
+        // Update current preset if we're removing from the selected preset
+        if let selected = currentPreset, selected.id == presetId {
+            currentPreset = updatedPreset
+            identifiers = loadIdentifiers()
+        }
+        
+        // Send Combine event
+        presetEvents.send(.identifierRemoved(id: id, presetId: presetId))
+        
+        return true
+    }
+    
     // MARK: - Multi-Preset Operations
     
     /// Adds an identifier to a specific preset
