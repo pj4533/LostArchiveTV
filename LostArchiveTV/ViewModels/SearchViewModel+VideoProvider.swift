@@ -139,6 +139,11 @@ extension SearchViewModel {
         return false
     }
     
+    func addVideoToHistory(_ video: CachedVideo) {
+        // No-op for search results
+        Logger.caching.debug("SearchViewModel.addVideoToHistory: No-op for search results")
+    }
+    
     func createCachedVideoFromCurrentState() async -> CachedVideo? {
         guard let identifier = currentIdentifier, let collection = currentCollection else { return nil }
         
@@ -150,11 +155,6 @@ extension SearchViewModel {
             Logger.caching.error("Failed to create cached video from current state: \(error.localizedDescription)")
             return nil
         }
-    }
-    
-    func addVideoToHistory(_ video: CachedVideo) {
-        // No-op for search results
-        Logger.caching.debug("SearchViewModel.addVideoToHistory: No-op for search results")
     }
     
     // Keep the function name but we need to split this into smaller parts first
