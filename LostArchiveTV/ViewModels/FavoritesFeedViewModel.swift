@@ -63,15 +63,11 @@ class FavoritesFeedViewModel: BaseFeedViewModel<FavoritesFeedItem> {
                 favoritesViewModel.transitionManager = VideoTransitionManager()
             }
             
-            // Start preloading immediately
-            Task {
-                await favoritesViewModel.ensureVideosAreCached()
-            }
+            // Show the player immediately for better user experience
+            self.showPlayer = true
             
-            // Show the player after a brief delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                self.showPlayer = true
-            }
+            // Note: ensureVideosAreCached() will be called by the player
+            // after the video starts playing, avoiding race conditions
         }
     }
 }

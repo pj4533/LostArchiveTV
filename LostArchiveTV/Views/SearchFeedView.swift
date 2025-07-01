@@ -33,12 +33,6 @@ struct SearchFeedView: View {
                         provider: viewModel.searchViewModel,
                         isPresented: $viewModel.showingPlayer
                     )
-                    .onAppear {
-                        // Start preloading videos
-                        Task(priority: .userInitiated) {
-                            await viewModel.searchViewModel.ensureVideosAreCached()
-                        }
-                    }
                 }
             }
         }
