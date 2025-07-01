@@ -42,7 +42,9 @@ struct FavoritesView: View {
                     viewModel.player = nil
                 }
             }) {
-                SwipeablePlayerView(provider: viewModel, isPresented: $showPlayer)
+                AppContainer {
+                    SwipeablePlayerView(provider: viewModel, isPresented: $showPlayer)
+                }
             }
         }
     }

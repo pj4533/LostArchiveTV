@@ -23,10 +23,12 @@ struct FavoritesFeedView: View {
                     viewModel.favoritesViewModel.player = nil
                 }
             }) {
-                SwipeablePlayerView(
-                    provider: viewModel.favoritesViewModel, 
-                    isPresented: $viewModel.showPlayer
-                )
+                AppContainer {
+                    SwipeablePlayerView(
+                        provider: viewModel.favoritesViewModel, 
+                        isPresented: $viewModel.showPlayer
+                    )
+                }
             }
         }
         .onAppear {

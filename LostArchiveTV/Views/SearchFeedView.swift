@@ -28,14 +28,16 @@ struct SearchFeedView: View {
                     viewModel.searchViewModel.player = nil
                 }
             }) {
-                SwipeablePlayerView(
-                    provider: viewModel.searchViewModel,
-                    isPresented: $viewModel.showingPlayer
-                )
-                .onAppear {
-                    // Start preloading videos
-                    Task(priority: .userInitiated) {
-                        await viewModel.searchViewModel.ensureVideosAreCached()
+                AppContainer {
+                    SwipeablePlayerView(
+                        provider: viewModel.searchViewModel,
+                        isPresented: $viewModel.showingPlayer
+                    )
+                    .onAppear {
+                        // Start preloading videos
+                        Task(priority: .userInitiated) {
+                            await viewModel.searchViewModel.ensureVideosAreCached()
+                        }
                     }
                 }
             }
