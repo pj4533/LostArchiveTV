@@ -142,9 +142,15 @@ struct NotificationRegressionTests {
         
         var notificationReceived = false
         
-        NotificationCenter.default
-            .publisher(for: Notification.Name("ReloadIdentifiers"))
-            .sink { _ in notificationReceived = true }
+        manager.presetEvents
+            .sink { event in 
+                switch event {
+                case .identifierAdded, .identifierRemoved:
+                    notificationReceived = true
+                default:
+                    break
+                }
+            }
             .store(in: &cancellables)
         
         // Act - try to add identifier (will succeed due to auto-selected preset)
