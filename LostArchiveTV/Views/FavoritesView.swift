@@ -41,9 +41,15 @@ struct FavoritesView: View {
                     await viewModel.pausePlayback()
                     viewModel.player = nil
                 }
+                // Unregister from preloading indicator
+                PreloadingIndicatorManager.shared.unregisterProvider()
             }) {
                 AppContainer {
                     SwipeablePlayerView(provider: viewModel, isPresented: $showPlayer)
+                        .onAppear {
+                            // Register with preloading indicator when showing
+                            PreloadingIndicatorManager.shared.registerActiveProvider(viewModel)
+                        }
                 }
             }
         }

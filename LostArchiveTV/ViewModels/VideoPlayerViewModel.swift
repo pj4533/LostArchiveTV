@@ -75,6 +75,9 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider
 
         // Register with shared provider for RetroEdgePreloadIndicator access
         SharedViewModelProvider.shared.videoPlayerViewModel = self
+        
+        // Register with PreloadingIndicatorManager for dynamic provider support
+        PreloadingIndicatorManager.shared.registerActiveProvider(self)
 
         // Set initial state
         isInitializing = true
