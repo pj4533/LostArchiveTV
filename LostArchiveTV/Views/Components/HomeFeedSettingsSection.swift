@@ -48,12 +48,15 @@ struct HomeFeedSettingsSection: View {
         // Feed Presets Section
         Section {
             ForEach(viewModel.presets) { preset in
-                // Simple row for unselected presets - just shows name, tapping selects it
+                // Simple row for unselected presets - shows name and count, tapping selects it
                 if !preset.isSelected {
                     HStack {
                         Text(preset.name)
                             .foregroundColor(useDefault ? .gray : .primary)
                         Spacer()
+                        Text("\(preset.savedIdentifiers.count) saved")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
                     .contentShape(Rectangle())
                     .onTapGesture {
@@ -64,13 +67,16 @@ struct HomeFeedSettingsSection: View {
                         }
                     }
                 } 
-                // Navigation link for selected preset - shows name, checkmark, and caret
+                // Navigation link for selected preset - shows name, count, checkmark, and caret
                 else {
                     NavigationLink(destination: PresetDetailView(viewModel: viewModel, preset: preset)) {
                         HStack {
                             Text(preset.name)
                                 .foregroundColor(useDefault ? .gray : .primary)
                             Spacer()
+                            Text("\(preset.savedIdentifiers.count) saved")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(useDefault ? .gray : .blue)
                         }

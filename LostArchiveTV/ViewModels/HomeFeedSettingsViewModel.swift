@@ -16,6 +16,7 @@ class HomeFeedSettingsViewModel: ObservableObject {
     
     private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "HomeFeedSettings")
     private let databaseService: DatabaseService
+    private var notificationObserver: NSObjectProtocol?
     
     struct CollectionItem: Identifiable, Equatable {
         let id: String
@@ -32,6 +33,23 @@ class HomeFeedSettingsViewModel: ObservableObject {
     init(databaseService: DatabaseService) {
         self.databaseService = databaseService
         loadSettings()
+        
+        // Set up notification observer for identifier changes
+        notificationObserver = NotificationCenter.default.addObserver(
+            forName: Notification.Name("ReloadIdentifiers"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            self.logger.debug("Received ReloadIdentifiers notification, refreshing presets")
+            self.loadPresets()
+        }
+    }
+    
+    deinit {
+        if let observer = notificationObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
     
     var filteredCollections: [CollectionItem] {
