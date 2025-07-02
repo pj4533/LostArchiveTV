@@ -8,15 +8,56 @@
 import Foundation
 import OSLog
 import SwiftUI
+import Combine
+
+enum PresetEvent: Equatable {
+    case identifierAdded(UserSelectedIdentifier, presetId: String)
+    case identifierRemoved(id: String, presetId: String)
+    case presetChanged(FeedPreset)
+    case collectionsUpdated([String], presetId: String)
+}
 
 /// Manager for presets and their identifiers, providing a single interface for all preset operations
-class PresetManager {
+@MainActor
+class PresetManager: ObservableObject {
     static let shared = PresetManager()
     
     private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "PresetManager")
     
+    @Published private(set) var currentPreset: FeedPreset?
+    @Published private(set) var identifiers: [UserSelectedIdentifier] = []
+    let presetEvents = PassthroughSubject<PresetEvent, Never>()
+    
     private init() {
-        // Initialize
+        // Initialize current preset from selected preset
+        self.currentPreset = HomeFeedPreferences.getSelectedPreset()
+        // Load identifiers for current preset
+        self.identifiers = loadIdentifiers()
+    }
+    
+    private func loadIdentifiers() -> [UserSelectedIdentifier] {
+        guard let preset = currentPreset else {
+            return []
+        }
+        return preset.savedIdentifiers
+    }
+    
+    // MARK: - Preset Selection
+    
+    /// Sets the selected preset and updates all related state
+    /// - Parameter preset: The preset to select
+    func setSelectedPreset(_ preset: FeedPreset) {
+        // Store the preset in UserDefaults
+        HomeFeedPreferences.selectPreset(withId: preset.id)
+        
+        // Update currentPreset
+        currentPreset = preset
+        
+        // Send presetChanged event
+        presetEvents.send(.presetChanged(preset))
+        
+        // Update identifiers array
+        identifiers = loadIdentifiers()
     }
     
     // MARK: - Selected Preset Access
@@ -24,7 +65,13 @@ class PresetManager {
     /// Gets the currently selected preset
     /// - Returns: The currently selected preset, or nil if none is selected
     func getSelectedPreset() -> FeedPreset? {
-        return HomeFeedPreferences.getSelectedPreset()
+        let preset = HomeFeedPreferences.getSelectedPreset()
+        // Update currentPreset if it's different
+        if preset?.id != currentPreset?.id {
+            currentPreset = preset
+            identifiers = loadIdentifiers()
+        }
+        return preset
     }
     
     /// Checks if an identifier is saved in the currently selected preset
@@ -80,8 +127,14 @@ class PresetManager {
         updatedPreset.savedIdentifiers.append(newIdentifier)
         HomeFeedPreferences.updatePreset(updatedPreset)
         
-        // Notify that identifiers have changed
-        NotificationCenter.default.post(name: Notification.Name("ReloadIdentifiers"), object: nil)
+        // Update current preset if this is the selected one
+        if updatedPreset.isSelected {
+            currentPreset = updatedPreset
+        }
+        
+        // Send Combine event and update published identifiers
+        presetEvents.send(.identifierAdded(newIdentifier, presetId: preset.id))
+        identifiers = loadIdentifiers()
         
         return true
     }
@@ -106,8 +159,49 @@ class PresetManager {
         updatedPreset.savedIdentifiers.removeAll(where: { $0.id == id })
         HomeFeedPreferences.updatePreset(updatedPreset)
         
-        // Notify that identifiers have changed
-        NotificationCenter.default.post(name: Notification.Name("ReloadIdentifiers"), object: nil)
+        // Update current preset if this is the selected one
+        if updatedPreset.isSelected {
+            currentPreset = updatedPreset
+        }
+        
+        // Send Combine event and update published identifiers
+        presetEvents.send(.identifierRemoved(id: id, presetId: preset.id))
+        identifiers = loadIdentifiers()
+        
+        return true
+    }
+    
+    /// Removes an identifier from a specific preset
+    /// - Parameters:
+    ///   - id: The id of the identifier to remove
+    ///   - presetId: The ID of the preset to remove the identifier from
+    /// - Returns: True if removed successfully, false otherwise
+    @discardableResult
+    func removeIdentifier(withId id: String, fromPresetWithId presetId: String) -> Bool {
+        let allPresets = HomeFeedPreferences.getAllPresets()
+        guard let presetIndex = allPresets.firstIndex(where: { $0.id == presetId }) else {
+            logger.error("Cannot remove identifier - preset with ID \(presetId) not found")
+            return false
+        }
+        
+        var updatedPreset = allPresets[presetIndex]
+        
+        // Check if the identifier exists before trying to remove
+        guard updatedPreset.savedIdentifiers.contains(where: { $0.id == id }) else {
+            return false
+        }
+        
+        updatedPreset.savedIdentifiers.removeAll(where: { $0.id == id })
+        HomeFeedPreferences.updatePreset(updatedPreset)
+        
+        // Update current preset if we're removing from the selected preset
+        if let selected = currentPreset, selected.id == presetId {
+            currentPreset = updatedPreset
+            identifiers = loadIdentifiers()
+        }
+        
+        // Send Combine event
+        presetEvents.send(.identifierRemoved(id: id, presetId: presetId))
         
         return true
     }
@@ -137,8 +231,14 @@ class PresetManager {
         updatedPreset.savedIdentifiers.append(identifier)
         HomeFeedPreferences.updatePreset(updatedPreset)
         
-        // Notify that identifiers have changed
-        NotificationCenter.default.post(name: Notification.Name("ReloadIdentifiers"), object: nil)
+        // Update current preset if we're adding to the selected preset
+        if let selected = currentPreset, selected.id == presetId {
+            currentPreset = updatedPreset
+            identifiers = loadIdentifiers()
+        }
+        
+        // Send Combine event
+        presetEvents.send(.identifierAdded(identifier, presetId: presetId))
         
         return true
     }
@@ -186,6 +286,8 @@ class PresetManager {
     func refreshSelectedPreset() {
         if let selectedPreset = getSelectedPreset() {
             HomeFeedPreferences.updatePreset(selectedPreset)
+            currentPreset = selectedPreset
+            identifiers = loadIdentifiers()
         }
     }
 }
