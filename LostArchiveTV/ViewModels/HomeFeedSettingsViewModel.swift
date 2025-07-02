@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import OSLog
+import Combine
 
 @MainActor
 class HomeFeedSettingsViewModel: ObservableObject {
@@ -16,6 +17,7 @@ class HomeFeedSettingsViewModel: ObservableObject {
     
     private let logger = Logger(subsystem: "com.saygoodnight.LostArchiveTV", category: "HomeFeedSettings")
     private let databaseService: DatabaseService
+    private var cancellables = Set<AnyCancellable>()
     
     struct CollectionItem: Identifiable, Equatable {
         let id: String
@@ -32,6 +34,7 @@ class HomeFeedSettingsViewModel: ObservableObject {
     init(databaseService: DatabaseService) {
         self.databaseService = databaseService
         loadSettings()
+        subscribeToPresetChanges()
     }
     
     var filteredCollections: [CollectionItem] {
@@ -189,9 +192,16 @@ class HomeFeedSettingsViewModel: ObservableObject {
     
     // Reload identifiers - called when collection settings change
     func reloadIdentifiers() async {
-        // Notify that settings have been changed and identifiers should be reloaded
+        // Send collectionsUpdated event through PresetManager
         logger.debug("Reloading identifiers after settings change")
-        NotificationCenter.default.post(name: Notification.Name("ReloadIdentifiers"), object: nil)
+        
+        if let selectedPreset = selectedPreset {
+            let enabledCollectionIds = collections
+                .filter { $0.isEnabled }
+                .map { $0.id }
+            
+            PresetManager.shared.presetEvents.send(.collectionsUpdated(enabledCollectionIds, presetId: selectedPreset.id))
+        }
     }
     
     // MARK: - Preset Management
@@ -210,19 +220,16 @@ class HomeFeedSettingsViewModel: ObservableObject {
     }
     
     func selectPreset(withId id: String) {
-        // Handle all state updates atomically
-        HomeFeedPreferences.selectPreset(withId: id)
-        loadPresets()
-        
-        // Set useDefaultCollections to false when selecting a preset
-        useDefaultCollections = false
-        UserDefaults.standard.set(false, forKey: "UseDefaultCollections")
-        
-        // Sync collections with the selected preset
-        syncCollectionsWithSelectedPreset()
-        
-        // Notify of changes
-        saveSettings()
+        // Find the preset and use PresetManager to select it
+        if let preset = presets.first(where: { $0.id == id }) {
+            PresetManager.shared.setSelectedPreset(preset)
+            
+            // Set useDefaultCollections to false when selecting a preset
+            useDefaultCollections = false
+            UserDefaults.standard.set(false, forKey: "UseDefaultCollections")
+            
+            // The UI will update through the Combine subscription
+        }
     }
     
     func createNewPreset(name: String) {
@@ -275,5 +282,54 @@ class HomeFeedSettingsViewModel: ObservableObject {
     
     func getCurrentPresetName() -> String {
         return selectedPreset?.name ?? "Default"
+    }
+    
+    // MARK: - Combine Subscriptions
+    
+    private func subscribeToPresetChanges() {
+        // Subscribe to currentPreset changes from PresetManager
+        PresetManager.shared.$currentPreset
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newPreset in
+                guard let self = self else { return }
+                
+                // Update presets array to reflect the new selection
+                self.presets = HomeFeedPreferences.getAllPresets()
+                
+                // Sync collections with the new preset
+                if newPreset != nil {
+                    self.syncCollectionsWithSelectedPreset()
+                }
+                
+                // Update useDefaultCollections state based on preset
+                if newPreset != nil {
+                    self.useDefaultCollections = false
+                }
+            }
+            .store(in: &cancellables)
+        
+        // Subscribe to preset events for specific updates
+        PresetManager.shared.presetEvents
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] event in
+                guard let self = self else { return }
+                
+                switch event {
+                case .presetChanged:
+                    // Reload presets when a preset is changed
+                    self.presets = HomeFeedPreferences.getAllPresets()
+                    self.syncCollectionsWithSelectedPreset()
+                    
+                case .collectionsUpdated(let collections, let presetId):
+                    // If the update is for our selected preset, sync the UI
+                    if let selectedPreset = self.selectedPreset, selectedPreset.id == presetId {
+                        self.syncCollectionsWithSelectedPreset()
+                    }
+                    
+                default:
+                    break // Ignore identifier events in this view model
+                }
+            }
+            .store(in: &cancellables)
     }
 }

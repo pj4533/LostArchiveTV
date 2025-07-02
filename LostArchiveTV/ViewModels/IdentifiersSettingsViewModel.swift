@@ -44,8 +44,15 @@ class IdentifiersSettingsViewModel: ObservableObject {
     
     func loadIdentifiers() {
         if let preset = preset {
-            // If we have a specific preset, load its identifiers
-            self.identifiers = preset.savedIdentifiers
+            // If we have a specific preset, reload it from HomeFeedPreferences to get latest data
+            let allPresets = HomeFeedPreferences.getAllPresets()
+            if let updatedPreset = allPresets.first(where: { $0.id == preset.id }) {
+                self.preset = updatedPreset
+                self.identifiers = updatedPreset.savedIdentifiers
+            } else {
+                // Preset was deleted?
+                self.identifiers = []
+            }
         } else {
             // Otherwise load from the currently selected preset
             self.identifiers = presetManager.getIdentifiers()
@@ -53,14 +60,11 @@ class IdentifiersSettingsViewModel: ObservableObject {
     }
     
     func removeIdentifier(_ id: String) {
-        // If we're viewing a specific preset, update that preset
+        // If we're viewing a specific preset, use the specific preset removal method
         if let preset = preset {
-            var updatedPreset = preset
-            updatedPreset.savedIdentifiers.removeAll(where: { $0.id == id })
-            HomeFeedPreferences.updatePreset(updatedPreset)
-            // Update our local reference
-            self.preset = updatedPreset
-            self.identifiers = updatedPreset.savedIdentifiers
+            presetManager.removeIdentifier(withId: id, fromPresetWithId: preset.id)
+            // Reload identifiers to get updated state
+            loadIdentifiers()
         } else {
             // Otherwise remove from the currently selected preset
             presetManager.removeIdentifier(withId: id)

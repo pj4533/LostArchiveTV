@@ -9,6 +9,7 @@ import SwiftUI
 import AVKit
 import AVFoundation
 import OSLog
+import Combine
 
 @MainActor
 class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider {
@@ -40,6 +41,9 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider
     
     // Transition manager for swiping and preloading - required by VideoProvider
     var transitionManager: VideoTransitionManager? = VideoTransitionManager()
+    
+    // Combine subscriptions
+    private var presetCancellables = Set<AnyCancellable>()
     
     // MARK: - VideoControlProvider Protocol Overrides
     
@@ -75,9 +79,15 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider
 
         // Register with shared provider for RetroEdgePreloadIndicator access
         SharedViewModelProvider.shared.videoPlayerViewModel = self
+        
+        // Register with PreloadingIndicatorManager for dynamic provider support
+        PreloadingIndicatorManager.shared.registerActiveProvider(self)
 
         // Set initial state
         isInitializing = true
+        
+        // Observe preset changes
+        setupPresetObserver()
         
         // CHANGED: Load identifiers and immediately start loading first video
         Task {
@@ -239,5 +249,45 @@ class VideoPlayerViewModel: BaseVideoViewModel, VideoProvider, CacheableProvider
                 self.playbackManager.cleanupPlayer()
             }
         }
+    }
+    
+    // MARK: - Preset Observer Setup
+    
+    private func setupPresetObserver() {
+        // Observe identifiers changes from PresetManager
+        PresetManager.shared.$identifiers
+            .dropFirst() // Skip the initial value to avoid unnecessary reload on init
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                Logger.metadata.info("Preset identifiers changed, reloading video player identifiers")
+                Task {
+                    await self.reloadIdentifiers()
+                }
+            }
+            .store(in: &presetCancellables)
+        
+        // Also observe preset events for more granular control
+        PresetManager.shared.presetEvents
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] event in
+                guard let self = self else { return }
+                switch event {
+                case .presetChanged:
+                    Logger.metadata.info("Preset changed event received, reloading identifiers")
+                    Task {
+                        await self.reloadIdentifiers()
+                    }
+                case .collectionsUpdated:
+                    Logger.metadata.info("Collections updated event received, reloading identifiers")
+                    Task {
+                        await self.reloadIdentifiers()
+                    }
+                default:
+                    // Individual identifier changes don't require full reload
+                    break
+                }
+            }
+            .store(in: &presetCancellables)
     }
 }

@@ -22,11 +22,19 @@ struct FavoritesFeedView: View {
                     await viewModel.favoritesViewModel.pausePlayback()
                     viewModel.favoritesViewModel.player = nil
                 }
+                // Unregister from preloading indicator
+                PreloadingIndicatorManager.shared.unregisterProvider()
             }) {
-                SwipeablePlayerView(
-                    provider: viewModel.favoritesViewModel, 
-                    isPresented: $viewModel.showPlayer
-                )
+                AppContainer {
+                    SwipeablePlayerView(
+                        provider: viewModel.favoritesViewModel, 
+                        isPresented: $viewModel.showPlayer
+                    )
+                    .onAppear {
+                        // Register with preloading indicator when showing
+                        PreloadingIndicatorManager.shared.registerActiveProvider(viewModel.favoritesViewModel)
+                    }
+                }
             }
         }
         .onAppear {

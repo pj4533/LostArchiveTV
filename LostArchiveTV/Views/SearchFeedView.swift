@@ -27,15 +27,17 @@ struct SearchFeedView: View {
                     await viewModel.searchViewModel.pausePlayback()
                     viewModel.searchViewModel.player = nil
                 }
+                // Unregister from preloading indicator
+                PreloadingIndicatorManager.shared.unregisterProvider()
             }) {
-                SwipeablePlayerView(
-                    provider: viewModel.searchViewModel,
-                    isPresented: $viewModel.showingPlayer
-                )
-                .onAppear {
-                    // Start preloading videos
-                    Task(priority: .userInitiated) {
-                        await viewModel.searchViewModel.ensureVideosAreCached()
+                AppContainer {
+                    SwipeablePlayerView(
+                        provider: viewModel.searchViewModel,
+                        isPresented: $viewModel.showingPlayer
+                    )
+                    .onAppear {
+                        // Register with preloading indicator when showing
+                        PreloadingIndicatorManager.shared.registerActiveProvider(viewModel.searchViewModel)
                     }
                 }
             }

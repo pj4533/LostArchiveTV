@@ -194,12 +194,6 @@ class SearchFeedViewModel: BaseFeedViewModel<SearchFeedItem> {
             // Play the video using the existing search view model
             searchViewModel.playVideoAt(index: index)
             
-            // Start preloading immediately for smooth swiping
-            // Use explicit priority to avoid ambiguity
-            Task(priority: .userInitiated) {
-                await searchViewModel.ensureVideosAreCached()
-            }
-            
             // Show the player
             self.showingPlayer = true
         }

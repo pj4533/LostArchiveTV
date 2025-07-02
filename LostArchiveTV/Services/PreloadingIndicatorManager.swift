@@ -16,6 +16,9 @@ class PreloadingIndicatorManager: ObservableObject {
     // Buffer state subscription
     private var bufferStateSubscription: AnyCancellable?
     
+    // Current active provider being monitored
+    private weak var currentProvider: BaseVideoViewModel?
+    
     private init() {
         // Setup observers
         setupPreloadObservers()
@@ -79,10 +82,10 @@ class PreloadingIndicatorManager: ObservableObject {
         // Cancel any existing subscription
         bufferStateSubscription?.cancel()
         
-        // Get the next buffer monitor publisher
+        // Get the next buffer monitor publisher from the current provider
         let monitorPublisher: AnyPublisher<BufferingMonitor?, Never>?
-        if let viewModel = SharedViewModelProvider.shared.videoPlayerViewModel {
-            monitorPublisher = viewModel.$nextBufferingMonitor.eraseToAnyPublisher()
+        if let provider = currentProvider ?? SharedViewModelProvider.shared.videoPlayerViewModel {
+            monitorPublisher = provider.$nextBufferingMonitor.eraseToAnyPublisher()
         } else {
             monitorPublisher = nil
         }
@@ -140,8 +143,8 @@ class PreloadingIndicatorManager: ObservableObject {
         // This fixes issue #86 where multiple sources caused inconsistent UI
         
         // Check if the preloaded video has reached a ready buffer state
-        guard let viewModel = SharedViewModelProvider.shared.videoPlayerViewModel else {
-            Logger.preloading.warning("⚠️ PRELOAD: No videoPlayerViewModel available for buffer checking")
+        guard let viewModel = currentProvider ?? SharedViewModelProvider.shared.videoPlayerViewModel else {
+            Logger.preloading.warning("⚠️ PRELOAD: No video provider available for buffer checking")
             return
         }
         
@@ -155,8 +158,12 @@ class PreloadingIndicatorManager: ObservableObject {
         
         if let monitor = monitor {
             // Log which player the monitor is tracking
-            let monitoredPlayer = viewModel.transitionManager?.nextPlayer
-            let monitoredPlayerAddress = monitoredPlayer.map { String(describing: Unmanaged.passUnretained($0).toOpaque()) } ?? "nil"
+            var monitoredPlayerAddress = "nil"
+            if let videoProvider = viewModel as? VideoProvider,
+               let transitionManager = videoProvider.transitionManager,
+               let nextPlayer = transitionManager.nextPlayer {
+                monitoredPlayerAddress = String(describing: Unmanaged.passUnretained(nextPlayer).toOpaque())
+            }
             
             Logger.preloading.debug("📊 PRELOAD MONITOR: State=\(monitor.bufferState.rawValue), Seconds=\(monitor.bufferSeconds), Progress=\(monitor.bufferProgress), Monitoring player=\(monitoredPlayerAddress)")
             
@@ -212,6 +219,43 @@ class PreloadingIndicatorManager: ObservableObject {
         currentBufferState = .unknown
         // Don't stop monitoring - keep checking buffer state
         Logger.preloading.info("🔄 PRELOAD RESET: State changed to preloading (never goes black)")
+    }
+    
+    // MARK: - Dynamic Provider Registration
+    
+    /// Register a video provider to be monitored by the preloading indicator
+    /// - Parameter provider: The video provider to monitor
+    func registerActiveProvider(_ provider: BaseVideoViewModel) {
+        Logger.preloading.notice("🔌 REGISTER: Registering new active provider: \(String(describing: type(of: provider)))")
+        
+        // Cancel existing subscription if switching providers
+        if currentProvider !== provider {
+            bufferStateSubscription?.cancel()
+            bufferStateSubscription = nil
+        }
+        
+        // Set the new provider
+        currentProvider = provider
+        
+        // Reset state and setup new subscription
+        reset()
+        setupBufferStateSubscription()
+    }
+    
+    /// Unregister the current provider (typically when dismissing a modal player)
+    func unregisterProvider() {
+        Logger.preloading.info("🔌 UNREGISTER: Unregistering current provider")
+        
+        // Cancel subscription
+        bufferStateSubscription?.cancel()
+        bufferStateSubscription = nil
+        
+        // Clear the current provider
+        currentProvider = nil
+        
+        // Reset state
+        state = .notPreloading
+        currentBufferState = .unknown
     }
 }
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct PresetDetailView: View {
     @ObservedObject var viewModel: HomeFeedSettingsViewModel
@@ -8,6 +9,7 @@ struct PresetDetailView: View {
     @StateObject private var identifiersViewModel: IdentifiersSettingsViewModel
     @State private var showEditNameAlert = false
     @State private var editingName: String = ""
+    @State private var presetEventsCancellable: AnyCancellable?
     
     private var preset: FeedPreset? {
         viewModel.presets.first { $0.id == presetId }
@@ -81,19 +83,26 @@ struct PresetDetailView: View {
             // Refresh view model to get latest preset data
             viewModel.loadPresets()
             
-            // Listen for preset changes
-            NotificationCenter.default.addObserver(
-                forName: Notification.Name("ReloadIdentifiers"),
-                object: nil,
-                queue: .main
-            ) { [weak identifiersViewModel] _ in
-                // Reload identifiers when the notification is received
-                identifiersViewModel?.loadIdentifiers()
-            }
+            // Subscribe to preset events for identifier changes
+            presetEventsCancellable = PresetManager.shared.presetEvents
+                .filter { event in
+                    switch event {
+                    case .identifierAdded(_, let eventPresetId),
+                         .identifierRemoved(_, let eventPresetId):
+                        return eventPresetId == presetId
+                    default:
+                        return false
+                    }
+                }
+                .sink { [weak identifiersViewModel] _ in
+                    // Reload identifiers when relevant events occur
+                    identifiersViewModel?.loadIdentifiers()
+                }
         }
         .onDisappear {
-            // Remove notification observer
-            NotificationCenter.default.removeObserver(self, name: Notification.Name("ReloadIdentifiers"), object: nil)
+            // Cancel the subscription
+            presetEventsCancellable?.cancel()
+            presetEventsCancellable = nil
         }
         .alert("Delete Preset", isPresented: $showDeleteConfirmation) {
             Button("Cancel", role: .cancel) {}

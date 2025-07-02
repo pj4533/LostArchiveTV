@@ -29,8 +29,7 @@ extension SearchViewModel {
         Task {
             await loadVideo(for: searchResults[index].identifier)
             
-            // Start preloading of adjacent videos - this helps ensure smooth swipe transitions
-            try? await Task.sleep(for: .seconds(0.5))
+            // Start preloading of adjacent videos immediately for smooth swipe transitions
             await ensureVideosAreCached()
             
             isLoading = false
@@ -77,6 +76,8 @@ extension SearchViewModel {
                 currentCollection = identifier.collection
             }
 
+            // Notify that caching has started
+            await cacheService.notifyCachingStarted()
             
             isLoading = false
         } catch {

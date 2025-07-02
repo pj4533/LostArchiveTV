@@ -34,6 +34,9 @@ extension FavoritesViewModel {
         // Important: Start a task to preload videos for swiping AFTER the player is set up
         // Use a slight delay to ensure the player is fully initialized
         Task {
+            // Notify that caching has started after player setup
+            await cacheService.notifyCachingStarted()
+            
             try? await Task.sleep(for: .seconds(0.5))
             Logger.caching.info("Starting preload after player initialization")
             await ensureVideosAreCached()
@@ -90,6 +93,11 @@ extension FavoritesViewModel {
 
         // Create a fresh player with a new AVPlayerItem
         createAndSetupPlayer(for: video)
+        
+        // Notify that caching has started after player setup
+        Task {
+            await cacheService.notifyCachingStarted()
+        }
     }
     
     // Helper method to create a fresh player for a video
