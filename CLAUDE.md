@@ -114,3 +114,40 @@ xcodebuild -scheme LostArchiveTV -destination 'platform=iOS Simulator,name=iPhon
 - **docs/swift-argument-parser.mdc** - Command-line argument parsing in Swift
 - **docs/swift-observable.mdc** - Observable framework patterns (@Observable, @ObservationTracked)
 - **docs/swift-observation.mdc** - Swift Observation framework details
+- **docs/swiftui_dependency_injection.md** - Dependency injection patterns in SwiftUI
+- **docs/convert_to_combine.md** - Guide for converting to Combine framework
+
+### Core Feature Documentation
+- **docs/preloading_and_cacheing.md** - Comprehensive video caching and preloading architecture
+- **docs/avurlasset_preloading_management.md** - AVURLAsset preloading implementation details
+- **docs/app_launch_video_loading.md** - App launch video loading sequence and patterns
+- **docs/how_to_implement_buffering_indicator.md** - Buffering indicator UI implementation guide
+- **docs/double_speed_playback.md** - Playback speed control implementation
+- **docs/updated_trimming_details_051020205.md** - Video trimming functionality and UI details
+
+### Business Logic Documentation
+- **docs/favorites_business_logic.md** - Favorites system business rules and user intent
+- **docs/preferences_business_logic.md** - Preferences and preset system business logic
+
+### API Integration Guides
+- **docs/archive_org_api_reference.md** - Complete Archive.org API integration reference
+- **docs/pinecone_search.md** - Pinecone vector search integration guide
+- **docs/pinecone_search_implementation_plan.md** - Implementation plan for semantic search
+- **docs/secure_api_keys.md** - API key security best practices
+
+### Architecture & Refactoring Guides
+- **docs/notification_architecture_update.md** - Notification system architecture patterns
+- **docs/notification_behaviors_baseline.md** - Baseline notification behavior documentation
+- **docs/refactor_for_testing_improvement.md** - Refactoring guidelines for better testability
+- **docs/remove_global_identifiers.md** - Guide for removing global state dependencies
+
+### Testing Documentation
+- **docs/swifttesting_documentation.md** - Comprehensive Swift Testing framework guide
+- **docs/swift_testing_timing_patterns.md** - Testing timing and async patterns
+- **docs/testing_async_notification_patterns.md** - Async notification testing strategies
+
+### Infrastructure & Environment
+- **docs/xcode_cloud_env.md** - Xcode Cloud environment setup and configuration
+
+### Data Files
+- **docs/avgeeks_identifiers.txt** - List of video identifiers from the avgeeks collection
