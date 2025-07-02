@@ -95,4 +95,10 @@ extension VideoPlaybackManager {
             }
         }
     }
+    
+    /// Sets up error observation for the player item
+    internal func setupErrorObservation(for playerItem: AVPlayerItem) {
+        // Delegate to the content failure detection extension
+        setupContentFailureObservations(for: playerItem)
+    }
 }

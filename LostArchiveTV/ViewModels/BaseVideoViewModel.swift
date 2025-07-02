@@ -14,7 +14,7 @@ import Combine
 
 /// Base class for video view models that implements common functionality
 @MainActor
-class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvider {
+class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvider, VideoPlaybackManagerDelegate {
     // MARK: - Common Services
     let playbackManager = VideoPlaybackManager()
     let downloadViewModel = VideoDownloadViewModel()
@@ -89,6 +89,7 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
             Logger.videoPlayback.info("📍 PLAYER_INIT: BaseVideoViewModel.player setter called with player: \(newValue != nil ? "non-nil" : "nil")")
             if let newPlayer = newValue {
                 Logger.videoPlayback.info("📍 PLAYER_INIT: Setting new player in playbackManager")
+                playbackManager.delegate = self
                 playbackManager.useExistingPlayer(newPlayer)
                 // Connect the buffering monitor to the new player
                 Logger.videoPlayback.info("📍 PLAYER_INIT: Connecting current buffer monitor to new player")
@@ -380,5 +381,123 @@ class BaseVideoViewModel: ObservableObject, VideoDownloadable, VideoControlProvi
             return "Previous Video"
         }
         return transitionManager.prevTitle.isEmpty ? "Previous Video" : transitionManager.prevTitle
+    }
+    
+    // MARK: - VideoPlaybackManagerDelegate
+    
+    nonisolated func playerEncounteredError(_ error: Error, for player: AVPlayer) {
+        Logger.videoPlayback.error("🚨 BaseVideoViewModel: Player encountered error: \(error.localizedDescription)")
+        
+        Task { @MainActor in
+            // Check if it's a content failure (not a network error)
+            if isContentFailure(error) {
+                // Handle content failure silently
+                handleContentFailure()
+            } else {
+                // For network errors, use the existing error handling
+                handleError(error)
+            }
+        }
+    }
+    
+    // MARK: - Content Failure Handling
+    
+    /// Determines if an error is a content failure (format/codec issue) vs network error
+    private func isContentFailure(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        
+        // Check for AVFoundation error domains and codes that indicate content issues
+        if nsError.domain == AVFoundationErrorDomain {
+            switch nsError.code {
+            case AVError.decoderNotFound.rawValue,
+                 AVError.decoderTemporarilyUnavailable.rawValue,
+                 AVError.undecodableMediaData.rawValue,
+                 AVError.failedToParse.rawValue,
+                 AVError.fileTypeDoesNotSupportSampleReferences.rawValue:
+                return true
+            default:
+                break
+            }
+        }
+        
+        // Check error description for content-related keywords
+        let errorDescription = error.localizedDescription.lowercased()
+        let contentKeywords = ["decode", "codec", "format", "unsupported", "corrupt", "damaged", "invalid"]
+        
+        return contentKeywords.contains { errorDescription.contains($0) }
+    }
+    
+    /// Handles content failures by silently moving to the next video
+    private func handleContentFailure() {
+        Logger.videoPlayback.warning("⚠️ BaseVideoViewModel: Content failure detected, silently moving to next video")
+        
+        // Clear any existing error message to ensure silent handling
+        errorMessage = nil
+        
+        // Check if we're a VideoProvider to access the transition manager
+        guard let videoProvider = self as? VideoProvider,
+              let transitionManager = videoProvider.transitionManager else {
+            Logger.videoPlayback.error("❌ BaseVideoViewModel: Cannot handle content failure - not a VideoProvider or no transition manager")
+            return
+        }
+        
+        // Get the feed type by checking the concrete type of self
+        let feedType: String
+        switch self {
+        case is VideoPlayerViewModel:
+            feedType = "main"
+        case is SearchViewModel:
+            feedType = "search"
+        case is FavoritesViewModel:
+            feedType = "favorites"
+        default:
+            feedType = "unknown"
+        }
+        
+        Logger.videoPlayback.info("🔄 BaseVideoViewModel: Handling content failure for \(feedType) feed")
+        
+        // Use a Task to handle the async transition
+        Task { @MainActor in
+            // For content failures, we want to silently move to the next video
+            // We'll use the VideoProvider's getNextVideo method and handle the transition manually
+            
+            Logger.videoPlayback.info("🔄 BaseVideoViewModel: Getting next video for content failure recovery")
+            
+            // Get the next video
+            if let nextVideo = await videoProvider.getNextVideo() {
+                // Stop current playback
+                self.playbackManager.pause()
+                
+                // Clean up current player
+                self.playbackManager.cleanupPlayer()
+                
+                // Update all the metadata
+                self.currentIdentifier = nextVideo.identifier
+                self.currentTitle = nextVideo.title
+                self.currentCollection = nextVideo.collection
+                self.currentDescription = nextVideo.description
+                self.currentFilename = nil // CachedVideo doesn't have filename
+                self.totalFiles = nextVideo.totalFiles
+                
+                // Create new player with the asset
+                self.playbackManager.createNewPlayer(from: nextVideo.asset, url: nextVideo.videoURL, startPosition: nextVideo.startPosition)
+                
+                // Set the player reference
+                self.player = self.playbackManager.player
+                
+                // Start playback
+                self.playbackManager.play()
+                
+                // Ensure videos are cached for smooth transitions
+                await self.ensureVideosAreCached()
+                
+                Logger.videoPlayback.info("✅ BaseVideoViewModel: Content failure recovery complete for \(feedType) feed - loaded \(nextVideo.identifier)")
+            } else {
+                Logger.videoPlayback.error("❌ BaseVideoViewModel: Failed to get next video for content failure recovery")
+                
+                // As a last resort, show an error to the user
+                self.errorMessage = "Unable to load next video. Please try again."
+            }
+        }
     }
 }

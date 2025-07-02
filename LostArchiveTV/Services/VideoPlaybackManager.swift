@@ -23,6 +23,10 @@ class VideoPlaybackManager: ObservableObject {
     internal var _currentVideoURL: URL?
     internal let audioSessionManager = AudioSessionManager()
     internal var normalPlaybackRate: Float = 1.0
+    internal var statusObservation: NSKeyValueObservation?
+    
+    // MARK: - Delegate
+    weak var delegate: VideoPlaybackManagerDelegate?
 
     // MARK: - Computed Properties
     var currentVideoURL: URL? {
@@ -87,6 +91,13 @@ class VideoPlaybackManager: ObservableObject {
             player.removeTimeObserver(timeObserverToken)
             self.timeObserverToken = nil
         }
+        
+        // Remove status observation
+        if let statusObservation = statusObservation {
+            Logger.videoPlayback.debug("🧹 VP_MANAGER: Removing status observation")
+            statusObservation.invalidate()
+            self.statusObservation = nil
+        }
 
         // Remove notification observers
         if let currentItem = player?.currentItem {
@@ -94,6 +105,11 @@ class VideoPlaybackManager: ObservableObject {
             NotificationCenter.default.removeObserver(
                 self,
                 name: .AVPlayerItemDidPlayToEndTime,
+                object: currentItem
+            )
+            NotificationCenter.default.removeObserver(
+                self,
+                name: .AVPlayerItemFailedToPlayToEndTime,
                 object: currentItem
             )
         }
